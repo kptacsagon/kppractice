@@ -1,10 +1,12 @@
+import 'dart:math';
+
 class Expense {
   final String id;
   final String category;
   final String description;
   final double amount;
   final DateTime date;
-  final String phase; // 'planting' or 'harvest'
+  final String phase; // 'planting', 'growing', 'harvest', 'post-harvest'
 
   Expense({
     required this.id,
@@ -72,16 +74,24 @@ class Expense {
   }
 }
 
+// ── Farming Project (upgraded with yield-based revenue & analytics) ──
+
 class FarmingProject {
   final String id;
   final String cropType;
-  final double area;
+  final double area; // hectares
   final DateTime plantingDate;
   final DateTime harvestDate;
-  final double revenue;
+  final double revenue; // actual revenue (manual or yield × price)
   final List<Expense> expenses;
   final DateTime createdDate;
-  final String status; // 'active', 'completed'
+  final String status; // 'active', 'completed', 'cancelled'
+
+  // ── NEW: Yield & market price fields ─────────────────────────
+  final double expectedYieldKg;
+  final double actualYieldKg;
+  final double marketPricePerKg;
+  final double expectedRevenue; // expectedYieldKg × marketPricePerKg
 
   FarmingProject({
     required this.id,
@@ -93,16 +103,67 @@ class FarmingProject {
     required this.expenses,
     required this.createdDate,
     required this.status,
+    this.expectedYieldKg = 0,
+    this.actualYieldKg = 0,
+    this.marketPricePerKg = 0,
+    this.expectedRevenue = 0,
   });
 
+  // ── Core financials ──────────────────────────────────────────
   double get totalExpenses => expenses.fold(0, (sum, e) => sum + e.amount);
-  double get profit => revenue - totalExpenses;
-  double get profitMargin => revenue > 0 ? (profit / revenue * 100) : 0;
+  double get profit => actualRevenue - totalExpenses;
+  double get profitMargin => actualRevenue > 0 ? (profit / actualRevenue * 100) : 0;
 
+  /// Yield-based actual revenue; falls back to manual revenue
+  double get actualRevenue {
+    if (actualYieldKg > 0 && marketPricePerKg > 0) {
+      return actualYieldKg * marketPricePerKg;
+    }
+    return revenue;
+  }
+
+  /// Projected expected revenue
+  double get computedExpectedRevenue {
+    if (expectedYieldKg > 0 && marketPricePerKg > 0) {
+      return expectedYieldKg * marketPricePerKg;
+    }
+    return expectedRevenue > 0 ? expectedRevenue : revenue;
+  }
+
+  double get expectedProfit => computedExpectedRevenue - totalExpenses;
+
+  // ── Decision-support metrics ─────────────────────────────────
+  /// ROI = (Net Profit / Total Expenses) × 100
+  double get roi => totalExpenses > 0 ? (profit / totalExpenses * 100) : 0;
+
+  /// Cost per hectare
+  double get costPerHectare => area > 0 ? totalExpenses / area : 0;
+
+  /// Break-even yield in kg = Total Expenses / Market Price per kg
+  double get breakEvenYieldKg =>
+      marketPricePerKg > 0 ? totalExpenses / marketPricePerKg : 0;
+
+  /// Revenue variance: actual vs expected
+  double get revenueVariance => actualRevenue - computedExpectedRevenue;
+  double get revenueVariancePercent =>
+      computedExpectedRevenue > 0
+          ? (revenueVariance / computedExpectedRevenue * 100)
+          : 0;
+
+  /// Yield variance
+  double get yieldVariance => actualYieldKg - expectedYieldKg;
+  double get yieldVariancePercent =>
+      expectedYieldKg > 0 ? (yieldVariance / expectedYieldKg * 100) : 0;
+
+  /// Profit variance
+  double get profitVariance => profit - expectedProfit;
+
+  // ── Expense breakdowns ───────────────────────────────────────
   Map<String, double> get expensesByCategory {
     final Map<String, double> result = {};
     for (var expense in expenses) {
-      result[expense.category] = (result[expense.category] ?? 0) + expense.amount;
+      result[expense.category] =
+          (result[expense.category] ?? 0) + expense.amount;
     }
     return result;
   }
@@ -115,6 +176,25 @@ class FarmingProject {
     return result;
   }
 
+  /// Monthly cash flow: map of YYYY-MM → net amount (negative = expense)
+  Map<String, double> get monthlyCashFlow {
+    final Map<String, double> flow = {};
+    for (var e in expenses) {
+      final key = '${e.date.year}-${e.date.month.toString().padLeft(2, '0')}';
+      flow[key] = (flow[key] ?? 0) - e.amount;
+    }
+    // Add revenue in harvest month
+    if (actualRevenue > 0) {
+      final hKey =
+          '${harvestDate.year}-${harvestDate.month.toString().padLeft(2, '0')}';
+      flow[hKey] = (flow[hKey] ?? 0) + actualRevenue;
+    }
+    return Map.fromEntries(
+      flow.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+    );
+  }
+
+  // ── Copy / serialization ─────────────────────────────────────
   FarmingProject copyWith({
     String? id,
     String? cropType,
@@ -125,6 +205,10 @@ class FarmingProject {
     List<Expense>? expenses,
     DateTime? createdDate,
     String? status,
+    double? expectedYieldKg,
+    double? actualYieldKg,
+    double? marketPricePerKg,
+    double? expectedRevenue,
   }) {
     return FarmingProject(
       id: id ?? this.id,
@@ -136,6 +220,10 @@ class FarmingProject {
       expenses: expenses ?? this.expenses,
       createdDate: createdDate ?? this.createdDate,
       status: status ?? this.status,
+      expectedYieldKg: expectedYieldKg ?? this.expectedYieldKg,
+      actualYieldKg: actualYieldKg ?? this.actualYieldKg,
+      marketPricePerKg: marketPricePerKg ?? this.marketPricePerKg,
+      expectedRevenue: expectedRevenue ?? this.expectedRevenue,
     );
   }
 
@@ -166,6 +254,18 @@ class FarmingProject {
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
       status: json['status'] ?? 'active',
+      expectedYieldKg: (json['expected_yield_kg'] is num)
+          ? (json['expected_yield_kg'] as num).toDouble()
+          : 0.0,
+      actualYieldKg: (json['actual_yield_kg'] is num)
+          ? (json['actual_yield_kg'] as num).toDouble()
+          : 0.0,
+      marketPricePerKg: (json['market_price_per_kg'] is num)
+          ? (json['market_price_per_kg'] as num).toDouble()
+          : 0.0,
+      expectedRevenue: (json['expected_revenue'] is num)
+          ? (json['expected_revenue'] as num).toDouble()
+          : 0.0,
     );
   }
 
@@ -177,9 +277,71 @@ class FarmingProject {
       'harvest_date': harvestDate.toIso8601String().split('T').first,
       'revenue': revenue,
       'status': status,
+      'expected_yield_kg': expectedYieldKg,
+      'actual_yield_kg': actualYieldKg,
+      'market_price_per_kg': marketPricePerKg,
+      'expected_revenue': expectedRevenue,
     };
   }
 }
+
+// ── Risk Assessment Model ──────────────────────────────────────
+
+class RiskAssessment {
+  final double saturationRisk;  // 0-100
+  final double marketRisk;      // 0-100
+  final double calamityRisk;    // 0-100
+  final String saturationLevel; // low/medium/high
+  final String marketTrend;     // rising/stable/falling
+  final int recentCalamities;
+
+  RiskAssessment({
+    this.saturationRisk = 0,
+    this.marketRisk = 0,
+    this.calamityRisk = 0,
+    this.saturationLevel = 'medium',
+    this.marketTrend = 'stable',
+    this.recentCalamities = 0,
+  });
+
+  /// Overall composite risk score (0-100)
+  double get overallRisk =>
+      (saturationRisk * 0.35) + (marketRisk * 0.35) + (calamityRisk * 0.30);
+
+  String get overallRiskLabel {
+    if (overallRisk < 30) return 'Low';
+    if (overallRisk < 60) return 'Medium';
+    return 'High';
+  }
+
+  /// Risk factor for adjusting profit (0.0 – 1.0)
+  double get riskFactor => (overallRisk / 100).clamp(0.0, 1.0);
+
+  /// Risk-adjusted profit estimate
+  double riskAdjustedProfit(double rawProfit) =>
+      rawProfit * (1.0 - riskFactor * 0.5); // discount up to 50%
+}
+
+// ── Forecast vs Actual Comparison ──────────────────────────────
+
+class ForecastComparison {
+  final String metric;
+  final double expected;
+  final double actual;
+
+  ForecastComparison({
+    required this.metric,
+    required this.expected,
+    required this.actual,
+  });
+
+  double get variance => actual - expected;
+  double get variancePercent =>
+      expected != 0 ? (variance / expected * 100) : 0;
+  bool get isPositive => variance >= 0;
+}
+
+// ── ProfitLossData (kept for backward compat) ──────────────────
 
 class ProfitLossData {
   final List<Expense> expenses;
@@ -197,15 +359,14 @@ class ProfitLossData {
   });
 
   double get totalExpenses => expenses.fold(0, (sum, e) => sum + e.amount);
-
   double get profit => revenue - totalExpenses;
-
   double get profitMargin => totalExpenses > 0 ? (profit / revenue * 100) : 0;
 
   Map<String, double> get expensesByCategory {
     final Map<String, double> result = {};
     for (var expense in expenses) {
-      result[expense.category] = (result[expense.category] ?? 0) + expense.amount;
+      result[expense.category] =
+          (result[expense.category] ?? 0) + expense.amount;
     }
     return result;
   }

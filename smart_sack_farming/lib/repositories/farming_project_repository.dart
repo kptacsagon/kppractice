@@ -1,5 +1,5 @@
-import '../../models/expense_model.dart';
-import '../supabase_service.dart';
+import '../models/expense_model.dart';
+import '../services/supabase_service.dart';
 
 class FarmingProjectRepository {
   final SupabaseService _supabaseService = SupabaseService();
@@ -16,9 +16,8 @@ class FarmingProjectRepository {
           .eq('farmer_id', userId)
           .order('created_at', ascending: false);
 
-      final projects = (response as List)
-          .map((p) => FarmingProject.fromJson(p as Map<String, dynamic>))
-          .toList();
+      final projects = List<FarmingProject>.from((response as List)
+          .map((p) => FarmingProject.fromJson(p as Map<String, dynamic>)));
 
       // Fetch expenses for each project
       for (var project in projects) {
@@ -141,9 +140,8 @@ class FarmingProjectRepository {
           .eq('farmer_id', userId)
           .order('expense_date', ascending: false);
 
-      return (response as List)
-          .map((e) => Expense.fromJson(e as Map<String, dynamic>))
-          .toList();
+      return List<Expense>.from((response as List)
+          .map((e) => Expense.fromJson(e as Map<String, dynamic>)));
     } catch (e) {
       throw Exception('Failed to fetch expenses: $e');
     }

@@ -3,6 +3,10 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../auth/login_screen.dart';
+import '../features/supply_chain_dashboard_screen.dart';
+import '../features/verification_workflow_screen.dart';
+import '../features/crop_recommendation_screen.dart';
+import '../features/financial_forecast_screen.dart';
 
 class MaoAdminDashboard extends StatefulWidget {
   const MaoAdminDashboard({super.key});
@@ -20,6 +24,9 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
   int _totalProjects = 0;
   int _totalEquipment = 0;
   int _totalFarmers = 0;
+  int _pendingVerifications = 0;
+  int _activeSubsidies = 0;
+  int _atRiskCrops = 0;
 
   // Chart data
   Map<String, int> _calamityByType = {};
@@ -33,25 +40,40 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
     _loadDashboardData();
   }
 
+  String? _loadError;
+
+  Future<List<dynamic>> _safeQuery(Future<List<dynamic>> query) async {
+    try {
+      return await query;
+    } catch (e) {
+      debugPrint('Query failed: $e');
+      return [];
+    }
+  }
+
   Future<void> _loadDashboardData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
     try {
       final client = Supabase.instance.client;
 
-      // Load all data in parallel
       final results = await Future.wait([
-        client.from('calamity_reports').select(),
-        client.from('production_reports').select(),
-        client.from('farming_projects').select(),
-        client.from('equipment').select(),
-        client.from('profiles').select().eq('role', 'farmer'),
+        _safeQuery(client.from('calamity_reports').select()),
+        _safeQuery(client.from('production_reports').select()),
+        _safeQuery(client.from('farming_projects').select()),
+        _safeQuery(client.from('equipment').select()),
+        _safeQuery(client.from('profiles').select()),
       ]);
 
-      final calamities = results[0] as List;
-      final productions = results[1] as List;
-      final projects = results[2] as List;
-      final equipment = results[3] as List;
-      final farmers = results[4] as List;
+      final calamities = results[0];
+      final productions = results[1];
+      final projects = results[2];
+      final equipment = results[3];
+      final allProfiles = results[4];
+      final farmers = allProfiles.where((p) =>
+          (p['role'] ?? '').toString().toLowerCase() == 'farmer').toList();
 
       // Summary metrics
       _totalCalamities = calamities.length;
@@ -90,10 +112,37 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       // Monthly production (last 6 months)
       _monthlyProduction = _computeMonthlyProduction(productions);
 
+      // Pending verifications
+      _pendingVerifications =
+          calamities.where((c) => (c['status'] ?? 'reported') == 'reported').length;
+
+      // Intelligence layer stats (safe – tables may not exist yet)
+      try {
+        final subsidyData = await client.from('subsidy_allocations').select();
+        _activeSubsidies = (subsidyData as List)
+            .where((s) => s['status'] != 'disbursed' && s['status'] != 'rejected')
+            .length;
+      } catch (_) {
+        _activeSubsidies = 0;
+      }
+      try {
+        final projData = await client.from('supply_projections').select();
+        _atRiskCrops = (projData as List)
+            .where((p) => (p['risk_of_oversupply'] as num? ?? 0) > 0.5)
+            .length;
+      } catch (_) {
+        _atRiskCrops = 0;
+      }
+
       setState(() => _isLoading = false);
     } catch (e) {
       debugPrint('Dashboard load error: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _loadError = e.toString();
+        });
+      }
     }
   }
 
@@ -139,11 +188,11 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFF00695C).withAlpha(25),
+                color: const Color(0xFF2E7D32).withAlpha(25),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.agriculture_rounded,
-                  color: Color(0xFF00695C), size: 22),
+                  color: Color(0xFF2E7D32), size: 22),
             ),
             const SizedBox(width: 10),
             const Text(
@@ -182,8 +231,29 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Error banner (if any)
+                        if (_loadError != null)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.red.shade200),
+                            ),
+                            child: Text(
+                              'Load error: $_loadError',
+                              style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                            ),
+                          ),
+
                         // Welcome banner
                         _buildWelcomeBanner(),
+                        const SizedBox(height: 20),
+
+                        // Quick Actions
+                        _buildQuickActions(),
                         const SizedBox(height: 20),
 
                         // Summary cards
@@ -237,6 +307,142 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
     );
   }
 
+  // ─── Quick Actions ──────────────────────────────────────────────────────────
+
+  Widget _buildQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Intelligence & Actions',
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textDark)),
+        const SizedBox(height: 12),
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 2.2,
+          children: [
+            _buildActionCard(
+              icon: Icons.verified_user_rounded,
+              color: AppTheme.warning,
+              title: 'Verify Reports',
+              badge: _pendingVerifications > 0
+                  ? '$_pendingVerifications pending'
+                  : 'All clear',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const VerificationWorkflowScreen()),
+              ),
+            ),
+            _buildActionCard(
+              icon: Icons.local_shipping_rounded,
+              color: const Color(0xFF1E88E5),
+              title: 'Supply Chain',
+              badge: _atRiskCrops > 0
+                  ? '$_atRiskCrops at risk'
+                  : 'Stable',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const SupplyChainDashboardScreen()),
+              ),
+            ),
+            _buildActionCard(
+              icon: Icons.analytics_rounded,
+              color: const Color(0xFF43A047),
+              title: 'Crop Intelligence',
+              badge: 'Recommendations',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const CropRecommendationScreen()),
+              ),
+            ),
+            _buildActionCard(
+              icon: Icons.account_balance_wallet_rounded,
+              color: const Color(0xFF7B1FA2),
+              title: 'Financial Forecast',
+              badge: _activeSubsidies > 0
+                  ? '$_activeSubsidies subsidies'
+                  : 'View projections',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const FinancialForecastScreen()),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionCard({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String badge,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withAlpha(40)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(6),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withAlpha(20),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textDark)),
+                  const SizedBox(height: 2),
+                  Text(badge,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: color,
+                          fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 14, color: color.withAlpha(120)),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ─── Welcome Banner ────────────────────────────────────────────────────────
 
   Widget _buildWelcomeBanner() {
@@ -247,7 +453,7 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF00695C), Color(0xFF004D40)],
+          colors: [Color(0xFF2E7D32), Color(0xFF1B5E20)],
         ),
         borderRadius: BorderRadius.circular(20),
       ),
@@ -292,15 +498,17 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
     ];
 
     if (isWide) {
-      return Row(
-        children: cards
-            .map((c) => Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: _buildSummaryCard(c),
-                  ),
-                ))
-            .toList(),
+      return IntrinsicHeight(
+        child: Row(
+          children: cards
+              .map((c) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: _buildSummaryCard(c),
+                    ),
+                  ))
+              .toList(),
+        ),
       );
     }
 
@@ -333,6 +541,7 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             padding: const EdgeInsets.all(8),
@@ -342,7 +551,7 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
             ),
             child: Icon(data.icon, color: data.color, size: 20),
           ),
-          const Spacer(),
+          const SizedBox(height: 12),
           Text(
             data.value,
             style: TextStyle(

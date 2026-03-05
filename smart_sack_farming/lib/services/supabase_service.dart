@@ -25,25 +25,25 @@ class SupabaseService {
 
   // Auth Methods
   Future<AuthResponse> signUpWithEmail(String email, String password) async {
-    return await _client.auth.signUp(email: email, password: password);
+    return await client.auth.signUp(email: email, password: password);
   }
 
   Future<AuthResponse> signInWithEmail(String email, String password) async {
-    return await _client.auth.signInWithPassword(email: email, password: password);
+    return await client.auth.signInWithPassword(email: email, password: password);
   }
 
   Future<void> signOut() async {
-    await _client.auth.signOut();
+    await client.auth.signOut();
   }
 
-  User? get currentUser => _client.auth.currentUser;
+  User? get currentUser => client.auth.currentUser;
 
   // Generic database methods
   Future<List<Map<String, dynamic>>> getRecords(
     String table, {
     Map<String, dynamic>? filters,
   }) async {
-    var query = _client.from(table).select();
+    var query = client.from(table).select();
 
     if (filters != null) {
       filters.forEach((key, value) {
@@ -58,7 +58,7 @@ class SupabaseService {
     String table,
     Map<String, dynamic> data,
   ) async {
-    final response = await _client.from(table).insert(data).select().single();
+    final response = await client.from(table).insert(data).select().single();
     return response as Map<String, dynamic>;
   }
 
@@ -67,10 +67,10 @@ class SupabaseService {
     String id,
     Map<String, dynamic> data,
   ) async {
-    await _client.from(table).update(data).eq('id', id);
+    await client.from(table).update(data).eq('id', id);
   }
 
   Future<void> deleteRecord(String table, String id) async {
-    await _client.from(table).delete().eq('id', id);
+    await client.from(table).delete().eq('id', id);
   }
 }

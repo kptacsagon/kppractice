@@ -1,43 +1,43 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // Blue-Green Palette
-  static const Color primary = Color(0xFF00897B);       // Teal
-  static const Color primaryDark = Color(0xFF00695C);    // Dark Teal
-  static const Color primaryLight = Color(0xFF4DB6AC);   // Light Teal
-  static const Color accent = Color(0xFF26A69A);         // Blue-Green
-  static const Color accentLight = Color(0xFF80CBC4);    // Soft Blue-Green
+  // Green Palette — Farm-fresh & Natural
+  static const Color primary = Color(0xFF2E7D32);       // Green 800
+  static const Color primaryDark = Color(0xFF1B5E20);    // Green 900
+  static const Color primaryLight = Color(0xFF66BB6A);   // Green 400
+  static const Color accent = Color(0xFF43A047);         // Green 600
+  static const Color accentLight = Color(0xFFA5D6A7);    // Green 200
 
   // Gradient Colors
-  static const Color gradientStart = Color(0xFF00897B);  // Teal
-  static const Color gradientMid = Color(0xFF00796B);    // Deep Teal
-  static const Color gradientEnd = Color(0xFF004D40);    // Darkest Teal
+  static const Color gradientStart = Color(0xFF43A047);  // Green 600
+  static const Color gradientMid = Color(0xFF2E7D32);    // Green 800
+  static const Color gradientEnd = Color(0xFF1B5E20);    // Green 900
 
   // Surface & Background
-  static const Color background = Color(0xFFF5F9F8);
+  static const Color background = Color(0xFFF1F8E9);    // Light Green 50
   static const Color surface = Color(0xFFFFFFFF);
   static const Color cardSurface = Color(0xFFFFFFFF);
-  static const Color inputBackground = Color(0xFFF9FDFB);
+  static const Color inputBackground = Color(0xFFF6FBF0);
 
   // Text
-  static const Color textDark = Color(0xFF1B2B34);
-  static const Color textMedium = Color(0xFF4A6572);
-  static const Color textLight = Color(0xFF8EACBB);
+  static const Color textDark = Color(0xFF1B3A1B);
+  static const Color textMedium = Color(0xFF4A6B4A);
+  static const Color textLight = Color(0xFF8EAC8E);
   static const Color textOnPrimary = Color(0xFFFFFFFF);
 
   // Borders & Dividers
-  static const Color border = Color(0xFFE0E8E6);
-  static const Color divider = Color(0xFFE8F0EE);
+  static const Color border = Color(0xFFDCE8DC);
+  static const Color divider = Color(0xFFE4F0E4);
 
   // Status
-  static const Color success = Color(0xFF43A047);
-  static const Color error = Color(0xFFE53935);
-  static const Color warning = Color(0xFFFFA000);
+  static const Color success = Color(0xFF388E3C);
+  static const Color error = Color(0xFFD32F2F);
+  static const Color warning = Color(0xFFF9A825);
 
   // Farmer role color
-  static const Color farmerColor = Color(0xFF26A69A);
+  static const Color farmerColor = Color(0xFF43A047);
   // Admin role color
-  static const Color adminColor = Color(0xFF00695C);
+  static const Color adminColor = Color(0xFF1B5E20);
 
   static LinearGradient get primaryGradient => const LinearGradient(
         begin: Alignment.topLeft,

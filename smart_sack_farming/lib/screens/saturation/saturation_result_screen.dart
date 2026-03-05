@@ -8,7 +8,7 @@ import 'planting_record_form_screen.dart';
 class SaturationResultScreen extends StatelessWidget {
   final CropData crop;
   final DateTime plantingDate;
-  final double soilMoisture;
+  final double waterAvailability;
   final SaturationLevel saturationLevel;
   final bool isRecommendedMonth;
 
@@ -16,7 +16,7 @@ class SaturationResultScreen extends StatelessWidget {
     super.key,
     required this.crop,
     required this.plantingDate,
-    required this.soilMoisture,
+    required this.waterAvailability,
     required this.saturationLevel,
     required this.isRecommendedMonth,
   });
@@ -199,8 +199,8 @@ class SaturationResultScreen extends StatelessWidget {
           ),
           _buildDetailRow(
             Icons.water_drop_outlined,
-            'Soil Moisture',
-            '${soilMoisture.toStringAsFixed(1)}%',
+            'Water Availability Index',
+            '${waterAvailability.toStringAsFixed(1)}%',
           ),
           _buildDetailRow(
             Icons.check_circle_outline,
@@ -408,7 +408,7 @@ class SaturationResultScreen extends StatelessWidget {
               MaterialPageRoute(
                 builder: (_) => MixMatchScreen(
                   primaryCrop: crop,
-                  soilMoisture: soilMoisture,
+                  waterAvailability: waterAvailability,
                   plantingDate: plantingDate,
                 ),
               ),
@@ -574,7 +574,7 @@ class SaturationResultScreen extends StatelessWidget {
               MaterialPageRoute(
                 builder: (_) => MixMatchScreen(
                   primaryCrop: crop,
-                  soilMoisture: soilMoisture,
+                  waterAvailability: waterAvailability,
                   plantingDate: plantingDate,
                 ),
               ),
@@ -688,7 +688,7 @@ class SaturationResultScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  _buildDialogInfo('Soil Moisture', '${soilMoisture.toStringAsFixed(1)}%'),
+                  _buildDialogInfo('Water Availability Index', '${waterAvailability.toStringAsFixed(1)}%'),
                   const SizedBox(height: 4),
                   _buildDialogInfo('Saturation', _getSaturationLabel()),
                   const SizedBox(height: 4),
@@ -739,7 +739,7 @@ class SaturationResultScreen extends StatelessWidget {
                     primaryCrop: crop,
                     plantingDate: plantingDate,
                     saturationLevel: saturationLevel,
-                    soilMoisture: soilMoisture,
+                    waterAvailability: waterAvailability,
                   ),
                 ),
               );
@@ -811,11 +811,11 @@ class SaturationResultScreen extends StatelessWidget {
   String _getSaturationDescription() {
     switch (saturationLevel) {
       case SaturationLevel.low:
-        return 'The soil moisture is below the ideal range for ${crop.name}. The ground may be too dry for optimal growth.';
+        return 'The water availability is below the ideal range for ${crop.name}. The ground may be too dry for optimal growth.';
       case SaturationLevel.medium:
-        return 'The soil moisture is within the ideal range for ${crop.name}. Conditions are favorable for planting!';
+        return 'The water availability is within the ideal range for ${crop.name}. Conditions are favorable for planting!';
       case SaturationLevel.high:
-        return 'The soil moisture exceeds the ideal range for ${crop.name}. The ground is oversaturated and may cause root issues.';
+        return 'The water availability exceeds the ideal range for ${crop.name}. The ground is oversaturated and may cause root issues.';
     }
   }
 

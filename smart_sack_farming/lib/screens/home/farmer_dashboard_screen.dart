@@ -6,6 +6,9 @@ import '../features/progressive_profit_loss_screen.dart';
 import '../features/rentals_screen.dart';
 import '../features/reports_screen.dart';
 import '../features/weather_screen.dart';
+import '../features/crop_recommendation_screen.dart';
+import '../features/financial_forecast_screen.dart';
+import '../features/agronomic_logbook_screen.dart';
 import '../saturation/saturation_meter_screen.dart';
 
 class FarmerDashboardScreen extends StatelessWidget {
@@ -78,7 +81,7 @@ class FarmerDashboardScreen extends StatelessWidget {
                   icon: Icons.opacity_rounded,
                   iconColor: const Color(0xFF00BCD4),
                   title: 'Saturation Meter',
-                  description: 'Measure and monitor soil moisture saturation levels',
+                  description: 'Measure and monitor water availability saturation levels',
                   buttonText: 'Check Saturation',
                   onTap: () => _navigateToFeature(context, 'Saturation Meter'),
                 ),
@@ -113,6 +116,30 @@ class FarmerDashboardScreen extends StatelessWidget {
                   description: 'Check weather forecasts for your area',
                   buttonText: 'View Weather',
                   onTap: () => _navigateToFeature(context, 'Weather'),
+                ),
+                _buildFeatureCard(
+                  icon: Icons.psychology_rounded,
+                  iconColor: const Color(0xFF2E7D32),
+                  title: 'Crop Recommendations',
+                  description: 'AI-powered planting advice with suitability scores',
+                  buttonText: 'Get Recommendations',
+                  onTap: () => _navigateToFeature(context, 'Crop Recommendations'),
+                ),
+                _buildFeatureCard(
+                  icon: Icons.account_balance_wallet_rounded,
+                  iconColor: const Color(0xFF7B1FA2),
+                  title: 'Financial Forecast',
+                  description: 'Simulate profit scenarios and compare crop returns',
+                  buttonText: 'View Forecast',
+                  onTap: () => _navigateToFeature(context, 'Financial Forecast'),
+                ),
+                _buildFeatureCard(
+                  icon: Icons.menu_book_rounded,
+                  iconColor: const Color(0xFF5D4037),
+                  title: 'Farm Logbook',
+                  description: 'Record and track all agronomic events and activities',
+                  buttonText: 'Open Logbook',
+                  onTap: () => _navigateToFeature(context, 'Farm Logbook'),
                 ),
                 _buildFeatureCard(
                   icon: Icons.support_agent_rounded,
@@ -245,6 +272,21 @@ class FarmerDashboardScreen extends StatelessWidget {
       Navigator.of(context).push(
         MaterialPageRoute(
             builder: (_) => const WeatherScreen()),
+      );
+    } else if (featureName == 'Crop Recommendations') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+            builder: (_) => const CropRecommendationScreen()),
+      );
+    } else if (featureName == 'Financial Forecast') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+            builder: (_) => const FinancialForecastScreen()),
+      );
+    } else if (featureName == 'Farm Logbook') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+            builder: (_) => const AgronomicLogbookScreen()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

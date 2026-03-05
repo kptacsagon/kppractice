@@ -111,7 +111,7 @@ class _SaturationMeterScreenState extends State<SaturationMeterScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Choose your crop and planting date to analyze soil moisture conditions.',
+                                  'Choose your crop and planting date to analyze water availability conditions.',
                                   style: TextStyle(
                                     color: Colors.white70,
                                     fontSize: isMobile ? 11 : 12,
@@ -537,7 +537,7 @@ class _SaturationMeterScreenState extends State<SaturationMeterScreen> {
       case PlantingSeason.summer:
         seasonColor = const Color(0xFFF57C00);
       case PlantingSeason.winter:
-        seasonColor = const Color(0xFF00897B);
+        seasonColor = const Color(0xFF2E7D32);
       case PlantingSeason.autumn:
         seasonColor = const Color(0xFFD4AF37);
     }
@@ -594,7 +594,7 @@ class _SaturationMeterScreenState extends State<SaturationMeterScreen> {
                 Icon(Icons.water_drop_outlined, color: seasonColor, size: 18),
                 const SizedBox(width: 8),
                 Text(
-                  'Expected soil moisture: ${expectedMoisture.toStringAsFixed(0)}%',
+                  'Expected water availability: ${expectedMoisture.toStringAsFixed(0)}%',
                   style: TextStyle(
                     color: seasonColor,
                     fontSize: 12,
@@ -833,7 +833,7 @@ class _SaturationMeterScreenState extends State<SaturationMeterScreen> {
         builder: (_) => SaturationResultScreen(
           crop: cropToAnalyze,
           plantingDate: _selectedPlantingDate!,
-          soilMoisture: simulatedMoisture,
+          waterAvailability: simulatedMoisture,
           saturationLevel: saturationLevel,
           isRecommendedMonth: isRecommendedMonth,
         ),

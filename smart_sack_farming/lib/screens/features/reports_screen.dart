@@ -70,12 +70,10 @@ class _ReportsScreenState extends State<ReportsScreen>
           .order('harvest_date', ascending: false);
 
       setState(() {
-        _calamityReports = (calamityResponse as List)
-            .map((r) => CalamityReport.fromJson(r as Map<String, dynamic>))
-            .toList();
-        _productionReports = (productionResponse as List)
-            .map((r) => ProductionReport.fromJson(r as Map<String, dynamic>))
-            .toList();
+        _calamityReports = List<CalamityReport>.from((calamityResponse as List)
+            .map((r) => CalamityReport.fromJson(r as Map<String, dynamic>)));
+        _productionReports = List<ProductionReport>.from((productionResponse as List)
+            .map((r) => ProductionReport.fromJson(r as Map<String, dynamic>)));
         _isLoading = false;
       });
     } catch (e) {

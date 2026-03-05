@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/expense_model.dart';
+import '../../services/profit_analytics_service.dart';
 import '../../theme/app_theme.dart';
+import 'project_detail_screen.dart';
 
 class ProgressiveProfitLossCalculatorScreen extends StatefulWidget {
   const ProgressiveProfitLossCalculatorScreen({super.key});
@@ -15,6 +17,7 @@ class _ProgressiveProfitLossCalculatorScreenState
     extends State<ProgressiveProfitLossCalculatorScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _analytics = ProfitAnalyticsService();
   
   // Active project
   FarmingProject? _activeProject;
@@ -47,7 +50,7 @@ class _ProgressiveProfitLossCalculatorScreenState
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadProjectsFromSupabase();
   }
 
@@ -73,24 +76,35 @@ class _ProgressiveProfitLossCalculatorScreenState
               .eq('project_id', projectData['id'])
               .order('expense_date', ascending: false);
           
-          projects.add(FarmingProject(
-            id: projectData['id'],
-            cropType: projectData['crop_type'],
-            area: (projectData['area_hectares'] as num?)?.toDouble() ?? 0.0,
-            plantingDate: DateTime.parse(projectData['planting_date']),
-            harvestDate: DateTime.parse(projectData['harvest_date'] ?? projectData['planting_date']),
-            revenue: (projectData['revenue'] as num?)?.toDouble() ?? 0.0,
-            createdDate: DateTime.parse(projectData['created_at']),
-            status: projectData['status'] ?? 'active',
-            expenses: expenses.map((e) => Expense(
-              id: e['id'],
-              category: e['category'],
+          final List<Expense> expenseList = [];
+          for (var e in expenses) {
+            expenseList.add(Expense(
+              id: e['id']?.toString() ?? '',
+              category: e['category'] ?? '',
               description: e['description'] ?? '',
-              amount: (e['amount'] as num).toDouble(),
-              date: DateTime.parse(e['expense_date'] ?? e['created_at']),
-              phase: e['phase'],
-            )).toList(),
-          ));
+              amount: (e['amount'] as num?)?.toDouble() ?? 0.0,
+              date: DateTime.tryParse(e['expense_date'] ?? e['created_at'] ?? '') ?? DateTime.now(),
+              phase: e['phase'] ?? 'planting',
+            ));
+          }
+          
+          var proj = FarmingProject(
+            id: projectData['id']?.toString() ?? '',
+            cropType: projectData['crop_type'] ?? 'Unknown',
+            area: (projectData['area_hectares'] as num?)?.toDouble() ?? 0.0,
+            plantingDate: DateTime.tryParse(projectData['planting_date'] ?? '') ?? DateTime.now(),
+            harvestDate: DateTime.tryParse(projectData['harvest_date'] ?? projectData['planting_date'] ?? '') ?? DateTime.now(),
+            revenue: (projectData['revenue'] as num?)?.toDouble() ?? 0.0,
+            createdDate: DateTime.tryParse(projectData['created_at'] ?? '') ?? DateTime.now(),
+            status: projectData['status'] ?? 'active',
+            expenses: expenseList,
+            expectedYieldKg: (projectData['expected_yield_kg'] as num?)?.toDouble() ?? 0.0,
+            actualYieldKg: (projectData['actual_yield_kg'] as num?)?.toDouble() ?? 0.0,
+            marketPricePerKg: (projectData['market_price_per_kg'] as num?)?.toDouble() ?? 0.0,
+            expectedRevenue: (projectData['expected_revenue'] as num?)?.toDouble() ?? 0.0,
+          );
+          proj = await _analytics.enrichWithMarketPrice(proj);
+          projects.add(proj);
         }
         
         setState(() {
@@ -104,8 +118,13 @@ class _ProgressiveProfitLossCalculatorScreenState
       }
     } catch (e) {
       print('Error loading projects: $e');
-      setState(() => _isLoading = false);
-      _initializeSampleProjects();
+      if (mounted) {
+        setState(() => _isLoading = false);
+        // Only use sample data if we have nothing yet (first load)
+        if (_allProjects.isEmpty) {
+          _initializeSampleProjects();
+        }
+      }
     }
   }
 
@@ -195,41 +214,40 @@ class _ProgressiveProfitLossCalculatorScreenState
     super.dispose();
   }
 
-  void _addExpenseToActiveProject(Expense expense) {
+  Future<void> _addExpenseToActiveProject(Expense expense) async {
     if (_activeProject == null) return;
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     
     if (_userId != null) {
-      // Save to Supabase
-      Supabase.instance.client
-          .from('expenses')
-          .insert({
-            'project_id': _activeProject!.id,
-            'farmer_id': _userId,
-            'category': expense.category,
-            'description': expense.description,
-            'amount': expense.amount,
-            'expense_date': expense.date.toIso8601String().split('T').first,
-            'phase': expense.phase,
-          })
-          .then((_) {
-            // Reload projects to show new expense
-            _loadProjectsFromSupabase();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('✅ Expense saved to database'),
-                duration: Duration(seconds: 2),
-              ),
-            );
-          })
-          .catchError((e) {
-            print('Error saving expense to Supabase: $e');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('❌ Error saving: ${e.toString()}'),
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          });
+      try {
+        await Supabase.instance.client
+            .from('expenses')
+            .insert({
+              'project_id': _activeProject!.id,
+              'farmer_id': _userId,
+              'category': expense.category,
+              'description': expense.description,
+              'amount': expense.amount,
+              'expense_date': expense.date.toIso8601String().split('T').first,
+              'phase': expense.phase,
+            });
+        // Reload projects to show new expense
+        await _loadProjectsFromSupabase();
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('✅ Expense saved to database'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } catch (e) {
+        print('Error saving expense to Supabase: $e');
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('❌ Error saving: ${e.toString()}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     } else {
       // Fallback for no user
       setState(() {
@@ -247,10 +265,12 @@ class _ProgressiveProfitLossCalculatorScreenState
   }
 
   void _startNewProject() {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final formKey = GlobalKey<FormState>();
     String? cropType = _cropTypes.first;
     double? area;
     double? revenue;
+    double? expectedYield;
     DateTime plantingDate = DateTime.now();
     DateTime harvestDate = DateTime.now().add(const Duration(days: 120));
 
@@ -283,10 +303,20 @@ class _ProgressiveProfitLossCalculatorScreenState
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
-                  decoration: const InputDecoration(labelText: 'Expected Revenue (₹)'),
+                  decoration: const InputDecoration(labelText: 'Expected Revenue (\u20B1)'),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   onSaved: (value) => revenue = double.parse(value ?? '0'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Expected Yield (kg)',
+                    hintText: 'e.g., 8000',
+                  ),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  onSaved: (value) => expectedYield = double.tryParse(value ?? '0') ?? 0,
                 ),
               ],
             ),
@@ -298,42 +328,56 @@ class _ProgressiveProfitLossCalculatorScreenState
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (formKey.currentState!.validate()) {
                 formKey.currentState!.save();
                 
                 if (_userId != null) {
-                  // Save to Supabase
-                  Supabase.instance.client
-                      .from('farming_projects')
-                      .insert({
-                        'farmer_id': _userId,
-                        'crop_type': cropType ?? 'Rice',
-                        'area_hectares': area ?? 0,
-                        'planting_date': plantingDate.toIso8601String().split('T').first,
-                        'harvest_date': harvestDate.toIso8601String().split('T').first,
-                        'revenue': revenue ?? 0,
-                        'status': 'active',
-                      })
-                      .then((_) {
-                        Navigator.pop(context);
-                        _loadProjectsFromSupabase();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('✅ Project created and saved'),
-                            duration: Duration(seconds: 1),
-                          ),
-                        );
-                      })
-                      .catchError((e) {
-                        print('Error creating project: $e');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('❌ Error: ${e.toString()}'),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      });
+                  try {
+                    // Look up market price for this crop
+                    final mktPrice = await _analytics.getMarketPrice(cropType ?? 'Rice');
+                    final expYield = expectedYield ?? 0.0;
+                    final expRev = mktPrice > 0 && expYield > 0
+                        ? expYield * mktPrice
+                        : (revenue ?? 0.0);
+
+                    // Save to Supabase
+                    await Supabase.instance.client
+                        .from('farming_projects')
+                        .insert({
+                          'farmer_id': _userId,
+                          'crop_type': cropType ?? 'Rice',
+                          'area_hectares': area ?? 0,
+                          'planting_date': plantingDate.toIso8601String().split('T').first,
+                          'harvest_date': harvestDate.toIso8601String().split('T').first,
+                          'revenue': revenue ?? 0,
+                          'status': 'active',
+                          'expected_yield_kg': expYield,
+                          'market_price_per_kg': mktPrice,
+                          'expected_revenue': expRev,
+                        });
+                    
+                    // Close dialog first
+                    if (context.mounted) Navigator.pop(context);
+                    
+                    // Reload projects from DB
+                    await _loadProjectsFromSupabase();
+                    
+                    scaffoldMessenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('✅ Project created and saved'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  } catch (e) {
+                    print('Error creating project: $e');
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(
+                        content: Text('❌ Error: ${e.toString()}'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
                 } else {
                   // Fallback: local only
                   final newProject = FarmingProject(
@@ -351,8 +395,8 @@ class _ProgressiveProfitLossCalculatorScreenState
                     _activeProject = newProject;
                     _allProjects.insert(0, newProject);
                   });
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  if (context.mounted) Navigator.pop(context);
+                  scaffoldMessenger.showSnackBar(
                     const SnackBar(
                       content: Text('⚠️ Project created locally (not logged in)'),
                       duration: Duration(seconds: 1),
@@ -429,7 +473,7 @@ class _ProgressiveProfitLossCalculatorScreenState
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
-                      decoration: const InputDecoration(labelText: 'Amount (₹)'),
+                      decoration: const InputDecoration(labelText: 'Amount (₱)'),
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
                       validator: (value) =>
@@ -544,6 +588,7 @@ class _ProgressiveProfitLossCalculatorScreenState
           tabs: const [
             Tab(text: 'Active Project'),
             Tab(text: 'All Projects'),
+            Tab(text: 'Compare'),
           ],
         ),
       ),
@@ -558,6 +603,7 @@ class _ProgressiveProfitLossCalculatorScreenState
         children: [
           _buildActiveProjectTab(),
           _buildAllProjectsTab(),
+          _buildComparisonTab(),
         ],
       ),
     );
@@ -765,7 +811,16 @@ class _ProgressiveProfitLossCalculatorScreenState
     final isCompleted = project.status == 'completed';
     final profit = project.profit;
     
-    return Container(
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProjectDetailScreen(projectId: project.id),
+          ),
+        ).then((_) => _loadProjectsFromSupabase());
+      },
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -821,70 +876,27 @@ class _ProgressiveProfitLossCalculatorScreenState
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Expenses',
-                    style: const TextStyle(
-                      color: AppTheme.textLight,
-                      fontSize: 11,
-                    ),
-                  ),
-                  Text(
-                    '₹${project.totalExpenses.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      color: AppTheme.textDark,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Revenue',
-                    style: const TextStyle(
-                      color: AppTheme.textLight,
-                      fontSize: 11,
-                    ),
-                  ),
-                  Text(
-                    '₹${project.revenue.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Profit',
-                    style: const TextStyle(
-                      color: AppTheme.textLight,
-                      fontSize: 11,
-                    ),
-                  ),
-                  Text(
-                    '₹${profit.toStringAsFixed(0)}',
-                    style: TextStyle(
-                      color: profit >= 0 ? Colors.green : Colors.red,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
+              _projMetric('Expenses', '\u20B1${project.totalExpenses.toStringAsFixed(0)}', AppTheme.textDark),
+              _projMetric('Revenue', '\u20B1${project.actualRevenue.toStringAsFixed(0)}', Colors.green),
+              _projMetric('Profit', '\u20B1${profit.toStringAsFixed(0)}',
+                  profit >= 0 ? Colors.green : Colors.red),
+              _projMetric('ROI', '${project.roi.toStringAsFixed(1)}%',
+                  project.roi >= 0 ? Colors.green : Colors.red),
             ],
           ),
         ],
       ),
+    ),
+    );
+  }
+
+  Widget _projMetric(String label, String value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: AppTheme.textLight, fontSize: 11)),
+        Text(value, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600)),
+      ],
     );
   }
 
@@ -959,7 +971,7 @@ class _ProgressiveProfitLossCalculatorScreenState
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '₹${expense.amount.toStringAsFixed(2)}',
+                '₱${expense.amount.toStringAsFixed(2)}',
                 style: const TextStyle(
                   color: AppTheme.primary,
                   fontSize: 14,
@@ -995,6 +1007,7 @@ class _ProgressiveProfitLossCalculatorScreenState
   }
 
   Widget _buildSummaryCard() {
+    final p = _activeProject!;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1020,8 +1033,8 @@ class _ProgressiveProfitLossCalculatorScreenState
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _summaryItem('Revenue', '₹${_activeProject!.revenue.toStringAsFixed(0)}', Colors.white),
-              _summaryItem('Expenses', '₹${_activeProject!.totalExpenses.toStringAsFixed(0)}', Colors.red),
+              _summaryItem('Revenue', '\u20B1${p.actualRevenue.toStringAsFixed(0)}', Colors.white),
+              _summaryItem('Expenses', '\u20B1${p.totalExpenses.toStringAsFixed(0)}', Colors.redAccent),
             ],
           ),
           const SizedBox(height: 12),
@@ -1034,21 +1047,27 @@ class _ProgressiveProfitLossCalculatorScreenState
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Net Profit',
-                  style: TextStyle(color: Colors.white, fontSize: 13),
-                ),
+                const Text('Net Profit', style: TextStyle(color: Colors.white, fontSize: 13)),
                 Text(
-                  '₹${_activeProject!.profit.toStringAsFixed(0)}',
+                  '\u20B1${p.profit.toStringAsFixed(0)}',
                   style: TextStyle(
-                    color:
-                        _activeProject!.profit >= 0 ? Colors.greenAccent : Colors.redAccent,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    color: p.profit >= 0 ? Colors.greenAccent : Colors.redAccent,
+                    fontSize: 18, fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 10),
+          // ROI, Cost/Ha, Break-even row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _summaryItem('ROI', '${p.roi.toStringAsFixed(1)}%',
+                  p.roi >= 0 ? Colors.greenAccent : Colors.redAccent),
+              _summaryItem('Cost/Ha', '\u20B1${_fmtNum(p.costPerHectare)}', Colors.white),
+              _summaryItem('Break-even', '${_fmtNum(p.breakEvenYieldKg)} kg', Colors.amberAccent),
+            ],
           ),
         ],
       ),
@@ -1070,5 +1089,244 @@ class _ProgressiveProfitLossCalculatorScreenState
         ),
       ],
     );
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  MULTI-PROJECT COMPARISON TAB
+  // ══════════════════════════════════════════════════════════════
+
+  Widget _buildComparisonTab() {
+    if (_allProjects.length < 2) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.compare_arrows_rounded, size: 64, color: AppTheme.textLight),
+              const SizedBox(height: 16),
+              const Text('Need at least 2 projects to compare',
+                  style: TextStyle(color: AppTheme.textMedium, fontSize: 14),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _startNewProject,
+                icon: const Icon(Icons.add),
+                label: const Text('Create Project'),
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Sort by ROI descending
+    final sorted = List<FarmingProject>.from(_allProjects)
+      ..sort((a, b) => b.roi.compareTo(a.roi));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: AppTheme.primaryGradient,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(children: [
+              const Icon(Icons.leaderboard_rounded, color: Colors.white, size: 24),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Project Comparison',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text('${_allProjects.length} projects ranked by ROI',
+                      style: TextStyle(color: Colors.white.withAlpha(200), fontSize: 12)),
+                ]),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 16),
+
+          // Comparison table header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withAlpha(10),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+              border: Border.all(color: AppTheme.border),
+            ),
+            child: const Row(children: [
+              Expanded(flex: 3, child: Text('Crop', style: TextStyle(
+                  color: AppTheme.textDark, fontSize: 12, fontWeight: FontWeight.w700))),
+              Expanded(flex: 2, child: Text('Profit', textAlign: TextAlign.right,
+                  style: TextStyle(color: AppTheme.textDark, fontSize: 12, fontWeight: FontWeight.w700))),
+              Expanded(flex: 2, child: Text('ROI', textAlign: TextAlign.right,
+                  style: TextStyle(color: AppTheme.textDark, fontSize: 12, fontWeight: FontWeight.w700))),
+              Expanded(flex: 2, child: Text('Cost/Ha', textAlign: TextAlign.right,
+                  style: TextStyle(color: AppTheme.textDark, fontSize: 12, fontWeight: FontWeight.w700))),
+              Expanded(flex: 2, child: Text('Risk', textAlign: TextAlign.right,
+                  style: TextStyle(color: AppTheme.textDark, fontSize: 12, fontWeight: FontWeight.w700))),
+            ]),
+          ),
+
+          // Rows
+          ...sorted.asMap().entries.map((entry) {
+            final i = entry.key;
+            final p = entry.value;
+            final isTop = i == 0;
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                color: isTop ? Colors.green.withAlpha(8) : AppTheme.surface,
+                border: Border(
+                  left: BorderSide(color: AppTheme.border),
+                  right: BorderSide(color: AppTheme.border),
+                  bottom: BorderSide(color: AppTheme.border),
+                ),
+              ),
+              child: Row(children: [
+                Expanded(flex: 3, child: Row(children: [
+                  if (isTop) const Icon(Icons.emoji_events, color: Colors.amber, size: 16)
+                  else const SizedBox(width: 16),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(p.cropType, style: const TextStyle(
+                          color: AppTheme.textDark, fontSize: 13, fontWeight: FontWeight.w600)),
+                      Text('${p.area} ha', style: const TextStyle(
+                          color: AppTheme.textLight, fontSize: 10)),
+                    ]),
+                  ),
+                ])),
+                Expanded(flex: 2, child: Text(
+                  '\u20B1${_fmtNum(p.profit)}',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: p.profit >= 0 ? Colors.green : Colors.red,
+                    fontSize: 12, fontWeight: FontWeight.w600),
+                )),
+                Expanded(flex: 2, child: Text(
+                  '${p.roi.toStringAsFixed(1)}%',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: p.roi >= 0 ? Colors.green : Colors.red,
+                    fontSize: 12, fontWeight: FontWeight.w600),
+                )),
+                Expanded(flex: 2, child: Text(
+                  '\u20B1${_fmtNum(p.costPerHectare)}',
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    color: AppTheme.textDark, fontSize: 12),
+                )),
+                Expanded(flex: 2, child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: p.status == 'completed'
+                          ? Colors.blue.withAlpha(15)
+                          : Colors.green.withAlpha(15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      p.status == 'completed' ? 'Done' : 'Active',
+                      style: TextStyle(
+                        color: p.status == 'completed' ? Colors.blue : Colors.green,
+                        fontSize: 10, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                )),
+              ]),
+            );
+          }),
+
+          const SizedBox(height: 20),
+
+          // Summary stats
+          Row(children: [
+            Expanded(child: _compStatCard(
+              'Best ROI',
+              sorted.first.cropType,
+              '${sorted.first.roi.toStringAsFixed(1)}%',
+              Colors.green,
+              Icons.trending_up_rounded,
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: _compStatCard(
+              'Most Profitable',
+              sorted.reduce((a, b) => a.profit > b.profit ? a : b).cropType,
+              '\u20B1${_fmtNum(sorted.reduce((a, b) => a.profit > b.profit ? a : b).profit)}',
+              Colors.green,
+              Icons.attach_money_rounded,
+            )),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: _compStatCard(
+              'Lowest Cost/Ha',
+              sorted.where((p) => p.costPerHectare > 0).toList().isEmpty
+                  ? '-'
+                  : sorted.where((p) => p.costPerHectare > 0)
+                      .reduce((a, b) => a.costPerHectare < b.costPerHectare ? a : b).cropType,
+              sorted.where((p) => p.costPerHectare > 0).toList().isEmpty
+                  ? '-'
+                  : '\u20B1${_fmtNum(sorted.where((p) => p.costPerHectare > 0).reduce((a, b) => a.costPerHectare < b.costPerHectare ? a : b).costPerHectare)}',
+              Colors.indigo,
+              Icons.landscape_rounded,
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: _compStatCard(
+              'Total Projects',
+              '${_allProjects.where((p) => p.status == "active").length} active',
+              '${_allProjects.length}',
+              Colors.purple,
+              Icons.folder_rounded,
+            )),
+          ]),
+          const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
+  Widget _compStatCard(String label, String subtitle, String value, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Row(children: [
+        Container(
+          width: 36, height: 36,
+          decoration: BoxDecoration(
+            color: color.withAlpha(18),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 18),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: const TextStyle(color: AppTheme.textLight, fontSize: 10)),
+            Text(value, style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold)),
+            Text(subtitle, style: const TextStyle(color: AppTheme.textMedium, fontSize: 10)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  String _fmtNum(double n) {
+    if (n.abs() >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n.abs() >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toStringAsFixed(0);
   }
 }

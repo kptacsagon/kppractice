@@ -533,7 +533,7 @@ class _ProfitLossCalculatorScreenState extends State<ProfitLossCalculatorScreen>
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  '₹${expense.amount.toStringAsFixed(2)}',
+                                  '₱${expense.amount.toStringAsFixed(2)}',
                                   style: const TextStyle(
                                     color: AppTheme.primary,
                                     fontSize: 14,
@@ -712,13 +712,13 @@ class _ProfitLossCalculatorScreenState extends State<ProfitLossCalculatorScreen>
           const SizedBox(height: 16),
           _buildSummaryRow(
             'Total Revenue',
-            '₹${_data.revenue.toStringAsFixed(2)}',
+            '₱${_data.revenue.toStringAsFixed(2)}',
             Colors.green,
           ),
           const SizedBox(height: 10),
           _buildSummaryRow(
             'Total Expenses',
-            '₹${_data.totalExpenses.toStringAsFixed(2)}',
+            '₱${_data.totalExpenses.toStringAsFixed(2)}',
             Colors.red,
           ),
           const Divider(
@@ -744,7 +744,7 @@ class _ProfitLossCalculatorScreenState extends State<ProfitLossCalculatorScreen>
                   ),
                 ),
                 Text(
-                  '₹${_data.profit.toStringAsFixed(2)}',
+                  '₱${_data.profit.toStringAsFixed(2)}',
                   style: TextStyle(
                     color: _data.profit >= 0 ? Colors.greenAccent : Colors.redAccent,
                     fontSize: 18,
@@ -787,7 +787,7 @@ class _ProfitLossCalculatorScreenState extends State<ProfitLossCalculatorScreen>
                       ),
                     ),
                     Text(
-                      '₹${entry.value.toStringAsFixed(2)}',
+                      '₱${entry.value.toStringAsFixed(2)}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,

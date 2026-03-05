@@ -5,13 +5,13 @@ import 'planting_record_form_screen.dart';
 
 class MixMatchScreen extends StatefulWidget {
   final CropData primaryCrop;
-  final double soilMoisture;
+  final double waterAvailability;
   final DateTime plantingDate;
 
   const MixMatchScreen({
     super.key,
     required this.primaryCrop,
-    required this.soilMoisture,
+    required this.waterAvailability,
     required this.plantingDate,
   });
 
@@ -23,7 +23,7 @@ class _MixMatchScreenState extends State<MixMatchScreen> {
   final Set<String> _selectedCompanions = {};
 
   List<CropData> get _companionCrops =>
-      CropData.getCompanionCrops(widget.primaryCrop, widget.soilMoisture);
+      CropData.getCompanionCrops(widget.primaryCrop, widget.waterAvailability);
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +154,7 @@ class _MixMatchScreenState extends State<MixMatchScreen> {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        'Soil Moisture: ${widget.soilMoisture.toStringAsFixed(1)}%',
+                                        'Water Availability: ${widget.waterAvailability.toStringAsFixed(1)}%',
                                         style: const TextStyle(
                                           fontSize: 12,
                                           color: AppTheme.textMedium,
@@ -309,7 +309,7 @@ class _MixMatchScreenState extends State<MixMatchScreen> {
 
   Widget _buildCompanionCropCard(CropData crop) {
     final isSelected = _selectedCompanions.contains(crop.name);
-    final level = crop.analyzeSaturation(widget.soilMoisture);
+    final level = crop.analyzeSaturation(widget.waterAvailability);
     final levelColor = level == SaturationLevel.medium
         ? AppTheme.success
         : const Color(0xFFE53935);
@@ -567,7 +567,7 @@ class _MixMatchScreenState extends State<MixMatchScreen> {
                     primaryCrop: widget.primaryCrop,
                     plantingDate: widget.plantingDate,
                     saturationLevel: SaturationLevel.high,
-                    soilMoisture: widget.soilMoisture,
+                    waterAvailability: widget.waterAvailability,
                     companionCrops: selectedCrops,
                   ),
                 ),

@@ -1,5 +1,5 @@
-import '../../models/report_model.dart';
-import '../supabase_service.dart';
+import '../models/report_model.dart';
+import '../services/supabase_service.dart';
 
 class ReportRepository {
   final SupabaseService _supabaseService = SupabaseService();
@@ -18,9 +18,8 @@ class ReportRepository {
           .eq('farmer_id', userId)
           .order('date_occurred', ascending: false);
 
-      return (response as List)
-          .map((r) => CalamityReport.fromJson(r as Map<String, dynamic>))
-          .toList();
+      return List<CalamityReport>.from((response as List)
+          .map((r) => CalamityReport.fromJson(r as Map<String, dynamic>)));
     } catch (e) {
       throw Exception('Failed to fetch calamity reports: $e');
     }
@@ -34,11 +33,11 @@ class ReportRepository {
         'farmer_id': userId,
         'calamity_type': report.type,
         'severity': report.severity.toUpperCase(),
-        'date_occurred': report.date.toIso8601String(),
-        'affected_area_acres': report.areaAffected,
-        'affected_crops': report.affectedCrops,
+        'date_occurred': report.dateOccurred.toIso8601String(),
+        'affected_area_acres': report.affectedArea,
+        'affected_crops': report.affectedCrops.join(','),
         'description': report.description,
-        'damage_estimate': report.damageEstimate,
+        'damage_estimate': 0,
       };
 
       final response = await _supabaseService.client
@@ -60,11 +59,11 @@ class ReportRepository {
       final data = {
         'calamity_type': report.type,
         'severity': report.severity.toUpperCase(),
-        'date_occurred': report.date.toIso8601String(),
-        'affected_area_acres': report.areaAffected,
-        'affected_crops': report.affectedCrops,
+        'date_occurred': report.dateOccurred.toIso8601String(),
+        'affected_area_acres': report.affectedArea,
+        'affected_crops': report.affectedCrops.join(','),
         'description': report.description,
-        'damage_estimate': report.damageEstimate,
+        'damage_estimate': 0,
       };
 
       await _supabaseService.client
@@ -101,9 +100,8 @@ class ReportRepository {
           .eq('calamity_type', type)
           .order('date_occurred', ascending: false);
 
-      return (response as List)
-          .map((r) => CalamityReport.fromJson(r as Map<String, dynamic>))
-          .toList();
+      return List<CalamityReport>.from((response as List)
+          .map((r) => CalamityReport.fromJson(r as Map<String, dynamic>)));
     } catch (e) {
       throw Exception('Failed to fetch calamity reports: $e');
     }
@@ -120,9 +118,8 @@ class ReportRepository {
           .eq('farmer_id', userId)
           .order('harvest_date', ascending: false);
 
-      return (response as List)
-          .map((r) => ProductionReport.fromJson(r as Map<String, dynamic>))
-          .toList();
+      return List<ProductionReport>.from((response as List)
+          .map((r) => ProductionReport.fromJson(r as Map<String, dynamic>)));
     } catch (e) {
       throw Exception('Failed to fetch production reports: $e');
     }
@@ -138,7 +135,7 @@ class ReportRepository {
         'area_hectares': report.area,
         'planting_date': report.plantingDate.toIso8601String(),
         'harvest_date': report.harvestDate.toIso8601String(),
-        'yield_kg': report.yield,
+        'yield_kg': report.totalYield,
         'quality_rating': report.qualityRating,
         'notes': report.notes,
       };
@@ -164,7 +161,7 @@ class ReportRepository {
         'area_hectares': report.area,
         'planting_date': report.plantingDate.toIso8601String(),
         'harvest_date': report.harvestDate.toIso8601String(),
-        'yield_kg': report.yield,
+        'yield_kg': report.totalYield,
         'quality_rating': report.qualityRating,
         'notes': report.notes,
       };
@@ -203,9 +200,8 @@ class ReportRepository {
           .eq('crop_type', cropType)
           .order('harvest_date', ascending: false);
 
-      return (response as List)
-          .map((r) => ProductionReport.fromJson(r as Map<String, dynamic>))
-          .toList();
+      return List<ProductionReport>.from((response as List)
+          .map((r) => ProductionReport.fromJson(r as Map<String, dynamic>)));
     } catch (e) {
       throw Exception('Failed to fetch production reports: $e');
     }

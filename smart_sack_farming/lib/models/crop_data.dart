@@ -9,6 +9,12 @@ class CropData {
   final String growthDuration; // e.g. "60-90 days"
   final String description;
 
+  // ── Crop Sensitivity Coefficients (0.0 – 1.0) ──
+  // Used by the Predictive Risk Model for thesis-grade risk analysis.
+  final double heatSensitivity;    // Vulnerability to heat stress
+  final double floodSensitivity;   // Vulnerability to flooding / excess water
+  final double droughtSensitivity; // Vulnerability to water deficit
+
   const CropData({
     required this.name,
     required this.icon,
@@ -18,13 +24,20 @@ class CropData {
     required this.bestPlantingMonths,
     required this.growthDuration,
     required this.description,
+    this.heatSensitivity = 0.5,
+    this.floodSensitivity = 0.5,
+    this.droughtSensitivity = 0.5,
   });
 
-  /// Analyzes saturation level given a soil moisture percentage.
-  SaturationLevel analyzeSaturation(double soilMoisture) {
-    if (soilMoisture >= idealMoistureMin && soilMoisture <= idealMoistureMax) {
+  /// Composite sensitivity coefficient (average of all three).
+  double get sensitivityCoefficient =>
+      (heatSensitivity + floodSensitivity + droughtSensitivity) / 3.0;
+
+  /// Analyzes saturation level given a water availability percentage.
+  SaturationLevel analyzeSaturation(double waterAvailability) {
+    if (waterAvailability >= idealMoistureMin && waterAvailability <= idealMoistureMax) {
       return SaturationLevel.medium;
-    } else if (soilMoisture > idealMoistureMax) {
+    } else if (waterAvailability > idealMoistureMax) {
       return SaturationLevel.high;
     } else {
       return SaturationLevel.low;
@@ -32,15 +45,15 @@ class CropData {
   }
 
   /// Returns crops that complement this crop in a mix-and-match scenario for high saturation.
-  static List<CropData> getCompanionCrops(CropData primaryCrop, double soilMoisture) {
+  static List<CropData> getCompanionCrops(CropData primaryCrop, double waterAvailability) {
     return allCrops.where((crop) {
       if (crop.name == primaryCrop.name) return false;
-      final level = crop.analyzeSaturation(soilMoisture);
+      final level = crop.analyzeSaturation(waterAvailability);
       return level == SaturationLevel.medium || level == SaturationLevel.low;
     }).toList();
   }
 
-  /// Pre-defined crop database
+  /// Pre-defined crop database with agronomic sensitivity coefficients.
   static const List<CropData> allCrops = [
     CropData(
       name: 'Rice',
@@ -51,6 +64,9 @@ class CropData {
       bestPlantingMonths: ['May', 'Jun', 'Jul'],
       growthDuration: '90-120 days',
       description: 'Thrives in waterlogged, high-saturation soil.',
+      heatSensitivity: 0.6,
+      floodSensitivity: 0.2,  // tolerant to flooding
+      droughtSensitivity: 0.8,
     ),
     CropData(
       name: 'Corn',
@@ -61,6 +77,9 @@ class CropData {
       bestPlantingMonths: ['Mar', 'Apr', 'May'],
       growthDuration: '60-100 days',
       description: 'Prefers well-drained, moderately moist soil.',
+      heatSensitivity: 0.5,
+      floodSensitivity: 0.7,
+      droughtSensitivity: 0.6,
     ),
     CropData(
       name: 'Tomato',
@@ -71,6 +90,9 @@ class CropData {
       bestPlantingMonths: ['Feb', 'Mar', 'Apr'],
       growthDuration: '60-85 days',
       description: 'Needs consistent moisture but not waterlogged soil.',
+      heatSensitivity: 0.7,
+      floodSensitivity: 0.8,
+      droughtSensitivity: 0.6,
     ),
     CropData(
       name: 'Lettuce',
@@ -81,6 +103,9 @@ class CropData {
       bestPlantingMonths: ['Oct', 'Nov', 'Dec', 'Jan'],
       growthDuration: '30-60 days',
       description: 'Cool-season crop, prefers moderate moisture.',
+      heatSensitivity: 0.9,  // very heat-sensitive
+      floodSensitivity: 0.6,
+      droughtSensitivity: 0.7,
     ),
     CropData(
       name: 'Eggplant',
@@ -91,6 +116,9 @@ class CropData {
       bestPlantingMonths: ['Mar', 'Apr', 'May'],
       growthDuration: '60-80 days',
       description: 'Warm-season crop that likes moderately moist soil.',
+      heatSensitivity: 0.3,  // heat-tolerant
+      floodSensitivity: 0.7,
+      droughtSensitivity: 0.5,
     ),
     CropData(
       name: 'Sweet Potato',
@@ -101,6 +129,9 @@ class CropData {
       bestPlantingMonths: ['Apr', 'May', 'Jun'],
       growthDuration: '90-120 days',
       description: 'Tolerates drier conditions, does not like waterlogging.',
+      heatSensitivity: 0.3,
+      floodSensitivity: 0.8,
+      droughtSensitivity: 0.3,  // drought-tolerant
     ),
     CropData(
       name: 'Carrot',
@@ -111,6 +142,9 @@ class CropData {
       bestPlantingMonths: ['Oct', 'Nov', 'Feb', 'Mar'],
       growthDuration: '70-80 days',
       description: 'Prefers loose, well-drained soil with moderate moisture.',
+      heatSensitivity: 0.7,
+      floodSensitivity: 0.8,
+      droughtSensitivity: 0.5,
     ),
     CropData(
       name: 'Cabbage',
@@ -121,6 +155,9 @@ class CropData {
       bestPlantingMonths: ['Oct', 'Nov', 'Dec'],
       growthDuration: '70-100 days',
       description: 'Heavy feeder that likes consistent moisture.',
+      heatSensitivity: 0.8,
+      floodSensitivity: 0.5,
+      droughtSensitivity: 0.6,
     ),
     CropData(
       name: 'Watermelon',
@@ -131,6 +168,9 @@ class CropData {
       bestPlantingMonths: ['Mar', 'Apr', 'May'],
       growthDuration: '80-100 days',
       description: 'Needs warm soil and moderate moisture to develop.',
+      heatSensitivity: 0.3,
+      floodSensitivity: 0.7,
+      droughtSensitivity: 0.4,
     ),
     CropData(
       name: 'Basil',
@@ -141,6 +181,9 @@ class CropData {
       bestPlantingMonths: ['Mar', 'Apr', 'May', 'Jun'],
       growthDuration: '30-60 days',
       description: 'Aromatic herb, prefers well-drained moderate soil.',
+      heatSensitivity: 0.4,
+      floodSensitivity: 0.7,
+      droughtSensitivity: 0.5,
     ),
     CropData(
       name: 'Pepper',
@@ -151,6 +194,9 @@ class CropData {
       bestPlantingMonths: ['Mar', 'Apr', 'May'],
       growthDuration: '60-90 days',
       description: 'Warm-season crop, needs consistent but not excess moisture.',
+      heatSensitivity: 0.4,
+      floodSensitivity: 0.7,
+      droughtSensitivity: 0.5,
     ),
     CropData(
       name: 'Spinach',
@@ -161,6 +207,9 @@ class CropData {
       bestPlantingMonths: ['Sep', 'Oct', 'Nov', 'Feb'],
       growthDuration: '30-45 days',
       description: 'Fast-growing leafy green, likes moist cool soil.',
+      heatSensitivity: 0.9,
+      floodSensitivity: 0.5,
+      droughtSensitivity: 0.7,
     ),
   ];
 }
@@ -244,7 +293,7 @@ class SeasonHelper {
     }
   }
 
-  /// Get expected soil moisture for a season (0-100%)
+  /// Get expected water availability for a season (0-100%)
   static double getExpectedMoisture(PlantingSeason season) {
     switch (season) {
       case PlantingSeason.monsoon:

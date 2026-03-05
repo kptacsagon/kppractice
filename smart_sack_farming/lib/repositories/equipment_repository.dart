@@ -1,5 +1,5 @@
-import '../../models/equipment_model.dart';
-import '../supabase_service.dart';
+import '../models/equipment_model.dart';
+import '../services/supabase_service.dart';
 
 class EquipmentRepository {
   final SupabaseService _supabaseService = SupabaseService();
@@ -12,9 +12,8 @@ class EquipmentRepository {
       final response =
           await _supabaseService.client.from(_tableName).select();
 
-      return (response as List)
-          .map((e) => Equipment.fromJson(e as Map<String, dynamic>))
-          .toList();
+      return List<Equipment>.from((response as List)
+          .map((e) => Equipment.fromJson(e as Map<String, dynamic>)));
     } catch (e) {
       throw Exception('Failed to fetch equipment: $e');
     }
@@ -28,9 +27,8 @@ class EquipmentRepository {
           .select()
           .eq('owner_id', userId);
 
-      return (response as List)
-          .map((e) => Equipment.fromJson(e as Map<String, dynamic>))
-          .toList();
+      return List<Equipment>.from((response as List)
+          .map((e) => Equipment.fromJson(e as Map<String, dynamic>)));
     } catch (e) {
       throw Exception('Failed to fetch user equipment: $e');
     }
@@ -104,9 +102,8 @@ class EquipmentRepository {
           .select()
           .eq('category', category);
 
-      return (response as List)
-          .map((e) => Equipment.fromJson(e as Map<String, dynamic>))
-          .toList();
+      return List<Equipment>.from((response as List)
+          .map((e) => Equipment.fromJson(e as Map<String, dynamic>)));
     } catch (e) {
       throw Exception('Failed to search equipment: $e');
     }
@@ -120,9 +117,8 @@ class EquipmentRepository {
           .select()
           .ilike('name', '%$query%');
 
-      return (response as List)
-          .map((e) => Equipment.fromJson(e as Map<String, dynamic>))
-          .toList();
+      return List<Equipment>.from((response as List)
+          .map((e) => Equipment.fromJson(e as Map<String, dynamic>)));
     } catch (e) {
       throw Exception('Failed to search equipment: $e');
     }

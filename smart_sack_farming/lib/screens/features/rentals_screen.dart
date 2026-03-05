@@ -49,9 +49,8 @@ class _RentalsScreenState extends State<RentalsScreen>
           .from('equipment')
           .select();
 
-      final allEquipment = (allResponse as List)
-          .map((e) => Equipment.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final allEquipment = List<Equipment>.from((allResponse as List)
+          .map((e) => Equipment.fromJson(e as Map<String, dynamic>)));
 
       setState(() {
         _myEquipment = allEquipment.where((e) => e.ownerId == _userId).toList();
@@ -168,7 +167,7 @@ class _RentalsScreenState extends State<RentalsScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Daily Rate: ₹${equipment.dailyRentalPrice.toStringAsFixed(2)}',
+              'Daily Rate: ₱${equipment.dailyRentalPrice.toStringAsFixed(2)}',
               style: const TextStyle(color: Colors.green),
             ),
           ],
@@ -562,7 +561,7 @@ class _RentalsScreenState extends State<RentalsScreen>
                           ),
                         ),
                         Text(
-                          '₹${equipment.dailyRentalPrice.toStringAsFixed(0)}/day',
+                          '₱${equipment.dailyRentalPrice.toStringAsFixed(0)}/day',
                           style: const TextStyle(
                             color: Colors.green,
                             fontSize: 14,
@@ -649,7 +648,7 @@ class _RentalsScreenState extends State<RentalsScreen>
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.currency_rupee,
+                    const Icon(Icons.attach_money,
                         size: 14, color: Colors.green),
                     Text(
                       '${equipment.dailyRentalPrice.toStringAsFixed(0)}/day',
@@ -741,7 +740,7 @@ class _RentalsScreenState extends State<RentalsScreen>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: const InputDecoration(
-                    labelText: 'Daily Rental Price (₹)',
+                    labelText: 'Daily Rental Price (₱)',
                   ),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),

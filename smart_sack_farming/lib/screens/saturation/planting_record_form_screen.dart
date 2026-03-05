@@ -7,7 +7,7 @@ class PlantingRecordFormScreen extends StatefulWidget {
   final CropData primaryCrop;
   final DateTime plantingDate;
   final SaturationLevel saturationLevel;
-  final double soilMoisture;
+  final double waterAvailability;
   final List<CropData> companionCrops; // from Mix & Match
 
   const PlantingRecordFormScreen({
@@ -15,7 +15,7 @@ class PlantingRecordFormScreen extends StatefulWidget {
     required this.primaryCrop,
     required this.plantingDate,
     required this.saturationLevel,
-    required this.soilMoisture,
+    required this.waterAvailability,
     this.companionCrops = const [],
   });
 
@@ -99,9 +99,9 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F0FF),
+      backgroundColor: const Color(0xFFF1F8E9),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF5C6BC0),
+        backgroundColor: const Color(0xFF2E7D32),
         elevation: 0,
         leading: IconButton(
           icon:
@@ -137,7 +137,7 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xFF7986CB), Color(0xFF5C6BC0)],
+                colors: [Color(0xFF66BB6A), Color(0xFF2E7D32)],
               ),
             ),
             child: SafeArea(
@@ -295,7 +295,7 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
                         child: ElevatedButton(
                           onPressed: _isSaving ? null : _saveRecord,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF5C6BC0),
+                            backgroundColor: const Color(0xFF2E7D32),
                             foregroundColor: Colors.white,
                             disabledBackgroundColor: Colors.grey.shade400,
                             shape: RoundedRectangleBorder(
@@ -405,9 +405,9 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
     final label = isHigh ? 'High Saturation Risk Confirmed' : 'Low Saturation Risk Confirmed';
     final sub = isHigh
         ? "You're proceeding with ${widget.primaryCrop.name} despite"
-            ' ${widget.soilMoisture.toStringAsFixed(0)}% soil moisture'
+            ' ${widget.waterAvailability.toStringAsFixed(0)}% water availability'
         : "You're proceeding with ${widget.primaryCrop.name} despite"
-            ' low ${widget.soilMoisture.toStringAsFixed(0)}% soil moisture';
+            ' low ${widget.waterAvailability.toStringAsFixed(0)}% water availability';
 
     return Container(
       width: double.infinity,
@@ -566,7 +566,7 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Color(0xFF5C6BC0), width: 2),
+          borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
@@ -609,7 +609,7 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Color(0xFF5C6BC0), width: 2),
+          borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
@@ -728,7 +728,7 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
           colorScheme: const ColorScheme.light(
-            primary: Color(0xFF5C6BC0),
+            primary: Color(0xFF2E7D32),
             onPrimary: Colors.white,
           ),
         ),
@@ -756,7 +756,7 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
         'farmer_id': user.id,
         'primary_crop': widget.primaryCrop.name,
         'companion_crops': widget.companionCrops.map((c) => c.name).toList(),
-        'soil_moisture': widget.soilMoisture,
+        'soil_moisture': widget.waterAvailability,
         'saturation_level': widget.saturationLevel.name,
         'planting_date': _formatDate(_plantingDate),
         'expected_harvest': _harvestDate != null ? _formatDate(_harvestDate!) : null,
