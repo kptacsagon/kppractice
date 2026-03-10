@@ -19,6 +19,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   bool _isLoading = true;
   String? _error;
   final _analytics = ProfitAnalyticsService();
+  List<Map<String, dynamic>> _linkedCalamities = [];  // Calamities linked to this project
 
   final List<String> _expenseCategories = [
     'Seeds', 'Fertilizer', 'Pesticides', 'Labor', 'Water',
@@ -87,6 +88,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         actualYieldKg: (projectData['actual_yield_kg'] as num?)?.toDouble() ?? 0.0,
         marketPricePerKg: (projectData['market_price_per_kg'] as num?)?.toDouble() ?? 0.0,
         expectedRevenue: (projectData['expected_revenue'] as num?)?.toDouble() ?? 0.0,
+        actualSalePricePerKg: (projectData['actual_sale_price_per_kg'] as num?)?.toDouble() ?? 0.0,
       );
 
       // Enrich with market price if missing
@@ -99,9 +101,19 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         areaHectares: project.area,
       );
 
+      // Fetch linked calamities
+      final calamities = await Supabase.instance.client
+          .from('calamity_reports')
+          .select()
+          .eq('project_id', widget.projectId)
+          .order('date_occurred', ascending: false);
+      
+      final linkedCalamities = List<Map<String, dynamic>>.from(calamities);
+
       setState(() {
         _project = project;
         _risk = risk;
+        _linkedCalamities = linkedCalamities;
         _isLoading = false;
       });
     } catch (e) {
@@ -150,12 +162,24 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           ),
         ),
         actions: [
-          if (_project != null)
+          if (_project != null && _project!.isActive) ...[
+            IconButton(
+              icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.green),
+              tooltip: 'Complete Project',
+              onPressed: _showCompleteProjectDialog,
+            ),
             IconButton(
               icon: const Icon(Icons.edit_note_rounded, color: AppTheme.textMedium),
               tooltip: 'Update Yield / Revenue',
               onPressed: _showUpdateYieldDialog,
             ),
+          ] else if (_project != null) ...[
+            IconButton(
+              icon: const Icon(Icons.edit_note_rounded, color: AppTheme.textMedium),
+              tooltip: 'Update Yield / Revenue',
+              onPressed: _showUpdateYieldDialog,
+            ),
+          ],
           IconButton(
             icon: const Icon(Icons.refresh, color: AppTheme.textMedium),
             onPressed: _loadProjectDetails,
@@ -224,6 +248,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             _buildFinancialOverview(),
             const SizedBox(height: 16),
             _buildRiskIndicatorCard(),
+            const SizedBox(height: 16),
+            _buildCalamityImpactCard(),
             const SizedBox(height: 16),
             _buildForecastComparisonCard(),
             const SizedBox(height: 16),
@@ -362,11 +388,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       children: [
         // Row 1: Revenue, Expenses, Net Profit
         Row(children: [
-          Expanded(child: _metricTile('Revenue', '\u20B1${_fmt(p.actualRevenue)}', Icons.trending_up, Colors.green)),
+          Expanded(child: _metricTile(p.revenueLabel, '\u20B1${_fmt(p.actualRevenue)}', Icons.trending_up, Colors.green)),
           const SizedBox(width: 8),
-          Expanded(child: _metricTile('Expenses', '\u20B1${_fmt(p.totalExpenses)}', Icons.trending_down, Colors.orange)),
+          Expanded(child: _metricTile(p.expensesLabel, '\u20B1${_fmt(p.totalExpenses)}', Icons.trending_down, Colors.orange)),
           const SizedBox(width: 8),
-          Expanded(child: _metricTile('Net Profit', '\u20B1${_fmt(netProfit)}',
+          Expanded(child: _metricTile(p.profitLabel, '\u20B1${_fmt(netProfit)}',
               netProfit >= 0 ? Icons.check_circle : Icons.warning,
               netProfit >= 0 ? Colors.green : Colors.red)),
         ]),
@@ -374,9 +400,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
         // Row 2: ROI, Cost/Ha, Break-even
         Row(children: [
-          Expanded(child: _metricTile('ROI', '${p.roi.toStringAsFixed(1)}%',
+          Expanded(child: _metricTile('ROI', p.roiLabel,
               Icons.show_chart_rounded,
-              p.roi >= 0 ? Colors.green : Colors.red)),
+              p.roi.isNaN || p.roi >= 0 ? Colors.green : Colors.red)),
           const SizedBox(width: 8),
           Expanded(child: _metricTile('Cost / Ha', '\u20B1${_fmt(p.costPerHectare)}',
               Icons.landscape_rounded, Colors.indigo)),
@@ -545,7 +571,159 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   }
 
   // ════════════════════════════════════════════════════════════════
-  //  4. FORECAST vs ACTUAL COMPARISON
+  //  4. CALAMITY IMPACT CARD
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _buildCalamityImpactCard() {
+    if (_linkedCalamities.isEmpty) return const SizedBox.shrink();
+
+    // Calculate total loss and group by severity
+    double totalLoss = 0;
+    final calamitiesByLevel = <String, List<Map<String, dynamic>>>{};
+    
+    for (final c in _linkedCalamities) {
+      final severity = (c['severity'] as String?)?.toUpperCase() ?? 'LOW';
+      final loss = (c['estimated_financial_loss'] as num?)?.toDouble() ?? 0.0;
+      totalLoss += loss;
+      
+      calamitiesByLevel.putIfAbsent(severity, () => []);
+      calamitiesByLevel[severity]!.add(c);
+    }
+
+    Color severityColor(String severity) {
+      switch (severity.toUpperCase()) {
+        case 'HIGH': return Colors.red;
+        case 'MEDIUM': return Colors.orange;
+        default: return Colors.amber;
+      }
+    }
+
+    return _card(
+      icon: Icons.cloud_queue_rounded,
+      title: 'Calamity Impact',
+      titleColor: Colors.red,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.red.withAlpha(12),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.red.withAlpha(30)),
+          ),
+          child: Row(children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.red.withAlpha(25),
+              ),
+              child: const Icon(Icons.warning_rounded, color: Colors.red, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Financial Impact', 
+                    style: TextStyle(color: AppTheme.textDark, fontSize: 13, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text('₱${totalLoss.toStringAsFixed(0)} estimated loss',
+                    style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+              ]),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 14),
+
+        // Calamities by severity
+        ...['HIGH', 'MEDIUM', 'LOW'].expand((level) {
+          final items = calamitiesByLevel[level] ?? [];
+          if (items.isEmpty) return [];
+          
+          return [
+            ...items.map((c) {
+              final type = c['calamity_type'] as String? ?? 'Unknown';
+              final cropStage = c['crop_stage'] as String? ?? 'Unknown Stage';
+              final loss = (c['estimated_financial_loss'] as num?)?.toDouble() ?? 0.0;
+              final dateOccurred = c['date_occurred'] as String?;
+              
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(children: [
+                  Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      color: severityColor(level).withAlpha(20),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      level == 'HIGH' ? Icons.error_rounded : 
+                      level == 'MEDIUM' ? Icons.warning_rounded : 
+                      Icons.info_rounded,
+                      color: severityColor(level),
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Expanded(
+                          child: Text(type,
+                              style: const TextStyle(color: AppTheme.textDark, fontSize: 12, fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: severityColor(level).withAlpha(25),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(level,
+                              style: TextStyle(color: severityColor(level), fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                      ]),
+                      const SizedBox(height: 3),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('${cropStage} • ${dateOccurred ?? ''}',
+                            style: const TextStyle(color: AppTheme.textLight, fontSize: 10),
+                            overflow: TextOverflow.ellipsis),
+                        Text('−₱${loss.toStringAsFixed(0)}',
+                            style: const TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ]),
+                    ]),
+                  ),
+                ]),
+              );
+            }).toList(),
+            if (items != calamitiesByLevel.values.last) const SizedBox(height: 8),
+          ];
+        }).toList(),
+
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.blue.withAlpha(12),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.withAlpha(30)),
+          ),
+          child: Row(children: [
+            Icon(Icons.lightbulb_outlined, color: Colors.blue.shade400, size: 16),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Expected revenue automatically adjusted by ₱${totalLoss.toStringAsFixed(0)} due to calamity impact',
+                style: TextStyle(color: Colors.blue.shade700, fontSize: 11, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  5. FORECAST vs ACTUAL COMPARISON
   // ════════════════════════════════════════════════════════════════
 
   Widget _buildForecastComparisonCard() {
@@ -1013,6 +1191,208 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   }
 
   // ════════════════════════════════════════════════════════════════
+  //  COMPLETE PROJECT DIALOG
+  // ════════════════════════════════════════════════════════════════
+
+  void _showCompleteProjectDialog() {
+    final p = _project!;
+    final formKey = GlobalKey<FormState>();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    double actualYield = p.actualYieldKg > 0 ? p.actualYieldKg : 0;
+    double actualSalePrice = p.actualSalePricePerKg > 0
+        ? p.actualSalePricePerKg
+        : p.marketPricePerKg;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [
+          const Icon(Icons.check_circle, color: Colors.green, size: 24),
+          const SizedBox(width: 8),
+          const Text('Complete Project'),
+        ]),
+        content: SingleChildScrollView(
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withAlpha(20),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.withAlpha(60)),
+                  ),
+                  child: const Row(children: [
+                    Icon(Icons.info_outline, color: Colors.amber, size: 18),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Enter your actual harvest results to finalize this project. '
+                        'This will lock the project as completed.',
+                        style: TextStyle(fontSize: 12, color: Colors.amber),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 16),
+
+                // Project summary
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withAlpha(10),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${p.cropType} • ${p.area} ha',
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Expected Yield: ${p.expectedYieldKg.toStringAsFixed(0)} kg\n'
+                        'Projected Price: \u20B1${p.marketPricePerKg.toStringAsFixed(2)}/kg\n'
+                        'Total Expenses: \u20B1${p.totalExpenses.toStringAsFixed(0)}',
+                        style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  initialValue: actualYield > 0 ? actualYield.toStringAsFixed(0) : '',
+                  decoration: const InputDecoration(
+                    labelText: 'Actual Yield Sold (kg)',
+                    prefixIcon: Icon(Icons.scale),
+                    hintText: 'Total kg actually harvested & sold',
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Required';
+                    if (double.tryParse(v) == null || double.parse(v) <= 0) {
+                      return 'Enter a valid yield';
+                    }
+                    return null;
+                  },
+                  onSaved: (v) => actualYield = double.tryParse(v ?? '0') ?? 0,
+                ),
+                const SizedBox(height: 12),
+
+                TextFormField(
+                  initialValue: actualSalePrice > 0 ? actualSalePrice.toStringAsFixed(2) : '',
+                  decoration: const InputDecoration(
+                    labelText: 'Average Sale Price (\u20B1/kg)',
+                    prefixIcon: Icon(Icons.payments_rounded),
+                    hintText: 'Actual price you sold at',
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Required';
+                    if (double.tryParse(v) == null || double.parse(v) <= 0) {
+                      return 'Enter a valid price';
+                    }
+                    return null;
+                  },
+                  onSaved: (v) => actualSalePrice = double.tryParse(v ?? '0') ?? 0,
+                ),
+                const SizedBox(height: 12),
+
+                // Preview calculated revenue
+                Builder(builder: (context) {
+                  final previewRevenue = actualYield * actualSalePrice;
+                  final previewProfit = previewRevenue - p.totalExpenses;
+                  return Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: previewProfit >= 0
+                          ? Colors.green.withAlpha(10)
+                          : Colors.red.withAlpha(10),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Estimated Revenue:', style: TextStyle(fontSize: 12)),
+                          Text('\u20B1${previewRevenue.toStringAsFixed(0)}',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Estimated Profit:', style: TextStyle(fontSize: 12)),
+                          Text(
+                            '\u20B1${previewProfit.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: previewProfit >= 0 ? Colors.green : Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ]),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+              formKey.currentState!.save();
+
+              final actualRevenue = actualYield * actualSalePrice;
+
+              try {
+                await Supabase.instance.client
+                    .from('farming_projects')
+                    .update({
+                      'status': 'completed',
+                      'actual_yield_kg': actualYield,
+                      'actual_sale_price_per_kg': actualSalePrice,
+                      'revenue': actualRevenue,
+                    })
+                    .eq('id', widget.projectId);
+
+                if (ctx.mounted) Navigator.pop(ctx);
+                await _loadProjectDetails();
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('\u2705 Project completed! Final P&L recorded.'),
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              } catch (e) {
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(
+                    content: Text('\u274C Error: ${e.toString()}'),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.check),
+            label: const Text('Complete Project'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
   //  ADD EXPENSE BOTTOM SHEET
   // ════════════════════════════════════════════════════════════════
 
@@ -1075,17 +1455,22 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Phase selector (3 phases)
-                  Row(children: [
-                    _phaseButton('planting', 'Planting', AppTheme.primary, selectedPhase, setSheetState,
-                        (v) => selectedPhase = v),
-                    const SizedBox(width: 8),
-                    _phaseButton('growing', 'Growing', Colors.blue, selectedPhase, setSheetState,
-                        (v) => selectedPhase = v),
-                    const SizedBox(width: 8),
-                    _phaseButton('harvest', 'Harvest', Colors.orange, selectedPhase, setSheetState,
-                        (v) => selectedPhase = v),
-                  ]),
+                  // Crop Stage selector (dropdown)
+                  DropdownButtonFormField<String>(
+                    value: selectedPhase,
+                    decoration: const InputDecoration(
+                      labelText: 'Crop Stage',
+                      prefixIcon: Icon(Icons.agriculture),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'planting', child: Text('Land Preparation')),
+                      DropdownMenuItem(value: 'sowing', child: Text('Planting / Sowing')),
+                      DropdownMenuItem(value: 'growing', child: Text('Crop Maintenance')),
+                      DropdownMenuItem(value: 'harvest', child: Text('Harvesting')),
+                      DropdownMenuItem(value: 'post-harvest', child: Text('Post-Harvest')),
+                    ],
+                    onChanged: (v) => setSheetState(() => selectedPhase = v ?? 'planting'),
+                  ),
                   const SizedBox(height: 20),
 
                   SizedBox(

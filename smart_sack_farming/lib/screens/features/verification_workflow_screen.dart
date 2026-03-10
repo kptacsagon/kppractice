@@ -277,7 +277,7 @@ class _VerificationWorkflowScreenState
             children: [
               if (report.affectedArea > 0)
                 _buildTag(
-                    '${report.affectedArea.toStringAsFixed(1)} acres'),
+                    '${report.affectedArea.toStringAsFixed(1)} ha'),
               if (report.affectedCrops.isNotEmpty) ...[
                 const SizedBox(width: 6),
                 _buildTag(report.affectedCrops.join(', ')),
@@ -620,7 +620,7 @@ class _VerificationWorkflowScreenState
                   style: const TextStyle(
                       fontSize: 13, color: AppTheme.textMedium)),
               Text(
-                  'Severity: ${report.severity.toUpperCase()} | Area: ${report.affectedArea.toStringAsFixed(1)} acres',
+                  'Severity: ${report.severity.toUpperCase()} | Area: ${report.affectedArea.toStringAsFixed(1)} ha',
                   style: const TextStyle(
                       fontSize: 13, color: AppTheme.textMedium)),
               const SizedBox(height: 16),

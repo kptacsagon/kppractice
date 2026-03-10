@@ -76,17 +76,23 @@ CREATE INDEX idx_saturation_date   ON saturation_records(planting_date);
 
 -- 3. farming_projects — P&L calculator projects
 CREATE TABLE farming_projects (
-  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  farmer_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  crop_type      VARCHAR(100) NOT NULL,
-  area_hectares  DECIMAL(10,2) NOT NULL DEFAULT 0,
-  planting_date  DATE NOT NULL,
-  harvest_date   DATE,
-  revenue        DECIMAL(15,2) NOT NULL DEFAULT 0,
-  status         VARCHAR(20) NOT NULL DEFAULT 'active'
-                 CHECK (status IN ('active', 'completed', 'cancelled')),
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  farmer_id               UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  crop_type               VARCHAR(100) NOT NULL,
+  area_hectares           DECIMAL(10,2) NOT NULL DEFAULT 0,
+  planting_date           DATE NOT NULL,
+  harvest_date            DATE,
+  revenue                 DECIMAL(15,2) NOT NULL DEFAULT 0,
+  status                  VARCHAR(20) NOT NULL DEFAULT 'active'
+                          CHECK (status IN ('active', 'completed', 'cancelled')),
+  -- Yield & market price fields
+  expected_yield_kg       DECIMAL(12,2) DEFAULT 0,
+  actual_yield_kg         DECIMAL(12,2) DEFAULT 0,
+  market_price_per_kg     DECIMAL(10,2) DEFAULT 0,     -- projected price at planting
+  expected_revenue        DECIMAL(15,2) DEFAULT 0,
+  actual_sale_price_per_kg DECIMAL(10,2) DEFAULT 0,    -- actual price recorded on completion
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_fp_farmer ON farming_projects(farmer_id);
@@ -102,7 +108,7 @@ CREATE TABLE expenses (
   amount       DECIMAL(12,2) NOT NULL,
   expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
   phase        VARCHAR(20) NOT NULL DEFAULT 'planting'
-               CHECK (phase IN ('planting', 'growing', 'harvest', 'post-harvest')),
+               CHECK (phase IN ('planting', 'sowing', 'growing', 'harvest', 'post-harvest')),
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -162,28 +168,32 @@ CREATE INDEX idx_rr_status    ON rental_requests(status);
 
 -- 7. calamity_reports
 CREATE TABLE calamity_reports (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  farmer_id           UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  calamity_type       VARCHAR(100) NOT NULL,
-  severity            VARCHAR(10) NOT NULL DEFAULT 'MEDIUM'
-                      CHECK (severity IN ('LOW', 'MEDIUM', 'HIGH')),
-  date_occurred       DATE NOT NULL,
-  affected_area_acres DECIMAL(10,2) DEFAULT 0,
-  affected_crops      TEXT,
-  description         TEXT,
-  damage_estimate     DECIMAL(15,2) DEFAULT 0,
-  farmer_name         VARCHAR(255),
-  image_url           TEXT,
-  status              VARCHAR(20) NOT NULL DEFAULT 'reported'
-                      CHECK (status IN ('reported', 'verified', 'resolved')),
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  farmer_id                UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id               UUID REFERENCES farming_projects(id) ON DELETE SET NULL,  -- optional link
+  calamity_type            VARCHAR(100) NOT NULL,
+  severity                 VARCHAR(10) NOT NULL DEFAULT 'MEDIUM'
+                           CHECK (severity IN ('LOW', 'MEDIUM', 'HIGH')),
+  date_occurred            DATE NOT NULL,
+  affected_area_acres      DECIMAL(10,2) DEFAULT 0,
+  affected_crops           TEXT,
+  crop_stage               VARCHAR(50),         -- 'Seedling', 'Vegetative', 'Flowering', 'Ready for Harvest'
+  description              TEXT,
+  damage_estimate          DECIMAL(15,2) DEFAULT 0,
+  estimated_financial_loss DECIMAL(15,2) DEFAULT 0,
+  farmer_name              VARCHAR(255),
+  image_url                TEXT,
+  status                   VARCHAR(20) NOT NULL DEFAULT 'reported'
+                           CHECK (status IN ('reported', 'verified', 'resolved')),
+  created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_cal_farmer   ON calamity_reports(farmer_id);
 CREATE INDEX idx_cal_type     ON calamity_reports(calamity_type);
 CREATE INDEX idx_cal_date     ON calamity_reports(date_occurred);
 CREATE INDEX idx_cal_severity ON calamity_reports(severity);
+CREATE INDEX idx_cal_project  ON calamity_reports(project_id);
 
 -- 8. production_reports
 CREATE TABLE production_reports (
@@ -195,6 +205,7 @@ CREATE TABLE production_reports (
   harvest_date   DATE,
   yield_kg       DECIMAL(12,2) NOT NULL DEFAULT 0,
   quality_rating INT CHECK (quality_rating BETWEEN 1 AND 5),
+  quality_class  VARCHAR(10) CHECK (quality_class IN ('A', 'B', 'C')),
   notes          TEXT,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -203,6 +214,21 @@ CREATE TABLE production_reports (
 CREATE INDEX idx_prod_farmer  ON production_reports(farmer_id);
 CREATE INDEX idx_prod_crop    ON production_reports(crop_type);
 CREATE INDEX idx_prod_harvest ON production_reports(harvest_date);
+
+-- 9. market_prices — crop price tracking for forecasts
+CREATE TABLE market_prices (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  crop_type    VARCHAR(100) NOT NULL,
+  price_per_kg DECIMAL(10,2) NOT NULL,
+  price_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+  trend        VARCHAR(20) DEFAULT 'stable'
+               CHECK (trend IN ('rising', 'stable', 'falling')),
+  source       VARCHAR(255),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_mp_crop ON market_prices(crop_type);
+CREATE INDEX idx_mp_date ON market_prices(price_date);
 
 -- ============================================================
 -- SECTION 3: ENABLE ROW LEVEL SECURITY
@@ -216,6 +242,7 @@ ALTER TABLE equipment           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rental_requests     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE calamity_reports    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE production_reports  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE market_prices       ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
 -- SECTION 4: RLS POLICIES
@@ -329,6 +356,17 @@ CREATE POLICY "Farmers update own production reports"
 CREATE POLICY "Farmers delete own production reports"
   ON production_reports FOR DELETE USING (auth.uid() = farmer_id);
 
+-- market_prices (anyone can read, admins manage)
+DROP POLICY IF EXISTS "Anyone can view market prices" ON market_prices;
+CREATE POLICY "Anyone can view market prices"
+  ON market_prices FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Admins manage market prices" ON market_prices;
+CREATE POLICY "Admins manage market prices"
+  ON market_prices FOR ALL USING (
+    (auth.jwt()->'user_metadata'->>'role') IN ('admin','mao')
+  );
+
 -- ============================================================
 -- SECTION 5: TRIGGERS
 -- ============================================================
@@ -371,6 +409,7 @@ CREATE TRIGGER trg_equipment_updated           BEFORE UPDATE ON equipment       
 CREATE TRIGGER trg_rental_requests_updated     BEFORE UPDATE ON rental_requests     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_calamity_reports_updated    BEFORE UPDATE ON calamity_reports    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_production_reports_updated  BEFORE UPDATE ON production_reports  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_market_prices_updated       BEFORE UPDATE ON market_prices       FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
 -- SECTION 6: STORAGE BUCKET FOR IMAGES (optional)

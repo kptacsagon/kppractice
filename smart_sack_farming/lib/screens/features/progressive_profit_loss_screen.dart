@@ -39,12 +39,15 @@ class _ProgressiveProfitLossCalculatorScreenState
   ];
 
   final List<String> _cropTypes = [
-    'Rice',
-    'Wheat',
-    'Maize',
-    'Cotton',
-    'Sugarcane',
-    'Pulses',
+    'Rice (Palay)',
+    'Corn (Mais)',
+    'Coconut (Niyog)',
+    'Sugarcane (Tubo)',
+    'Banana (Saging)',
+    'Vegetables (Gulay)',
+    'Root Crops (Kamote/Gabi)',
+    'Mango',
+    'Other',
   ];
 
   @override
@@ -102,6 +105,7 @@ class _ProgressiveProfitLossCalculatorScreenState
             actualYieldKg: (projectData['actual_yield_kg'] as num?)?.toDouble() ?? 0.0,
             marketPricePerKg: (projectData['market_price_per_kg'] as num?)?.toDouble() ?? 0.0,
             expectedRevenue: (projectData['expected_revenue'] as num?)?.toDouble() ?? 0.0,
+            actualSalePricePerKg: (projectData['actual_sale_price_per_kg'] as num?)?.toDouble() ?? 0.0,
           );
           proj = await _analytics.enrichWithMarketPrice(proj);
           projects.add(proj);
@@ -129,81 +133,123 @@ class _ProgressiveProfitLossCalculatorScreenState
   }
 
   void _initializeSampleProjects() {
-    // Sample active project
+    // Sample active project — realistic Philippine rice farming (5 ha)
+    // Total cost ~₱52K/ha × 5ha = ₱260K; Revenue ~₱350K
     _activeProject = FarmingProject(
       id: '1',
-      cropType: 'Rice',
+      cropType: 'Rice (Palay)',
       area: 5.0,
       plantingDate: DateTime.now().subtract(const Duration(days: 30)),
       harvestDate: DateTime.now().add(const Duration(days: 90)),
-      revenue: 75000,
+      revenue: 350000,
       expenses: [
         Expense(
           id: '1',
           category: 'Seeds',
-          description: 'High-quality rice seeds 50kg',
-          amount: 5000,
+          description: 'Certified RC222 seeds 250kg @ ₱120/kg',
+          amount: 30000,
           date: DateTime.now().subtract(const Duration(days: 30)),
           phase: 'planting',
         ),
         Expense(
           id: '2',
           category: 'Fertilizer',
-          description: 'NPK Fertilizer 100kg',
-          amount: 8000,
+          description: 'Urea 20 bags + Complete 10 bags',
+          amount: 70000,
           date: DateTime.now().subtract(const Duration(days: 25)),
           phase: 'planting',
         ),
         Expense(
           id: '3',
           category: 'Labor',
-          description: 'Field preparation labor',
-          amount: 6000,
+          description: 'Land preparation & transplanting (5 ha)',
+          amount: 90000,
           date: DateTime.now().subtract(const Duration(days: 28)),
           phase: 'planting',
+        ),
+        Expense(
+          id: '4',
+          category: 'Equipment Rental',
+          description: 'Tractor & rotavator rental',
+          amount: 20000,
+          date: DateTime.now().subtract(const Duration(days: 29)),
+          phase: 'planting',
+        ),
+        Expense(
+          id: '5',
+          category: 'Water/Irrigation',
+          description: 'Irrigation fees (wet season)',
+          amount: 25000,
+          date: DateTime.now().subtract(const Duration(days: 20)),
+          phase: 'growing',
         ),
       ],
       createdDate: DateTime.now().subtract(const Duration(days: 30)),
       status: 'active',
+      expectedYieldKg: 21000,    // 4.2 MT/ha × 5 ha
+      marketPricePerKg: 21,      // ₱21/kg palay farmgate
+      expectedRevenue: 441000,
     );
 
     _allProjects = [
       _activeProject!,
+      // Completed corn project — realistic (3.5 ha)
+      // Cost ~₱38K/ha × 3.5 = ₱133K; Revenue ~₱185K
       FarmingProject(
         id: '2',
-        cropType: 'Wheat',
+        cropType: 'Corn (Mais)',
         area: 3.5,
         plantingDate: DateTime.now().subtract(const Duration(days: 180)),
         harvestDate: DateTime.now().subtract(const Duration(days: 60)),
-        revenue: 52500,
+        revenue: 185000,
         expenses: [
           Expense(
             id: '1',
             category: 'Seeds',
-            description: 'Wheat seeds',
-            amount: 4500,
+            description: 'Hybrid corn seeds 70kg',
+            amount: 17500,
             date: DateTime.now().subtract(const Duration(days: 180)),
             phase: 'planting',
           ),
           Expense(
             id: '2',
             category: 'Fertilizer',
-            description: 'Urea fertilizer',
-            amount: 7000,
+            description: 'Urea 14 bags + Complete 7 bags',
+            amount: 35000,
             date: DateTime.now().subtract(const Duration(days: 170)),
-            phase: 'planting',
+            phase: 'growing',
           ),
           Expense(
             id: '3',
             category: 'Pesticides',
-            description: 'Pest control spray',
-            amount: 3500,
+            description: 'Fall armyworm control spray × 3',
+            amount: 14000,
             date: DateTime.now().subtract(const Duration(days: 120)),
+            phase: 'growing',
+          ),
+          Expense(
+            id: '4',
+            category: 'Labor',
+            description: 'Planting, weeding & harvest labor',
+            amount: 42000,
+            date: DateTime.now().subtract(const Duration(days: 90)),
             phase: 'harvest',
+          ),
+          Expense(
+            id: '5',
+            category: 'Equipment Rental',
+            description: 'Corn sheller & hauling',
+            amount: 14000,
+            date: DateTime.now().subtract(const Duration(days: 65)),
+            phase: 'post-harvest',
           ),
         ],
         createdDate: DateTime.now().subtract(const Duration(days: 180)),
         status: 'completed',
+        expectedYieldKg: 16800,  // 4.8 MT/ha × 3.5 ha
+        actualYieldKg: 15400,    // Slightly below expected
+        marketPricePerKg: 12,    // ₱12/kg yellow corn
+        expectedRevenue: 201600,
       ),
     ];
   }
@@ -294,7 +340,7 @@ class _ProgressiveProfitLossCalculatorScreenState
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
-                  decoration: const InputDecoration(labelText: 'Area (acres)'),
+                  decoration: const InputDecoration(labelText: 'Area (hectares)'),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   validator: (value) =>
@@ -427,10 +473,19 @@ class _ProgressiveProfitLossCalculatorScreenState
     double? amount;
     DateTime selectedDate = DateTime.now();
 
+    final cropPhases = {
+      'planting': 'Land Preparation',
+      'sowing': 'Planting / Sowing',
+      'growing': 'Crop Maintenance',
+      'harvest': 'Harvesting',
+      'post-harvest': 'Post-Harvest',
+    };
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => Padding(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
           left: 16,
@@ -481,50 +536,13 @@ class _ProgressiveProfitLossCalculatorScreenState
                       onSaved: (value) => amount = double.parse(value ?? '0'),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: selectedPhase == 'planting'
-                                  ? AppTheme.primary
-                                  : AppTheme.inputBackground,
-                            ),
-                            onPressed: () {
-                              setState(() => selectedPhase = 'planting');
-                            },
-                            child: Text(
-                              'Planting',
-                              style: TextStyle(
-                                color: selectedPhase == 'planting'
-                                    ? Colors.white
-                                    : AppTheme.textMedium,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: selectedPhase == 'harvest'
-                                  ? AppTheme.primary
-                                  : AppTheme.inputBackground,
-                            ),
-                            onPressed: () {
-                              setState(() => selectedPhase = 'harvest');
-                            },
-                            child: Text(
-                              'Harvest',
-                              style: TextStyle(
-                                color: selectedPhase == 'harvest'
-                                    ? Colors.white
-                                    : AppTheme.textMedium,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    DropdownButtonFormField<String>(
+                      value: selectedPhase,
+                      decoration: const InputDecoration(labelText: 'Crop Stage'),
+                      items: cropPhases.entries.map((e) =>
+                        DropdownMenuItem(value: e.key, child: Text(e.value)),
+                      ).toList(),
+                      onChanged: (value) => setSheetState(() => selectedPhase = value ?? 'planting'),
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
@@ -557,6 +575,7 @@ class _ProgressiveProfitLossCalculatorScreenState
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -678,7 +697,7 @@ class _ProgressiveProfitLossCalculatorScreenState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Area: ${_activeProject!.area} acres',
+                          'Area: ${_activeProject!.area} ha',
                           style: const TextStyle(
                             color: AppTheme.textMedium,
                             fontSize: 12,
@@ -847,7 +866,7 @@ class _ProgressiveProfitLossCalculatorScreenState
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${project.area} acres',
+                    '${project.area} ha',
                     style: const TextStyle(
                       color: AppTheme.textMedium,
                       fontSize: 12,
@@ -876,12 +895,12 @@ class _ProgressiveProfitLossCalculatorScreenState
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _projMetric('Expenses', '\u20B1${project.totalExpenses.toStringAsFixed(0)}', AppTheme.textDark),
-              _projMetric('Revenue', '\u20B1${project.actualRevenue.toStringAsFixed(0)}', Colors.green),
-              _projMetric('Profit', '\u20B1${profit.toStringAsFixed(0)}',
+              _projMetric(project.expensesLabel, '\u20B1${project.totalExpenses.toStringAsFixed(0)}', AppTheme.textDark),
+              _projMetric(project.revenueLabel, '\u20B1${project.actualRevenue.toStringAsFixed(0)}', Colors.green),
+              _projMetric(project.profitLabel, '\u20B1${profit.toStringAsFixed(0)}',
                   profit >= 0 ? Colors.green : Colors.red),
-              _projMetric('ROI', '${project.roi.toStringAsFixed(1)}%',
-                  project.roi >= 0 ? Colors.green : Colors.red),
+              _projMetric('ROI', project.roiLabel,
+                  project.roi.isNaN || project.roi >= 0 ? Colors.green : Colors.red),
             ],
           ),
         ],
@@ -1033,8 +1052,8 @@ class _ProgressiveProfitLossCalculatorScreenState
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _summaryItem('Revenue', '\u20B1${p.actualRevenue.toStringAsFixed(0)}', Colors.white),
-              _summaryItem('Expenses', '\u20B1${p.totalExpenses.toStringAsFixed(0)}', Colors.redAccent),
+              _summaryItem(p.revenueLabel, '\u20B1${p.actualRevenue.toStringAsFixed(0)}', Colors.white),
+              _summaryItem(p.expensesLabel, '\u20B1${p.totalExpenses.toStringAsFixed(0)}', Colors.redAccent),
             ],
           ),
           const SizedBox(height: 12),
@@ -1047,7 +1066,7 @@ class _ProgressiveProfitLossCalculatorScreenState
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Net Profit', style: TextStyle(color: Colors.white, fontSize: 13)),
+                Text(p.profitLabel, style: const TextStyle(color: Colors.white, fontSize: 13)),
                 Text(
                   '\u20B1${p.profit.toStringAsFixed(0)}',
                   style: TextStyle(
@@ -1063,8 +1082,8 @@ class _ProgressiveProfitLossCalculatorScreenState
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _summaryItem('ROI', '${p.roi.toStringAsFixed(1)}%',
-                  p.roi >= 0 ? Colors.greenAccent : Colors.redAccent),
+              _summaryItem('ROI', p.roiLabel,
+                  p.roi.isNaN || p.roi >= 0 ? Colors.greenAccent : Colors.redAccent),
               _summaryItem('Cost/Ha', '\u20B1${_fmtNum(p.costPerHectare)}', Colors.white),
               _summaryItem('Break-even', '${_fmtNum(p.breakEvenYieldKg)} kg', Colors.amberAccent),
             ],
@@ -1121,9 +1140,13 @@ class _ProgressiveProfitLossCalculatorScreenState
       );
     }
 
-    // Sort by ROI descending
+    // Sort by ROI descending (treat NaN as -infinity for sorting)
     final sorted = List<FarmingProject>.from(_allProjects)
-      ..sort((a, b) => b.roi.compareTo(a.roi));
+      ..sort((a, b) {
+        final aRoi = a.roi.isNaN ? double.negativeInfinity : a.roi;
+        final bRoi = b.roi.isNaN ? double.negativeInfinity : b.roi;
+        return bRoi.compareTo(aRoi);
+      });
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -1211,10 +1234,10 @@ class _ProgressiveProfitLossCalculatorScreenState
                     fontSize: 12, fontWeight: FontWeight.w600),
                 )),
                 Expanded(flex: 2, child: Text(
-                  '${p.roi.toStringAsFixed(1)}%',
+                  p.roiLabel,
                   textAlign: TextAlign.right,
                   style: TextStyle(
-                    color: p.roi >= 0 ? Colors.green : Colors.red,
+                    color: p.roi.isNaN || p.roi >= 0 ? Colors.green : Colors.red,
                     fontSize: 12, fontWeight: FontWeight.w600),
                 )),
                 Expanded(flex: 2, child: Text(
@@ -1253,7 +1276,7 @@ class _ProgressiveProfitLossCalculatorScreenState
             Expanded(child: _compStatCard(
               'Best ROI',
               sorted.first.cropType,
-              '${sorted.first.roi.toStringAsFixed(1)}%',
+              sorted.first.roiLabel,
               Colors.green,
               Icons.trending_up_rounded,
             )),

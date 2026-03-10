@@ -23,8 +23,8 @@ class _WeatherScreenState extends State<WeatherScreen> {
     final currentDate = DateTime.now();
     
     _weatherData = WeeklyWeather(
-      location: 'Tamil Nadu',
-      region: 'Madurai District',
+      location: 'Tubungan',
+      region: 'Iloilo, Philippines',
       currentWeather: WeatherData(
         day: 'Today',
         highTemp: 32,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../auth/login_screen.dart';
+import '../admin/market_prices_screen.dart';
 
 class AdminHomeScreen extends StatelessWidget {
   const AdminHomeScreen({super.key});
@@ -125,21 +126,38 @@ class AdminHomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _buildActionTile(
+              context,
               'Manage Users',
               'Add, edit, or remove user accounts',
               Icons.manage_accounts_outlined,
+              null,
             ),
             const SizedBox(height: 10),
             _buildActionTile(
+              context,
+              'Manage Market Prices',
+              'Update crop prices and trends',
+              Icons.price_change_rounded,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MarketPricesScreen()),
+              ),
+            ),
+            const SizedBox(height: 10),
+            _buildActionTile(
+              context,
               'Provision Devices',
               'Register new sack units and sensors',
               Icons.add_circle_outline,
+              null,
             ),
             const SizedBox(height: 10),
             _buildActionTile(
+              context,
               'System Settings',
               'Configure thresholds and notifications',
               Icons.settings_outlined,
+              null,
             ),
             const SizedBox(height: 24),
             const Text(
@@ -191,50 +209,53 @@ class AdminHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActionTile(String title, String subtitle, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppTheme.adminColor.withAlpha(18),
-              borderRadius: BorderRadius.circular(10),
+  Widget _buildActionTile(BuildContext context, String title, String subtitle, IconData icon, VoidCallback? onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppTheme.adminColor.withAlpha(18),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: AppTheme.adminColor, size: 22),
             ),
-            child: Icon(icon, color: AppTheme.adminColor, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppTheme.textDark,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppTheme.textDark,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: AppTheme.textLight,
-                    fontSize: 12,
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppTheme.textLight,
+                      fontSize: 12,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const Icon(Icons.chevron_right, color: AppTheme.textLight, size: 20),
-        ],
+            Icon(Icons.chevron_right, color: onTap != null ? AppTheme.primary : AppTheme.textLight, size: 20),
+          ],
+        ),
       ),
     );
   }

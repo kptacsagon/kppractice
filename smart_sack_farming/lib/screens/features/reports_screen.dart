@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../models/report_model.dart';
 import '../../theme/app_theme.dart';
 
@@ -19,27 +21,26 @@ class _ReportsScreenState extends State<ReportsScreen>
   String? _userId;
 
   final List<String> _calamityTypes = [
-    'Flood',
-    'Storm',
-    'Drought',
+    'Typhoon (Bagyo)',
+    'Flooding (Baha)',
+    'Drought (El Niño)',
     'Pest Infestation',
     'Disease Outbreak',
-    'Hailstorm',
-    'Frost',
     'Landslide',
+    'Volcanic Eruption',
     'Fire',
     'Other',
   ];
 
   final List<String> _cropTypes = [
-    'Rice',
-    'Wheat',
-    'Maize',
-    'Cotton',
-    'Sugarcane',
-    'Pulses',
-    'Vegetables',
-    'Fruits',
+    'Rice (Palay)',
+    'Corn (Mais)',
+    'Coconut (Niyog)',
+    'Sugarcane (Tubo)',
+    'Banana (Saging)',
+    'Vegetables (Gulay)',
+    'Root Crops (Kamote/Gabi)',
+    'Mango',
     'Other',
   ];
 
@@ -330,7 +331,14 @@ class _ReportsScreenState extends State<ReportsScreen>
                     'Date Occurred',
                     '${report.dateOccurred.day}/${report.dateOccurred.month}/${report.dateOccurred.year}',
                     'Affected Area',
-                    '${report.affectedArea} acres',
+                    '${report.affectedArea} ha',
+                  ),
+                  const SizedBox(height: 12),
+                  _buildDetailRow(
+                    'Crop Stage',
+                    report.cropStage.isNotEmpty ? report.cropStage : 'N/A',
+                    'Est. Financial Loss',
+                    '₱${report.estimatedFinancialLoss.toStringAsFixed(0)}',
                   ),
                   const SizedBox(height: 12),
                   _buildDetailItem('Farmer', report.farmerName),
@@ -373,6 +381,36 @@ class _ReportsScreenState extends State<ReportsScreen>
                 ],
               ),
             ),
+            // Show image if available
+            if (report.imageUrl.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  report.imageUrl,
+                  height: 150,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: AppTheme.inputBackground,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.image_not_supported, size: 16, color: AppTheme.textLight),
+                          SizedBox(width: 6),
+                          Text('Photo unavailable', style: TextStyle(fontSize: 11, color: AppTheme.textLight)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -499,11 +537,11 @@ class _ReportsScreenState extends State<ReportsScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildDetailRow('Area', '${report.area} acres', 'Yield/Acre',
-                      '${report.yieldPerAcre} kg'),
+                  _buildDetailRow('Area', '${report.area} ha', 'Yield/Hectare',
+                      '${report.yieldPerHectare.toStringAsFixed(1)} kg'),
                   const SizedBox(height: 12),
                   _buildDetailRow('Total Yield', '${report.totalYield} kg',
-                      'Quality', '${report.qualityRating.toStringAsFixed(1)} ⭐'),
+                      'Quality', _getQualityLabel(report.qualityRating)),
                   const SizedBox(height: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -683,11 +721,34 @@ class _ReportsScreenState extends State<ReportsScreen>
     String severity = 'medium';
     double? area;
     List<String> selectedCrops = [];
+    String cropStage = 'Seedling';
+    double? estimatedFinancialLoss;
     DateTime selectedDate = DateTime.now();
+    XFile? pickedImage;
+    String? pickedImageName;
+    String? selectedProjectId;
+    List<Map<String, dynamic>> activeProjects = [];
+
+    final cropStages = ['Seedling', 'Vegetative', 'Flowering', 'Ready for Harvest'];
+
+    // Fetch active projects for optional linking
+    Future<void> loadActiveProjects() async {
+      if (_userId == null) return;
+      try {
+        final data = await Supabase.instance.client
+            .from('farming_projects')
+            .select('id, crop_type, area_hectares, status')
+            .eq('farmer_id', _userId!)
+            .eq('status', 'active');
+        activeProjects = List<Map<String, dynamic>>.from(data);
+      } catch (_) {}
+    }
+    loadActiveProjects();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
         title: const Text('Report Calamity'),
         content: SingleChildScrollView(
           child: Form(
@@ -727,15 +788,120 @@ class _ReportsScreenState extends State<ReportsScreen>
                   onChanged: (value) => severity = value ?? 'medium',
                 ),
                 const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: 'Crop Affected'),
+                  items: _cropTypes
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .toList(),
+                  validator: (value) =>
+                      value?.isEmpty ?? true ? 'Required' : null,
+                  onChanged: (value) {
+                    if (value != null) selectedCrops = [value];
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: cropStage,
+                  decoration: const InputDecoration(labelText: 'Crop Stage'),
+                  items: cropStages
+                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                      .toList(),
+                  onChanged: (value) => cropStage = value ?? 'Seedling',
+                ),
+                const SizedBox(height: 12),
+                // Link to active farming project (optional)
+                if (activeProjects.isNotEmpty) ...[
+                  DropdownButtonFormField<String>(
+                    value: selectedProjectId,
+                    decoration: const InputDecoration(
+                      labelText: 'Link to Farming Project (Optional)',
+                      hintText: 'Select project affected',
+                    ),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('None — General Report'),
+                      ),
+                      ...activeProjects.map((p) => DropdownMenuItem<String>(
+                        value: p['id']?.toString(),
+                        child: Text('${p['crop_type']} (${p['area_hectares']} ha)'),
+                      )),
+                    ],
+                    onChanged: (value) => selectedProjectId = value,
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 TextFormField(
                   decoration: const InputDecoration(
-                    labelText: 'Affected Area (acres)',
+                    labelText: 'Affected Area (hectares)',
                   ),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   validator: (value) =>
                       value?.isEmpty ?? true ? 'Required' : null,
                   onSaved: (value) => area = double.parse(value ?? '0'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Estimated Financial Loss (₱)',
+                    prefixText: '₱ ',
+                  ),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  validator: (value) =>
+                      value?.isEmpty ?? true ? 'Required' : null,
+                  onSaved: (value) => estimatedFinancialLoss = double.parse(value ?? '0'),
+                ),
+                const SizedBox(height: 12),
+                // Image upload
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppTheme.border),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      if (pickedImageName != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  pickedImageName!,
+                                  style: const TextStyle(fontSize: 12, color: AppTheme.textMedium),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final picker = ImagePicker();
+                          final image = await picker.pickImage(
+                            source: ImageSource.gallery,
+                            maxWidth: 1200,
+                            maxHeight: 1200,
+                            imageQuality: 80,
+                          );
+                          if (image != null) {
+                            setDialogState(() {
+                              pickedImage = image;
+                              pickedImageName = image.name;
+                            });
+                          }
+                        },
+                        icon: const Icon(Icons.camera_alt, size: 18),
+                        label: Text(pickedImageName != null ? 'Change Photo' : 'Upload Photo Evidence'),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 const Text(
@@ -784,22 +950,68 @@ class _ReportsScreenState extends State<ReportsScreen>
                 if (_userId == null) return;
 
                 try {
+                  // Upload image if picked
+                  String imageUrl = '';
+                  if (pickedImage != null) {
+                    try {
+                      final bytes = await pickedImage!.readAsBytes();
+                      final fileName = 'calamity_${DateTime.now().millisecondsSinceEpoch}_${pickedImage!.name}';
+                      await Supabase.instance.client.storage
+                          .from('calamity-images')
+                          .uploadBinary(fileName, bytes);
+                      imageUrl = Supabase.instance.client.storage
+                          .from('calamity-images')
+                          .getPublicUrl(fileName);
+                    } catch (uploadError) {
+                      // Continue without image if upload fails
+                      debugPrint('Image upload failed: $uploadError');
+                    }
+                  }
+
                   final data = {
                     'farmer_id': _userId!,
-                    'calamity_type': type ?? 'Flood',
+                    'calamity_type': type ?? 'Typhoon (Bagyo)',
                     'description': description ?? '',
                     'severity': severity.toUpperCase(),
                     'date_occurred': selectedDate.toIso8601String().split('T').first,
                     'affected_area_acres': area ?? 0,
                     'affected_crops': selectedCrops.join(','),
-                    'damage_estimate': 0,
+                    'crop_stage': cropStage,
+                    'estimated_financial_loss': estimatedFinancialLoss ?? 0,
+                    'damage_estimate': estimatedFinancialLoss ?? 0,
+                    'image_url': imageUrl,
                     'farmer_name': Supabase.instance.client.auth.currentUser?.userMetadata?['full_name'] ?? 'Farmer',
                     'status': 'reported',
+                    if (selectedProjectId != null) 'project_id': selectedProjectId,
                   };
 
                   await Supabase.instance.client
                       .from('calamity_reports')
                       .insert(data);
+
+                  // Auto-recalculate project P&L if HIGH severity calamity linked to project
+                  if (selectedProjectId != null && severity.toUpperCase() == 'HIGH') {
+                    try {
+                      final project = await Supabase.instance.client
+                          .from('farming_projects')
+                          .select()
+                          .eq('id', selectedProjectId)
+                          .single();
+                      
+                      final currentExpectedRevenue = (project['expected_revenue'] as num?)?.toDouble() ?? 0.0;
+                      final loss = (estimatedFinancialLoss ?? 0).toDouble();
+                      
+                      // Reduce expected revenue by loss amount (capped at 50%)
+                      final newExpectedRevenue = (currentExpectedRevenue - loss).clamp(0.0, currentExpectedRevenue);
+                      
+                      await Supabase.instance.client
+                          .from('farming_projects')
+                          .update({'expected_revenue': newExpectedRevenue})
+                          .eq('id', selectedProjectId);
+                    } catch (e) {
+                      debugPrint('Failed to auto-recalc project P&L: $e');
+                    }
+                  }
 
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -823,6 +1035,7 @@ class _ReportsScreenState extends State<ReportsScreen>
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -830,12 +1043,17 @@ class _ReportsScreenState extends State<ReportsScreen>
     final formKey = GlobalKey<FormState>();
     String? cropType;
     double? area;
-    double? yieldPerAcre;
     double? totalYield;
-    double quality = 3.0;
+    String qualityClass = 'Class A (Premium)';
     String? notes;
     DateTime plantingDate = DateTime.now().subtract(const Duration(days: 120));
     DateTime harvestDate = DateTime.now();
+
+    final qualityClasses = [
+      'Class A (Premium)',
+      'Class B (Standard)',
+      'Class C (Substandard/Damaged)',
+    ];
 
     showDialog(
       context: context,
@@ -859,24 +1077,13 @@ class _ReportsScreenState extends State<ReportsScreen>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: const InputDecoration(
-                    labelText: 'Area (acres)',
+                    labelText: 'Area (hectares)',
                   ),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   validator: (value) =>
                       value?.isEmpty ?? true ? 'Required' : null,
                   onSaved: (value) => area = double.parse(value ?? '0'),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Yield per Acre (kg)',
-                  ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Required' : null,
-                  onSaved: (value) => yieldPerAcre = double.parse(value ?? '0'),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -890,16 +1097,13 @@ class _ReportsScreenState extends State<ReportsScreen>
                   onSaved: (value) => totalYield = double.parse(value ?? '0'),
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  'Quality Rating: ${quality.toStringAsFixed(1)} ⭐',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                Slider(
-                  value: quality,
-                  min: 0,
-                  max: 5,
-                  divisions: 10,
-                  onChanged: (value) => quality = value,
+                DropdownButtonFormField<String>(
+                  value: qualityClass,
+                  decoration: const InputDecoration(labelText: 'Quality Classification'),
+                  items: qualityClasses
+                      .map((q) => DropdownMenuItem(value: q, child: Text(q)))
+                      .toList(),
+                  onChanged: (value) => qualityClass = value ?? 'Class A (Premium)',
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -925,6 +1129,16 @@ class _ReportsScreenState extends State<ReportsScreen>
 
                 if (_userId == null) return;
 
+                // Map quality class to numeric value for DB
+                int qualityRating;
+                if (qualityClass.startsWith('Class A')) {
+                  qualityRating = 5;
+                } else if (qualityClass.startsWith('Class B')) {
+                  qualityRating = 3;
+                } else {
+                  qualityRating = 1;
+                }
+
                 try {
                   final data = {
                     'farmer_id': _userId!,
@@ -933,7 +1147,8 @@ class _ReportsScreenState extends State<ReportsScreen>
                     'planting_date': plantingDate.toIso8601String().split('T').first,
                     'harvest_date': harvestDate.toIso8601String().split('T').first,
                     'yield_kg': totalYield ?? 0,
-                    'quality_rating': quality.toInt(),
+                    'quality_rating': qualityRating,
+                    'quality_class': qualityClass,
                     'notes': notes ?? '',
                   };
 
@@ -968,26 +1183,30 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   String _getIconForCalamity(String type) {
     switch (type) {
-      case 'Flood':
+      case 'Typhoon (Bagyo)':
+        return '🌀';
+      case 'Flooding (Baha)':
         return '🌊';
-      case 'Storm':
-        return '⛈️';
-      case 'Drought':
+      case 'Drought (El Niño)':
         return '🏜️';
       case 'Pest Infestation':
         return '🐛';
       case 'Disease Outbreak':
         return '🦠';
-      case 'Hailstorm':
-        return '🧊';
-      case 'Frost':
-        return '❄️';
       case 'Landslide':
         return '⛰️';
+      case 'Volcanic Eruption':
+        return '🌋';
       case 'Fire':
         return '🔥';
       default:
         return '⚠️';
     }
+  }
+
+  String _getQualityLabel(double rating) {
+    if (rating >= 4) return 'Class A';
+    if (rating >= 2) return 'Class B';
+    return 'Class C';
   }
 }

@@ -7,10 +7,13 @@ class CalamityReport {
   final DateTime dateReported;
   final String farmerId;
   final String farmerName;
-  final double affectedArea; // in acres
+  final double affectedArea; // in hectares
   final List<String> affectedCrops;
+  final String cropStage; // 'Seedling', 'Vegetative', 'Flowering', 'Ready for Harvest'
+  final double estimatedFinancialLoss; // in Philippine Peso
   final String status; // 'reported', 'verified', 'resolved'
   final String imageUrl;
+  final String? projectId; // FK to farming_projects (optional link)
 
   CalamityReport({
     required this.id,
@@ -23,14 +26,17 @@ class CalamityReport {
     required this.farmerName,
     required this.affectedArea,
     required this.affectedCrops,
+    required this.cropStage,
+    required this.estimatedFinancialLoss,
     required this.status,
     required this.imageUrl,
+    this.projectId,
   });
 
   factory CalamityReport.empty() {
     return CalamityReport(
       id: '',
-      type: 'Flood',
+      type: 'Typhoon (Bagyo)',
       description: '',
       severity: 'medium',
       dateOccurred: DateTime.now(),
@@ -39,8 +45,11 @@ class CalamityReport {
       farmerName: '',
       affectedArea: 0,
       affectedCrops: [],
+      cropStage: '',
+      estimatedFinancialLoss: 0,
       status: 'reported',
       imageUrl: '',
+      projectId: null,
     );
   }
 
@@ -55,8 +64,11 @@ class CalamityReport {
     String? farmerName,
     double? affectedArea,
     List<String>? affectedCrops,
+    String? cropStage,
+    double? estimatedFinancialLoss,
     String? status,
     String? imageUrl,
+    String? projectId,
   }) {
     return CalamityReport(
       id: id ?? this.id,
@@ -69,8 +81,11 @@ class CalamityReport {
       farmerName: farmerName ?? this.farmerName,
       affectedArea: affectedArea ?? this.affectedArea,
       affectedCrops: affectedCrops ?? this.affectedCrops,
+      cropStage: cropStage ?? this.cropStage,
+      estimatedFinancialLoss: estimatedFinancialLoss ?? this.estimatedFinancialLoss,
       status: status ?? this.status,
       imageUrl: imageUrl ?? this.imageUrl,
+      projectId: projectId ?? this.projectId,
     );
   }
 
@@ -102,6 +117,11 @@ class CalamityReport {
               : [],
       status: json['status'] ?? 'reported',
       imageUrl: json['image_url'] ?? '',
+      cropStage: json['crop_stage'] ?? '',
+      estimatedFinancialLoss: (json['estimated_financial_loss'] is num)
+          ? (json['estimated_financial_loss'] as num).toDouble()
+          : 0.0,
+      projectId: json['project_id']?.toString(),
     );
   }
 
@@ -113,9 +133,12 @@ class CalamityReport {
       'date_occurred': dateOccurred.toIso8601String().split('T').first,
       'affected_area_acres': affectedArea,
       'affected_crops': affectedCrops.join(','),
-      'damage_estimate': 0,
+      'crop_stage': cropStage,
+      'estimated_financial_loss': estimatedFinancialLoss,
+      'damage_estimate': estimatedFinancialLoss,
       'farmer_name': farmerName,
       'status': status,
+      if (projectId != null && projectId!.isNotEmpty) 'project_id': projectId,
     };
   }
 }
@@ -123,10 +146,10 @@ class CalamityReport {
 class ProductionReport {
   final String id;
   final String cropType;
-  final double area; // in acres
+  final double area; // in hectares
   final DateTime plantingDate;
   final DateTime harvestDate;
-  final double yieldPerAcre; // in kg or quintals
+  final double yieldPerHectare; // in kg
   final double totalYield;
   final double qualityRating; // 1-5 stars
   final String notes;
@@ -138,7 +161,7 @@ class ProductionReport {
     required this.area,
     required this.plantingDate,
     required this.harvestDate,
-    required this.yieldPerAcre,
+    required this.yieldPerHectare,
     required this.totalYield,
     required this.qualityRating,
     required this.notes,
@@ -152,7 +175,7 @@ class ProductionReport {
       area: 0,
       plantingDate: DateTime.now(),
       harvestDate: DateTime.now(),
-      yieldPerAcre: 0,
+      yieldPerHectare: 0,
       totalYield: 0,
       qualityRating: 0,
       notes: '',
@@ -166,7 +189,7 @@ class ProductionReport {
     double? area,
     DateTime? plantingDate,
     DateTime? harvestDate,
-    double? yieldPerAcre,
+    double? yieldPerHectare,
     double? totalYield,
     double? qualityRating,
     String? notes,
@@ -178,7 +201,7 @@ class ProductionReport {
       area: area ?? this.area,
       plantingDate: plantingDate ?? this.plantingDate,
       harvestDate: harvestDate ?? this.harvestDate,
-      yieldPerAcre: yieldPerAcre ?? this.yieldPerAcre,
+      yieldPerHectare: yieldPerHectare ?? this.yieldPerHectare,
       totalYield: totalYield ?? this.totalYield,
       qualityRating: qualityRating ?? this.qualityRating,
       notes: notes ?? this.notes,
@@ -207,7 +230,7 @@ class ProductionReport {
       harvestDate: json['harvest_date'] is String
           ? DateTime.parse(json['harvest_date'])
           : DateTime.now(),
-      yieldPerAcre: areaHa > 0 ? yieldKg / areaHa : 0,
+      yieldPerHectare: areaHa > 0 ? yieldKg / areaHa : 0,
       totalYield: yieldKg,
       qualityRating: (json['quality_rating'] is num)
           ? (json['quality_rating'] as num).toDouble()

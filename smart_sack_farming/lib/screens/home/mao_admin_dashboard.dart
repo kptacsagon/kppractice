@@ -7,6 +7,7 @@ import '../features/supply_chain_dashboard_screen.dart';
 import '../features/verification_workflow_screen.dart';
 import '../features/crop_recommendation_screen.dart';
 import '../features/financial_forecast_screen.dart';
+import '../admin/market_prices_screen.dart';
 
 class MaoAdminDashboard extends StatefulWidget {
   const MaoAdminDashboard({super.key});
@@ -377,6 +378,17 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
                     builder: (_) => const FinancialForecastScreen()),
               ),
             ),
+            _buildActionCard(
+              icon: Icons.price_change_rounded,
+              color: const Color(0xFF00897B),
+              title: 'Market Prices',
+              badge: 'Manage prices',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const MarketPricesScreen()),
+              ),
+            ),
           ],
         ),
       ],
@@ -671,13 +683,15 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
 
   Color _calamityColor(String type) {
     switch (type) {
-      case 'Flood':     return const Color(0xFF42A5F5);
-      case 'Storm':     return const Color(0xFF78909C);
-      case 'Drought':   return const Color(0xFFFFCA28);
+      case 'Typhoon (Bagyo)':  return const Color(0xFF78909C);
+      case 'Flooding (Baha)':  return const Color(0xFF42A5F5);
+      case 'Drought (El Niño)': return const Color(0xFFFFCA28);
       case 'Pest Infestation': return const Color(0xFF66BB6A);
       case 'Disease Outbreak': return const Color(0xFFEF5350);
-      case 'Fire':      return const Color(0xFFFF7043);
-      default:          return const Color(0xFF9E9E9E);
+      case 'Landslide':        return const Color(0xFF8D6E63);
+      case 'Volcanic Eruption': return const Color(0xFFFF5722);
+      case 'Fire':             return const Color(0xFFFF7043);
+      default:                 return const Color(0xFF9E9E9E);
     }
   }
 

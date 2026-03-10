@@ -6,7 +6,7 @@ class Expense {
   final String description;
   final double amount;
   final DateTime date;
-  final String phase; // 'planting', 'growing', 'harvest', 'post-harvest'
+  final String phase; // 'planting', 'sowing', 'growing', 'harvest', 'post-harvest'
 
   Expense({
     required this.id,
@@ -90,8 +90,9 @@ class FarmingProject {
   // ── NEW: Yield & market price fields ─────────────────────────
   final double expectedYieldKg;
   final double actualYieldKg;
-  final double marketPricePerKg;
-  final double expectedRevenue; // expectedYieldKg × marketPricePerKg
+  final double marketPricePerKg;       // projected price at planting
+  final double expectedRevenue;        // expectedYieldKg × marketPricePerKg
+  final double actualSalePricePerKg;   // actual sale price recorded on completion
 
   FarmingProject({
     required this.id,
@@ -107,15 +108,23 @@ class FarmingProject {
     this.actualYieldKg = 0,
     this.marketPricePerKg = 0,
     this.expectedRevenue = 0,
+    this.actualSalePricePerKg = 0,
   });
+
+  // ── Status helpers ───────────────────────────────────────────
+  bool get isCompleted => status == 'completed';
+  bool get isActive => status == 'active';
 
   // ── Core financials ──────────────────────────────────────────
   double get totalExpenses => expenses.fold(0, (sum, e) => sum + e.amount);
   double get profit => actualRevenue - totalExpenses;
   double get profitMargin => actualRevenue > 0 ? (profit / actualRevenue * 100) : 0;
 
-  /// Yield-based actual revenue; falls back to manual revenue
+  /// Yield-based actual revenue; uses actual sale price if completed, else market price
   double get actualRevenue {
+    if (isCompleted && actualYieldKg > 0 && actualSalePricePerKg > 0) {
+      return actualYieldKg * actualSalePricePerKg;
+    }
     if (actualYieldKg > 0 && marketPricePerKg > 0) {
       return actualYieldKg * marketPricePerKg;
     }
@@ -133,8 +142,22 @@ class FarmingProject {
   double get expectedProfit => computedExpectedRevenue - totalExpenses;
 
   // ── Decision-support metrics ─────────────────────────────────
-  /// ROI = (Net Profit / Total Expenses) × 100
-  double get roi => totalExpenses > 0 ? (profit / totalExpenses * 100) : 0;
+  /// ROI = (Net Profit / Total Expenses) × 100; NaN when no expenses
+  double get roi => totalExpenses > 0 ? (profit / totalExpenses * 100) : double.nan;
+
+  /// Display-safe ROI label: shows "N/A" when no cost data
+  String get roiLabel => totalExpenses > 0
+      ? '${roi.toStringAsFixed(1)}%'
+      : 'N/A';
+
+  /// Status-aware revenue label
+  String get revenueLabel => isCompleted ? 'Actual Revenue' : 'Projected Revenue';
+
+  /// Status-aware profit label
+  String get profitLabel => isCompleted ? 'Net Profit' : 'Projected Net Profit';
+
+  /// Status-aware expenses label
+  String get expensesLabel => isCompleted ? 'Total Expenses' : 'Current Expenses';
 
   /// Cost per hectare
   double get costPerHectare => area > 0 ? totalExpenses / area : 0;
@@ -209,6 +232,7 @@ class FarmingProject {
     double? actualYieldKg,
     double? marketPricePerKg,
     double? expectedRevenue,
+    double? actualSalePricePerKg,
   }) {
     return FarmingProject(
       id: id ?? this.id,
@@ -224,6 +248,7 @@ class FarmingProject {
       actualYieldKg: actualYieldKg ?? this.actualYieldKg,
       marketPricePerKg: marketPricePerKg ?? this.marketPricePerKg,
       expectedRevenue: expectedRevenue ?? this.expectedRevenue,
+      actualSalePricePerKg: actualSalePricePerKg ?? this.actualSalePricePerKg,
     );
   }
 
@@ -266,6 +291,9 @@ class FarmingProject {
       expectedRevenue: (json['expected_revenue'] is num)
           ? (json['expected_revenue'] as num).toDouble()
           : 0.0,
+      actualSalePricePerKg: (json['actual_sale_price_per_kg'] is num)
+          ? (json['actual_sale_price_per_kg'] as num).toDouble()
+          : 0.0,
     );
   }
 
@@ -281,6 +309,7 @@ class FarmingProject {
       'actual_yield_kg': actualYieldKg,
       'market_price_per_kg': marketPricePerKg,
       'expected_revenue': expectedRevenue,
+      'actual_sale_price_per_kg': actualSalePricePerKg,
     };
   }
 }

@@ -10,120 +10,124 @@ class FinancialForecastService {
       : _client = client ?? Supabase.instance.client;
 
   // ================================================================
-  // COST STRUCTURE (₱ per hectare)
+  // COST STRUCTURE (₱ per hectare) — Philippine Agronomic Data
+  // Sources: PhilRice, DA-BAS, PSA crop statistics
   // ================================================================
   static const Map<String, Map<String, double>> _costBreakdown = {
+    // Rice (Palay): PhilRice avg irrigated ₱45K-55K/ha
     'Rice': {
-      'Seeds': 5000,
+      'Seeds': 6000,       // Certified seeds 40-60kg @ ₱100-150/kg
+      'Fertilizer': 14000, // Urea + Complete, 6-8 bags
+      'Pesticides': 5000,  // Insecticide, herbicide, fungicide
+      'Labor': 18000,      // Land prep, transplanting, weeding, harvest
+      'Water/Irrigation': 5000,
+      'Equipment Rental': 4000,
+    },
+    // Corn (Mais): DA avg ₱30K-40K/ha
+    'Corn': {
+      'Seeds': 5000,       // Hybrid seeds 15-20kg
+      'Fertilizer': 10000, // 6 bags Urea + Complete
+      'Pesticides': 4000,
+      'Labor': 12000,
+      'Water/Irrigation': 3000,
+      'Equipment Rental': 4000,
+    },
+    // Coconut (Niyog): Established plantation ₱15K-25K/ha/yr
+    'Coconut': {
+      'Seeds/Seedlings': 2000,
+      'Fertilizer': 6000,
+      'Pesticides': 2000,
+      'Labor': 8000,
+      'Water/Irrigation': 1000,
+      'Equipment Rental': 2000,
+    },
+    // Sugarcane (Tubo): DA avg ₱50K-80K/ha
+    'Sugarcane': {
+      'Seeds/Cane Points': 8000,
+      'Fertilizer': 16000,
+      'Pesticides': 6000,
+      'Labor': 25000,      // Heavy labor for harvest
+      'Water/Irrigation': 5000,
+      'Equipment Rental': 8000,
+    },
+    // Banana (Saging): ₱40K-60K/ha establishment
+    'Banana': {
+      'Seedlings/Suckers': 10000,
       'Fertilizer': 12000,
       'Pesticides': 5000,
       'Labor': 15000,
-      'Water': 4000,
-      'Equipment': 4000,
+      'Water/Irrigation': 4000,
+      'Equipment Rental': 4000,
     },
-    'Corn': {
-      'Seeds': 4000,
-      'Fertilizer': 8000,
-      'Pesticides': 4000,
-      'Labor': 8000,
-      'Water': 3000,
-      'Equipment': 3000,
-    },
-    'Tomato': {
+    // Vegetables (mixed): ₱50K-80K/ha
+    'Vegetables': {
       'Seeds': 8000,
       'Fertilizer': 15000,
       'Pesticides': 8000,
-      'Labor': 18000,
-      'Water': 5000,
-      'Equipment': 6000,
+      'Labor': 20000,
+      'Water/Irrigation': 6000,
+      'Equipment Rental': 5000,
     },
-    'Lettuce': {
-      'Seeds': 6000,
-      'Fertilizer': 10000,
-      'Pesticides': 5000,
-      'Labor': 16000,
-      'Water': 6000,
-      'Equipment': 7000,
+    // Root Crops (Kamote/Gabi): ₱25K-35K/ha
+    'Root Crops': {
+      'Planting Material': 4000,
+      'Fertilizer': 6000,
+      'Pesticides': 3000,
+      'Labor': 12000,
+      'Water/Irrigation': 3000,
+      'Equipment Rental': 3000,
     },
+    // Mango: Established orchard ₱25K-40K/ha/season
+    'Mango': {
+      'Flower Inducer': 6000,
+      'Fertilizer': 8000,
+      'Pesticides/Spraying': 8000,
+      'Labor': 10000,
+      'Water/Irrigation': 3000,
+      'Equipment Rental': 3000,
+    },
+    // Eggplant (Talong): ₱50K-65K/ha
     'Eggplant': {
       'Seeds': 5000,
       'Fertilizer': 14000,
       'Pesticides': 7000,
-      'Labor': 17000,
-      'Water': 5000,
-      'Equipment': 7000,
+      'Labor': 18000,
+      'Water/Irrigation': 5000,
+      'Equipment Rental': 6000,
     },
-    'Sweet Potato': {
-      'Seeds': 4000,
-      'Fertilizer': 8000,
-      'Pesticides': 3000,
-      'Labor': 12000,
-      'Water': 4000,
-      'Equipment': 4000,
+    // Tomato (Kamatis): ₱55K-75K/ha
+    'Tomato': {
+      'Seeds': 8000,
+      'Fertilizer': 16000,
+      'Pesticides': 8000,
+      'Labor': 20000,
+      'Water/Irrigation': 6000,
+      'Equipment Rental': 6000,
     },
-    'Carrot': {
-      'Seeds': 5000,
-      'Fertilizer': 10000,
-      'Pesticides': 5000,
-      'Labor': 15000,
-      'Water': 5000,
-      'Equipment': 5000,
-    },
-    'Cabbage': {
-      'Seeds': 4000,
-      'Fertilizer': 10000,
-      'Pesticides': 5000,
-      'Labor': 12000,
-      'Water': 4000,
-      'Equipment': 5000,
-    },
-    'Watermelon': {
-      'Seeds': 6000,
-      'Fertilizer': 12000,
-      'Pesticides': 5000,
-      'Labor': 15000,
-      'Water': 6000,
-      'Equipment': 6000,
-    },
-    'Basil': {
-      'Seeds': 3000,
-      'Fertilizer': 6000,
-      'Pesticides': 3000,
-      'Labor': 10000,
-      'Water': 4000,
-      'Equipment': 4000,
-    },
-    'Pepper': {
-      'Seeds': 6000,
-      'Fertilizer': 13000,
-      'Pesticides': 6000,
-      'Labor': 16000,
-      'Water': 5000,
-      'Equipment': 6000,
-    },
-    'Spinach': {
-      'Seeds': 3000,
-      'Fertilizer': 7000,
-      'Pesticides': 4000,
-      'Labor': 12000,
-      'Water': 5000,
-      'Equipment': 4000,
+    // Onion (Sibuyas): ₱80K-120K/ha
+    'Onion': {
+      'Seeds/Bulbs': 20000,
+      'Fertilizer': 18000,
+      'Pesticides': 10000,
+      'Labor': 22000,
+      'Water/Irrigation': 8000,
+      'Equipment Rental': 6000,
     },
   };
 
+  // Average yield per hectare (kg) — Philippine DA/BAS statistics
   static const Map<String, double> _avgYieldPerHa = {
-    'Rice': 4500,
-    'Corn': 6000,
-    'Tomato': 25000,
-    'Lettuce': 20000,
-    'Eggplant': 30000,
-    'Sweet Potato': 15000,
-    'Carrot': 20000,
-    'Cabbage': 35000,
-    'Watermelon': 30000,
-    'Basil': 5000,
-    'Pepper': 15000,
-    'Spinach': 12000,
+    'Rice': 4200,        // National avg irrigated: 4.0-4.5 MT/ha
+    'Corn': 4800,        // Yellow corn avg: 4.5-5.5 MT/ha
+    'Coconut': 5000,     // ~5 MT copra/ha/yr (mature plantation)
+    'Sugarcane': 65000,  // 55-75 MT cane/ha
+    'Banana': 22000,     // 18-30 MT/ha/yr (Cavendish)
+    'Vegetables': 15000, // Varies widely; mixed estimate
+    'Root Crops': 12000, // Sweet potato 10-15 MT/ha
+    'Mango': 8000,       // 6-10 MT/ha (bearing trees)
+    'Eggplant': 25000,   // 20-30 MT/ha
+    'Tomato': 20000,     // 15-25 MT/ha
+    'Onion': 15000,      // 12-18 MT/ha
   };
 
   /// Generate a full financial forecast for a crop.

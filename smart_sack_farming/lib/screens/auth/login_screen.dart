@@ -74,24 +74,79 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
 
       if (response.user != null) {
-        // Ensure profile exists (trigger should have created it, but fallback)
+        // ── Role verification ──────────────────────────────────────────
+        // Determine the user's actual role from the profiles table first,
+        // falling back to user_metadata if the profile doesn't exist yet.
+        String actualRole = 'farmer'; // default
+
         try {
-          final existing = await Supabase.instance.client
+          final profile = await Supabase.instance.client
               .from('profiles')
-              .select('id')
+              .select('id, role')
               .eq('id', response.user!.id)
               .maybeSingle();
-          if (existing == null) {
+
+          if (profile != null) {
+            actualRole = (profile['role'] ?? 'farmer').toString().toLowerCase();
+          } else {
+            // Profile doesn't exist yet — use metadata and create profile
+            actualRole = (response.user!.userMetadata?['role'] ?? 'farmer')
+                .toString()
+                .toLowerCase();
             await Supabase.instance.client.from('profiles').insert({
               'id': response.user!.id,
               'email': _emailController.text.trim(),
-              'role': response.user!.userMetadata?['role'] ?? 'farmer',
-              'full_name': response.user!.userMetadata?['full_name'] ?? _emailController.text.trim().split('@')[0],
+              'role': actualRole,
+              'full_name': response.user!.userMetadata?['full_name'] ??
+                  _emailController.text.trim().split('@')[0],
             });
           }
         } catch (e) {
+          // If profile query fails, fall back to metadata
+          actualRole = (response.user!.userMetadata?['role'] ?? 'farmer')
+              .toString()
+              .toLowerCase();
           print('Profile check note: $e');
         }
+
+        // Map selected UI role to string
+        final selectedRoleStr =
+            _selectedRole == UserRole.farmer ? 'farmer' : 'admin';
+
+        // Block login if role mismatch
+        if (actualRole != selectedRoleStr) {
+          // Sign the user out immediately — they shouldn't stay authenticated
+          await Supabase.instance.client.auth.signOut();
+
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+
+          final roleLabel = actualRole == 'admin' ? 'Admin' : 'Farmer';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.block_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Access denied. This account is registered as $roleLabel. '
+                      'Please select the "$roleLabel" role to sign in.',
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red.shade700,
+              duration: const Duration(seconds: 5),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+          return;
+        }
+        // ── End role verification ──────────────────────────────────────
 
         if (!mounted) return;
         setState(() => _isLoading = false);
