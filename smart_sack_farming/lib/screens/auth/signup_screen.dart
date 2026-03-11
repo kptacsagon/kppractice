@@ -149,12 +149,17 @@ class _SignUpScreenState extends State<SignUpScreen>
 
     try {
       // Sign up with Supabase Auth
+      final roleStr = _selectedRole == UserRole.farmer 
+          ? 'farmer' 
+          : _selectedRole == UserRole.buyer 
+              ? 'buyer' 
+              : 'admin';
       final response = await Supabase.instance.client.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         data: {
           'full_name': _fullNameController.text.trim(),
-          'role': _selectedRole == UserRole.farmer ? 'farmer' : 'admin',
+          'role': roleStr,
         },
       );
 
@@ -171,11 +176,16 @@ class _SignUpScreenState extends State<SignUpScreen>
                 .eq('id', response.user!.id)
                 .maybeSingle();
             if (existing != null) break; // trigger already created it
+            final roleStr = _selectedRole == UserRole.farmer 
+                ? 'farmer' 
+                : _selectedRole == UserRole.buyer 
+                    ? 'buyer' 
+                    : 'admin';
             await Supabase.instance.client.from('profiles').insert({
               'id': response.user!.id,
               'email': _emailController.text.trim(),
               'full_name': _fullNameController.text.trim(),
-              'role': _selectedRole == UserRole.farmer ? 'farmer' : 'admin',
+              'role': roleStr,
             });
             break;
           } catch (e) {
@@ -421,7 +431,9 @@ class _SignUpScreenState extends State<SignUpScreen>
                 labelText: 'Email Address',
                 hintText: _selectedRole == UserRole.farmer
                     ? 'farmer@email.com'
-                    : 'admin@email.com',
+                    : _selectedRole == UserRole.buyer
+                        ? 'buyer@email.com'
+                        : 'admin@email.com',
                 prefixIcon: const Icon(Icons.email_outlined, size: 20),
               ),
               validator: _validateEmail,
@@ -563,7 +575,16 @@ class _SignUpScreenState extends State<SignUpScreen>
                 color: AppTheme.farmerColor,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildRoleChip(
+                role: UserRole.buyer,
+                icon: Icons.shopping_cart_rounded,
+                label: 'Buyer',
+                color: AppTheme.buyerColor,
+              ),
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: _buildRoleChip(
                 role: UserRole.admin,

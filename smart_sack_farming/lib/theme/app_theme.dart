@@ -38,6 +38,8 @@ class AppTheme {
   static const Color farmerColor = Color(0xFF43A047);
   // Admin role color
   static const Color adminColor = Color(0xFF1B5E20);
+  // Buyer role color
+  static const Color buyerColor = Color(0xFF1976D2); // Blue 700
 
   static LinearGradient get primaryGradient => const LinearGradient(
         begin: Alignment.topLeft,

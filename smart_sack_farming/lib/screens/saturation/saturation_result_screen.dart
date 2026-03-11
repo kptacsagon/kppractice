@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../models/crop_data.dart';
+import '../farmer/create_crop_listing_screen.dart';
 import 'mix_match_screen.dart';
 import 'saturation_meter_screen.dart';
 import 'planting_record_form_screen.dart';
@@ -410,6 +411,27 @@ class SaturationResultScreen extends StatelessWidget {
                   primaryCrop: crop,
                   waterAvailability: waterAvailability,
                   plantingDate: plantingDate,
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 10),
+
+        // Option 4: Sell on Marketplace
+        _buildActionButton(
+          context,
+          icon: Icons.storefront_rounded,
+          label: 'Sell on Marketplace',
+          subtitle: 'List your oversaturated crops for buyers',
+          color: AppTheme.buyerColor,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CreateCropListingScreen(
+                  crop: crop,
+                  saturationLevel: 'high',
                 ),
               ),
             );

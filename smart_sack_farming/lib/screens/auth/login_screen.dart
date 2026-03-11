@@ -4,9 +4,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../home/farmer_dashboard_screen.dart';
 import '../home/mao_admin_dashboard.dart';
+import '../buyer/buyer_marketplace_screen.dart';
 import 'signup_screen.dart';
 
-enum UserRole { farmer, admin }
+enum UserRole { farmer, admin, buyer }
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -110,8 +111,18 @@ class _LoginScreenState extends State<LoginScreen>
         }
 
         // Map selected UI role to string
-        final selectedRoleStr =
-            _selectedRole == UserRole.farmer ? 'farmer' : 'admin';
+        String selectedRoleStr;
+        switch (_selectedRole) {
+          case UserRole.farmer:
+            selectedRoleStr = 'farmer';
+            break;
+          case UserRole.admin:
+            selectedRoleStr = 'admin';
+            break;
+          case UserRole.buyer:
+            selectedRoleStr = 'buyer';
+            break;
+        }
 
         // Block login if role mismatch
         if (actualRole != selectedRoleStr) {
@@ -121,7 +132,17 @@ class _LoginScreenState extends State<LoginScreen>
           if (!mounted) return;
           setState(() => _isLoading = false);
 
-          final roleLabel = actualRole == 'admin' ? 'Admin' : 'Farmer';
+          String roleLabel;
+          switch (actualRole) {
+            case 'admin':
+              roleLabel = 'Admin';
+              break;
+            case 'buyer':
+              roleLabel = 'Buyer';
+              break;
+            default:
+              roleLabel = 'Farmer';
+          }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
@@ -151,9 +172,18 @@ class _LoginScreenState extends State<LoginScreen>
         if (!mounted) return;
         setState(() => _isLoading = false);
 
-        final destination = _selectedRole == UserRole.farmer
-            ? const FarmerDashboardScreen()
-            : const MaoAdminDashboard();
+        Widget destination;
+        switch (_selectedRole) {
+          case UserRole.farmer:
+            destination = const FarmerDashboardScreen();
+            break;
+          case UserRole.admin:
+            destination = const MaoAdminDashboard();
+            break;
+          case UserRole.buyer:
+            destination = const BuyerMarketplaceScreen();
+            break;
+        }
 
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
@@ -326,7 +356,9 @@ class _LoginScreenState extends State<LoginScreen>
                 labelText: 'Email Address',
                 hintText: _selectedRole == UserRole.farmer
                     ? 'farmer@smartsack.farm'
-                    : 'admin@smartsack.farm',
+                    : _selectedRole == UserRole.buyer
+                        ? 'buyer@smartsack.farm'
+                        : 'admin@smartsack.farm',
                 prefixIcon: const Icon(Icons.email_outlined, size: 20),
               ),
               validator: (value) {
@@ -451,7 +483,16 @@ class _LoginScreenState extends State<LoginScreen>
                 color: AppTheme.farmerColor,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildRoleChip(
+                role: UserRole.buyer,
+                icon: Icons.shopping_cart_rounded,
+                label: 'Buyer',
+                color: AppTheme.buyerColor,
+              ),
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: _buildRoleChip(
                 role: UserRole.admin,
@@ -543,7 +584,9 @@ class _LoginScreenState extends State<LoginScreen>
                     Text(
                       _selectedRole == UserRole.farmer
                           ? 'Sign in as Farmer'
-                          : 'Sign in as Admin',
+                          : _selectedRole == UserRole.buyer
+                              ? 'Sign in as Buyer'
+                              : 'Sign in as Admin',
                     ),
                     const SizedBox(width: 8),
                     const Icon(Icons.arrow_forward_rounded, size: 20),
