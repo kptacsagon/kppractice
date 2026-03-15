@@ -8,6 +8,7 @@ import '../features/verification_workflow_screen.dart';
 import '../features/crop_recommendation_screen.dart';
 import '../features/financial_forecast_screen.dart';
 import '../admin/market_prices_screen.dart';
+import '../admin/farmer_management_screen.dart';
 
 class MaoAdminDashboard extends StatefulWidget {
   const MaoAdminDashboard({super.key});
@@ -387,6 +388,16 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
                 context,
                 MaterialPageRoute(
                     builder: (_) => const MarketPricesScreen()),
+              ),
+            ),
+            _buildActionCard(
+              icon: Icons.people_alt,
+              color: const Color(0xFF6200EE),
+              title: 'Farmer Management',
+              badge: 'View & search',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FarmerManagementScreen()),
               ),
             ),
           ],
