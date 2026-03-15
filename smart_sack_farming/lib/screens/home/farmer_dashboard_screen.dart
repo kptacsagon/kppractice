@@ -11,6 +11,8 @@ import '../features/crop_recommendation_screen.dart';
 import '../features/financial_forecast_screen.dart';
 import '../features/agronomic_logbook_screen.dart';
 import '../saturation/saturation_meter_screen.dart';
+import '../farmer/planting_entry_screen.dart';
+import '../farmer/my_market_screen.dart';
 
 class FarmerDashboardScreen extends StatelessWidget {
   const FarmerDashboardScreen({super.key});
@@ -138,6 +140,22 @@ class FarmerDashboardScreen extends StatelessWidget {
                   description: 'Simulate profit scenarios and compare crop returns',
                   buttonText: 'View Forecast',
                   onTap: () => _navigateToFeature(context, 'Financial Forecast'),
+                ),
+                _buildFeatureCard(
+                  icon: Icons.grass_rounded,
+                  iconColor: const Color(0xFF2E7D32),
+                  title: 'Planting Entry',
+                  description: 'Log new planting activities and request endorsements',
+                  buttonText: 'Add Planting',
+                  onTap: () => _navigateToFeature(context, 'Planting Entry'),
+                ),
+                _buildFeatureCard(
+                  icon: Icons.storefront_rounded,
+                  iconColor: const Color(0xFF00A86B),
+                  title: 'My Market',
+                  description: 'View market endorsements linked to your plantings',
+                  buttonText: 'Open Market',
+                  onTap: () => _navigateToFeature(context, 'My Market'),
                 ),
                 _buildFeatureCard(
                   icon: Icons.menu_book_rounded,
@@ -305,6 +323,16 @@ class FarmerDashboardScreen extends StatelessWidget {
     } else if (featureName == 'My Profile') {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const FarmerProfileScreen()),
+      );
+    } else if (featureName == 'Planting Entry') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const PlantingEntryScreen()),
+      );
+    } else if (featureName == 'My Market') {
+      final user = Supabase.instance.client.auth.currentUser;
+      final farmerId = user?.id ?? 'farmer-unknown';
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => MyMarketScreen(farmerId: farmerId)),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
