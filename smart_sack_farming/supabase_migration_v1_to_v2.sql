@@ -96,6 +96,41 @@ ALTER TABLE equipment ADD COLUMN IF NOT EXISTS condition VARCHAR(50) NOT NULL DE
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS age INT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sex VARCHAR(20);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS date_of_birth DATE;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS land_size_ha DECIMAL(10,2);
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (
+    id,
+    email,
+    full_name,
+    role,
+    age,
+    sex,
+    date_of_birth,
+    phone,
+    address,
+    land_size_ha
+  )
+  VALUES (
+    NEW.id,
+    NEW.email,
+    NEW.raw_user_meta_data->>'full_name',
+    COALESCE(NEW.raw_user_meta_data->>'role', 'farmer'),
+    NULLIF(NEW.raw_user_meta_data->>'age', '')::INT,
+    LOWER(NULLIF(NEW.raw_user_meta_data->>'sex', '')),
+    NULLIF(NEW.raw_user_meta_data->>'date_of_birth', '')::DATE,
+    NEW.raw_user_meta_data->>'phone',
+    NEW.raw_user_meta_data->>'address',
+    NULLIF(NEW.raw_user_meta_data->>'land_size_ha', '')::DECIMAL
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ── Notify PostgREST to reload schema cache ─────────────────
 NOTIFY pgrst, 'reload schema';

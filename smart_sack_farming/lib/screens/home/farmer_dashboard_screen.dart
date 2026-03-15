@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../auth/login_screen.dart';
+import 'farmer_profile_screen.dart';
 import '../features/progressive_profit_loss_screen.dart';
 import '../features/rentals_screen.dart';
 import '../features/reports_screen.dart';
@@ -31,6 +32,11 @@ class FarmerDashboardScreen extends StatelessWidget {
         ),
         centerTitle: false,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.account_circle_rounded, color: AppTheme.textMedium),
+            tooltip: 'My Profile',
+            onPressed: () => _navigateToFeature(context, 'My Profile'),
+          ),
           IconButton(
             icon: const Icon(Icons.logout_rounded, color: AppTheme.textMedium),
             onPressed: () => _logout(context),
@@ -140,6 +146,14 @@ class FarmerDashboardScreen extends StatelessWidget {
                   description: 'Record and track all agronomic events and activities',
                   buttonText: 'Open Logbook',
                   onTap: () => _navigateToFeature(context, 'Farm Logbook'),
+                ),
+                _buildFeatureCard(
+                  icon: Icons.person_rounded,
+                  iconColor: const Color(0xFF00897B),
+                  title: 'My Profile',
+                  description: 'View your account and farmer profile information',
+                  buttonText: 'View Profile',
+                  onTap: () => _navigateToFeature(context, 'My Profile'),
                 ),
                 _buildFeatureCard(
                   icon: Icons.support_agent_rounded,
@@ -287,6 +301,10 @@ class FarmerDashboardScreen extends StatelessWidget {
       Navigator.of(context).push(
         MaterialPageRoute(
             builder: (_) => const AgronomicLogbookScreen()),
+      );
+    } else if (featureName == 'My Profile') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const FarmerProfileScreen()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

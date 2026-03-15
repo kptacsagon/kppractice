@@ -38,8 +38,12 @@ CREATE TABLE profiles (
   full_name   VARCHAR(255),
   role        VARCHAR(20) NOT NULL DEFAULT 'farmer'
               CHECK (role IN ('farmer', 'admin', 'mao')),
+  age         INT CHECK (age > 0 AND age <= 120),
+  sex         VARCHAR(20) CHECK (sex IN ('male', 'female', 'other')),
+  date_of_birth DATE,
   phone       VARCHAR(50),
   address     TEXT,
+  land_size_ha DECIMAL(10,2),
   avatar_url  TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -375,13 +379,29 @@ CREATE POLICY "Admins manage market prices"
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, full_name, role, phone)
+  INSERT INTO public.profiles (
+    id,
+    email,
+    full_name,
+    role,
+    age,
+    sex,
+    date_of_birth,
+    phone,
+    address,
+    land_size_ha
+  )
   VALUES (
     NEW.id,
     NEW.email,
     NEW.raw_user_meta_data->>'full_name',
     COALESCE(NEW.raw_user_meta_data->>'role', 'farmer'),
-    NEW.raw_user_meta_data->>'phone'
+    NULLIF(NEW.raw_user_meta_data->>'age', '')::INT,
+    LOWER(NULLIF(NEW.raw_user_meta_data->>'sex', '')),
+    NULLIF(NEW.raw_user_meta_data->>'date_of_birth', '')::DATE,
+    NEW.raw_user_meta_data->>'phone',
+    NEW.raw_user_meta_data->>'address',
+    NULLIF(NEW.raw_user_meta_data->>'land_size_ha', '')::DECIMAL
   );
   RETURN NEW;
 END;

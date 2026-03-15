@@ -15,11 +15,16 @@ class _SignUpScreenState extends State<SignUpScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
+  final _ageController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _landSizeController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
   UserRole _selectedRole = UserRole.farmer;
+  String? _selectedSex;
+  DateTime? _dateOfBirth;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -54,6 +59,9 @@ class _SignUpScreenState extends State<SignUpScreen>
   void dispose() {
     _animController.dispose();
     _fullNameController.dispose();
+    _ageController.dispose();
+    _addressController.dispose();
+    _landSizeController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -79,6 +87,74 @@ class _SignUpScreenState extends State<SignUpScreen>
       return 'Please enter a valid email address';
     }
     return null;
+  }
+
+  String? _validateAge(String? value) {
+    if (_selectedRole != UserRole.farmer) return null;
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter your age';
+    }
+    final age = int.tryParse(value.trim());
+    if (age == null || age < 1 || age > 120) {
+      return 'Please enter a valid age';
+    }
+    return null;
+  }
+
+  String? _validateSex(String? value) {
+    if (_selectedRole != UserRole.farmer) return null;
+    if (value == null || value.trim().isEmpty) {
+      return 'Please select sex';
+    }
+    return null;
+  }
+
+  String? _validateDateOfBirth() {
+    if (_selectedRole != UserRole.farmer) return null;
+    if (_dateOfBirth == null) {
+      return 'Please select date of birth';
+    }
+    return null;
+  }
+
+  String? _validateAddress(String? value) {
+    if (_selectedRole != UserRole.farmer) return null;
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter your address';
+    }
+    return null;
+  }
+
+  String? _validateLandSize(String? value) {
+    if (_selectedRole != UserRole.farmer) return null;
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter land size';
+    }
+    final landSize = double.tryParse(value.trim());
+    if (landSize == null || landSize <= 0) {
+      return 'Please enter a valid land size';
+    }
+    return null;
+  }
+
+  String _formatDate(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
+  }
+
+  Future<void> _pickDateOfBirth() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dateOfBirth ?? DateTime(now.year - 25, now.month, now.day),
+      firstDate: DateTime(1900),
+      lastDate: now,
+    );
+
+    if (picked != null) {
+      setState(() => _dateOfBirth = picked);
+    }
   }
 
   String? _validatePassword(String? value) {
@@ -148,19 +224,32 @@ class _SignUpScreenState extends State<SignUpScreen>
     setState(() => _isLoading = true);
 
     try {
-      // Sign up with Supabase Auth
       final roleStr = _selectedRole == UserRole.farmer 
           ? 'farmer' 
           : _selectedRole == UserRole.buyer 
               ? 'buyer' 
               : 'admin';
+      final isFarmer = _selectedRole == UserRole.farmer;
+
+      final signUpData = <String, dynamic>{
+        'full_name': _fullNameController.text.trim(),
+        'role': roleStr,
+      };
+
+      if (isFarmer) {
+        signUpData.addAll({
+          'age': int.parse(_ageController.text.trim()),
+          'sex': _selectedSex,
+          'date_of_birth': _formatDate(_dateOfBirth!),
+          'address': _addressController.text.trim(),
+          'land_size_ha': double.parse(_landSizeController.text.trim()),
+        });
+      }
+
       final response = await Supabase.instance.client.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
-        data: {
-          'full_name': _fullNameController.text.trim(),
-          'role': roleStr,
-        },
+        data: signUpData,
       );
 
       if (!mounted) return;
@@ -176,17 +265,24 @@ class _SignUpScreenState extends State<SignUpScreen>
                 .eq('id', response.user!.id)
                 .maybeSingle();
             if (existing != null) break; // trigger already created it
-            final roleStr = _selectedRole == UserRole.farmer 
-                ? 'farmer' 
-                : _selectedRole == UserRole.buyer 
-                    ? 'buyer' 
-                    : 'admin';
-            await Supabase.instance.client.from('profiles').insert({
+            final profileData = <String, dynamic>{
               'id': response.user!.id,
               'email': _emailController.text.trim(),
               'full_name': _fullNameController.text.trim(),
               'role': roleStr,
-            });
+            };
+
+            if (isFarmer) {
+              profileData.addAll({
+                'age': int.parse(_ageController.text.trim()),
+                'sex': _selectedSex,
+                'date_of_birth': _formatDate(_dateOfBirth!),
+                'address': _addressController.text.trim(),
+                'land_size_ha': double.parse(_landSizeController.text.trim()),
+              });
+            }
+
+            await Supabase.instance.client.from('profiles').insert(profileData);
             break;
           } catch (e) {
             print('Profile creation attempt ${attempt + 1}: $e');
@@ -418,6 +514,104 @@ class _SignUpScreenState extends State<SignUpScreen>
               ),
               validator: _validateFullName,
             ),
+            if (_selectedRole == UserRole.farmer) ...[
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _ageController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: const TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 15,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Age',
+                  hintText: 'e.g. 35',
+                  prefixIcon: Icon(Icons.cake_outlined, size: 20),
+                ),
+                validator: _validateAge,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _selectedSex,
+                decoration: const InputDecoration(
+                  labelText: 'Sex',
+                  prefixIcon: Icon(Icons.wc_rounded, size: 20),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'male', child: Text('Male')),
+                  DropdownMenuItem(value: 'female', child: Text('Female')),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: (value) => setState(() => _selectedSex = value),
+                validator: _validateSex,
+              ),
+              const SizedBox(height: 16),
+              FormField<String>(
+                validator: (_) => _validateDateOfBirth(),
+                builder: (state) {
+                  final dateText = _dateOfBirth == null
+                      ? ''
+                      : _formatDate(_dateOfBirth!);
+
+                  return InkWell(
+                    onTap: () async {
+                      await _pickDateOfBirth();
+                      state.didChange(dateText);
+                    },
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: 'Date of Birth',
+                        prefixIcon: const Icon(Icons.calendar_today_rounded, size: 20),
+                        errorText: state.errorText,
+                      ),
+                      child: Text(
+                        dateText.isEmpty ? 'Select date' : dateText,
+                        style: TextStyle(
+                          color: dateText.isEmpty
+                              ? AppTheme.textLight
+                              : AppTheme.textDark,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _addressController,
+                textCapitalization: TextCapitalization.sentences,
+                style: const TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 15,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Address',
+                  hintText: 'Barangay / Municipality',
+                  prefixIcon: Icon(Icons.location_on_outlined, size: 20),
+                ),
+                validator: _validateAddress,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _landSizeController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*$')),
+                ],
+                style: const TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 15,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Land Size (hectares)',
+                  hintText: 'e.g. 1.5',
+                  prefixIcon: Icon(Icons.landscape_outlined, size: 20),
+                ),
+                validator: _validateLandSize,
+              ),
+            ],
             const SizedBox(height: 16),
             // Email
             TextFormField(
@@ -608,7 +802,16 @@ class _SignUpScreenState extends State<SignUpScreen>
     final isSelected = _selectedRole == role;
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedRole = role),
+      onTap: () => setState(() {
+        _selectedRole = role;
+        if (_selectedRole != UserRole.farmer) {
+          _ageController.clear();
+          _selectedSex = null;
+          _dateOfBirth = null;
+          _addressController.clear();
+          _landSizeController.clear();
+        }
+      }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeInOut,
