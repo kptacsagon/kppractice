@@ -32,35 +32,44 @@ class RecommendationEngine {
 
   // ================================================================
   // COST ESTIMATES PER HECTARE (₱)
+  // Updated March 2026 with PSA OpenSTAT Iloilo data
   // ================================================================
   static const Map<String, double> _costPerHectare = {
     'Rice': 45000,
     'Corn': 30000,
-    'Tomato': 60000,
-    'Lettuce': 50000,
-    'Eggplant': 55000,
-    'Sweet Potato': 35000,
-    'Carrot': 45000,
-    'Cabbage': 40000,
-    'Watermelon': 50000,
-    'Basil': 30000,
-    'Pepper': 52000,
+    'Tomato': 64000,        // PSA Iloilo ₱84-113/kg
+    'Lettuce': 56000,
+    'Eggplant': 55000,      // PSA Iloilo ₱86-141/kg
+    'Sweet Potato': 31000,  // PSA Iloilo ₱52-73/kg
+    'Carrot': 50000,
+    'Cabbage': 53000,
+    'Watermelon': 43000,
+    'Basil': 27000,
+    'Pepper': 50000,
     'Spinach': 35000,
     'Wheat': 28000,
     'Maize': 25000,
     'Cotton': 40000,
     'Sugarcane': 55000,
     'Pulses': 22000,
+    // PSA OpenSTAT crops - Iloilo Region
+    'Squash': 31000,        // PSA Iloilo ₱29-51/kg
+    'Radish': 35000,        // PSA Iloilo ₱61-113/kg, volatile
+    'Potato': 102000,       // PSA Iloilo ₱103-133/kg, high input
+    'Banana Saba': 43000,   // PSA Iloilo ₱36-39/kg, stable
+    'Banana Lakatan': 57000,// PSA Iloilo ₱80-87/kg, premium
+    'Onion': 84000,
   };
 
   // Average yield per hectare (kg)
+  // Updated March 2026 with PSA OpenSTAT data
   static const Map<String, double> _avgYieldPerHa = {
     'Rice': 4500,
     'Corn': 6000,
-    'Tomato': 25000,
+    'Tomato': 20000,        // PSA: 15-25 MT/ha
     'Lettuce': 20000,
-    'Eggplant': 30000,
-    'Sweet Potato': 15000,
+    'Eggplant': 25000,      // PSA: 20-30 MT/ha
+    'Sweet Potato': 12000,  // PSA: 10-15 MT/ha
     'Carrot': 20000,
     'Cabbage': 35000,
     'Watermelon': 30000,
@@ -72,6 +81,13 @@ class RecommendationEngine {
     'Cotton': 2000,
     'Sugarcane': 70000,
     'Pulses': 1200,
+    // PSA OpenSTAT crops - Iloilo Region
+    'Squash': 18000,        // Hardy crop, good yield
+    'Radish': 15000,        // Fast crop, 25-35 days
+    'Potato': 15000,        // Higher altitude preferred
+    'Banana Saba': 20000,   // Cooking banana
+    'Banana Lakatan': 18000,// Premium dessert banana
+    'Onion': 15000,
   };
 
   // ================================================================

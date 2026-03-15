@@ -44,9 +44,18 @@ class _ProgressiveProfitLossCalculatorScreenState
     'Coconut (Niyog)',
     'Sugarcane (Tubo)',
     'Banana (Saging)',
+    'Banana Saba',
+    'Banana Lakatan',
     'Vegetables (Gulay)',
+    'Eggplant (Talong)',
+    'Tomato (Kamatis)',
+    'Squash (Kalabasa)',
     'Root Crops (Kamote/Gabi)',
+    'Sweet Potato (Kamote)',
+    'Radish (Labanos)',
+    'Potato (Patatas)',
     'Mango',
+    'Onion (Sibuyas)',
     'Other',
   ];
 

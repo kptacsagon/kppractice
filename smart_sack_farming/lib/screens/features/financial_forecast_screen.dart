@@ -24,8 +24,10 @@ class _FinancialForecastScreenState extends State<FinancialForecastScreen> {
   final _cropOptions = [
     'Rice', 'Corn', 'Tomato', 'Lettuce', 'Eggplant', 'Sweet Potato',
     'Carrot', 'Cabbage', 'Watermelon', 'Basil', 'Pepper', 'Spinach',
+    // PSA OpenSTAT crops - Iloilo Region
+    'Squash', 'Radish', 'Potato', 'Banana Saba', 'Banana Lakatan', 'Onion',
   ];
-  final _selectedCrops = <String>{'Rice', 'Corn', 'Tomato'};
+  final _selectedCrops = <String>{'Rice', 'Eggplant', 'Tomato'};
 
   @override
   void dispose() {

@@ -12,6 +12,7 @@ class FinancialForecastService {
   // ================================================================
   // COST STRUCTURE (₱ per hectare) — Philippine Agronomic Data
   // Sources: PhilRice, DA-BAS, PSA crop statistics
+  // Updated March 2026 with PSA OpenSTAT Iloilo data
   // ================================================================
   static const Map<String, Map<String, double>> _costBreakdown = {
     // Rice (Palay): PhilRice avg irrigated ₱45K-55K/ha
@@ -59,6 +60,24 @@ class FinancialForecastService {
       'Water/Irrigation': 4000,
       'Equipment Rental': 4000,
     },
+    // Banana Saba: PSA Iloilo ₱36-39/kg, stable market
+    'Banana Saba': {
+      'Seedlings/Suckers': 8000,
+      'Fertilizer': 10000,
+      'Pesticides': 4000,
+      'Labor': 14000,
+      'Water/Irrigation': 4000,
+      'Equipment Rental': 3000,
+    },
+    // Banana Lakatan: PSA Iloilo ₱80-87/kg, premium price
+    'Banana Lakatan': {
+      'Seedlings/Suckers': 12000,
+      'Fertilizer': 14000,
+      'Pesticides': 6000,
+      'Labor': 16000,
+      'Water/Irrigation': 5000,
+      'Equipment Rental': 4000,
+    },
     // Vegetables (mixed): ₱50K-80K/ha
     'Vegetables': {
       'Seeds': 8000,
@@ -77,6 +96,15 @@ class FinancialForecastService {
       'Water/Irrigation': 3000,
       'Equipment Rental': 3000,
     },
+    // Sweet Potato: PSA Iloilo ₱52-73/kg
+    'Sweet Potato': {
+      'Planting Material': 4000,
+      'Fertilizer': 6000,
+      'Pesticides': 3000,
+      'Labor': 12000,
+      'Water/Irrigation': 3000,
+      'Equipment Rental': 3000,
+    },
     // Mango: Established orchard ₱25K-40K/ha/season
     'Mango': {
       'Flower Inducer': 6000,
@@ -86,7 +114,7 @@ class FinancialForecastService {
       'Water/Irrigation': 3000,
       'Equipment Rental': 3000,
     },
-    // Eggplant (Talong): ₱50K-65K/ha
+    // Eggplant (Talong): ₱50K-65K/ha, PSA Iloilo ₱86-140/kg
     'Eggplant': {
       'Seeds': 5000,
       'Fertilizer': 14000,
@@ -95,7 +123,7 @@ class FinancialForecastService {
       'Water/Irrigation': 5000,
       'Equipment Rental': 6000,
     },
-    // Tomato (Kamatis): ₱55K-75K/ha
+    // Tomato (Kamatis): ₱55K-75K/ha, PSA Iloilo ₱84-113/kg
     'Tomato': {
       'Seeds': 8000,
       'Fertilizer': 16000,
@@ -113,21 +141,125 @@ class FinancialForecastService {
       'Water/Irrigation': 8000,
       'Equipment Rental': 6000,
     },
+    // Squash (Kalabasa): PSA Iloilo ₱29-51/kg
+    'Squash': {
+      'Seeds': 3000,
+      'Fertilizer': 8000,
+      'Pesticides': 4000,
+      'Labor': 10000,
+      'Water/Irrigation': 3000,
+      'Equipment Rental': 3000,
+    },
+    // Radish (Labanos): PSA Iloilo ₱61-113/kg, volatile
+    'Radish': {
+      'Seeds': 4000,
+      'Fertilizer': 8000,
+      'Pesticides': 4000,
+      'Labor': 12000,
+      'Water/Irrigation': 4000,
+      'Equipment Rental': 3000,
+    },
+    // Potato (Patatas): PSA Iloilo ₱103-133/kg, high value
+    'Potato': {
+      'Seeds/Tubers': 40000,  // Seed potatoes are expensive
+      'Fertilizer': 18000,
+      'Pesticides': 10000,
+      'Labor': 20000,
+      'Water/Irrigation': 8000,
+      'Equipment Rental': 6000,
+    },
+    // Carrot: PSA estimate ₱80/kg
+    'Carrot': {
+      'Seeds': 8000,
+      'Fertilizer': 12000,
+      'Pesticides': 6000,
+      'Labor': 15000,
+      'Water/Irrigation': 5000,
+      'Equipment Rental': 4000,
+    },
+    // Cabbage (Repolyo): PSA estimate ₱65/kg
+    'Cabbage': {
+      'Seeds': 6000,
+      'Fertilizer': 14000,
+      'Pesticides': 8000,
+      'Labor': 16000,
+      'Water/Irrigation': 5000,
+      'Equipment Rental': 4000,
+    },
+    // Lettuce: Higher input cost
+    'Lettuce': {
+      'Seeds': 10000,
+      'Fertilizer': 12000,
+      'Pesticides': 6000,
+      'Labor': 18000,
+      'Water/Irrigation': 6000,
+      'Equipment Rental': 4000,
+    },
+    // Watermelon (Pakwan)
+    'Watermelon': {
+      'Seeds': 5000,
+      'Fertilizer': 10000,
+      'Pesticides': 5000,
+      'Labor': 14000,
+      'Water/Irrigation': 5000,
+      'Equipment Rental': 4000,
+    },
+    // Pepper (Sili)
+    'Pepper': {
+      'Seeds': 6000,
+      'Fertilizer': 12000,
+      'Pesticides': 7000,
+      'Labor': 16000,
+      'Water/Irrigation': 5000,
+      'Equipment Rental': 4000,
+    },
+    // Basil (Balanoy)
+    'Basil': {
+      'Seeds': 3000,
+      'Fertilizer': 6000,
+      'Pesticides': 3000,
+      'Labor': 10000,
+      'Water/Irrigation': 3000,
+      'Equipment Rental': 2000,
+    },
+    // Spinach (Alugbati)
+    'Spinach': {
+      'Seeds': 4000,
+      'Fertilizer': 8000,
+      'Pesticides': 4000,
+      'Labor': 12000,
+      'Water/Irrigation': 4000,
+      'Equipment Rental': 3000,
+    },
   };
 
   // Average yield per hectare (kg) — Philippine DA/BAS statistics
+  // Updated March 2026 with PSA OpenSTAT data
   static const Map<String, double> _avgYieldPerHa = {
-    'Rice': 4200,        // National avg irrigated: 4.0-4.5 MT/ha
-    'Corn': 4800,        // Yellow corn avg: 4.5-5.5 MT/ha
-    'Coconut': 5000,     // ~5 MT copra/ha/yr (mature plantation)
-    'Sugarcane': 65000,  // 55-75 MT cane/ha
-    'Banana': 22000,     // 18-30 MT/ha/yr (Cavendish)
-    'Vegetables': 15000, // Varies widely; mixed estimate
-    'Root Crops': 12000, // Sweet potato 10-15 MT/ha
-    'Mango': 8000,       // 6-10 MT/ha (bearing trees)
-    'Eggplant': 25000,   // 20-30 MT/ha
-    'Tomato': 20000,     // 15-25 MT/ha
-    'Onion': 15000,      // 12-18 MT/ha
+    'Rice': 4200,          // National avg irrigated: 4.0-4.5 MT/ha
+    'Corn': 4800,          // Yellow corn avg: 4.5-5.5 MT/ha
+    'Coconut': 5000,       // ~5 MT copra/ha/yr (mature plantation)
+    'Sugarcane': 65000,    // 55-75 MT cane/ha
+    'Banana': 22000,       // 18-30 MT/ha/yr (Cavendish)
+    'Banana Saba': 20000,  // Cooking banana, slightly lower yield
+    'Banana Lakatan': 18000, // Premium banana, lower yield
+    'Vegetables': 15000,   // Varies widely; mixed estimate
+    'Root Crops': 12000,   // Sweet potato 10-15 MT/ha
+    'Sweet Potato': 12000, // PSA data: 10-15 MT/ha
+    'Mango': 8000,         // 6-10 MT/ha (bearing trees)
+    'Eggplant': 25000,     // 20-30 MT/ha
+    'Tomato': 20000,       // 15-25 MT/ha
+    'Onion': 15000,        // 12-18 MT/ha
+    'Squash': 18000,       // 15-20 MT/ha, hardy crop
+    'Radish': 15000,       // Fast crop, 12-18 MT/ha
+    'Potato': 15000,       // Higher altitude, 12-18 MT/ha
+    'Carrot': 20000,       // 15-25 MT/ha
+    'Cabbage': 35000,      // High yield 30-40 MT/ha
+    'Lettuce': 20000,      // 15-25 MT/ha
+    'Watermelon': 30000,   // 25-35 MT/ha
+    'Pepper': 15000,       // 10-20 MT/ha
+    'Basil': 5000,         // Herb, lower yield
+    'Spinach': 12000,      // 10-15 MT/ha
   };
 
   /// Generate a full financial forecast for a crop.
