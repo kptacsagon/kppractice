@@ -288,7 +288,10 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                     SizedBox(
                       height: 36,
                       child: ElevatedButton.icon(
-                        onPressed: _isUploadingPhoto ? null : _pickAndUploadProfilePhoto,
+                        onPressed: () {
+                          if (_isUploadingPhoto) return;
+                          _pickAndUploadProfilePhoto();
+                        },
                         icon: _isUploadingPhoto
                             ? const SizedBox(
                                 width: 14,

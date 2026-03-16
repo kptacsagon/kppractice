@@ -600,7 +600,19 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _isLoading || !_canSubmitRequest ? null : _submitCropRequestToAdmin,
+            onPressed: () {
+              if (_isLoading) return;
+              if (!_canSubmitRequest) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a valid quantity within available stock.'),
+                    backgroundColor: AppTheme.error,
+                  ),
+                );
+                return;
+              }
+              _submitCropRequestToAdmin();
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: _currentListing?.saturationLevel == 'high'
                   ? Colors.orange.shade600

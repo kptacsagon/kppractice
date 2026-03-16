@@ -117,7 +117,10 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
         centerTitle: true,
         actions: [
           TextButton.icon(
-            onPressed: _isSaving ? null : _saveRecord,
+            onPressed: () {
+              if (_isSaving) return;
+              _saveRecord();
+            },
             icon: const Icon(Icons.save_rounded, color: Colors.white, size: 18),
             label: const Text('Save',
                 style: TextStyle(
@@ -281,7 +284,10 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton(
-                          onPressed: _isSaving ? null : _saveRecord,
+                          onPressed: () {
+                            if (_isSaving) return;
+                            _saveRecord();
+                          },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF2E7D32),
                             foregroundColor: Colors.white,
