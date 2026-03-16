@@ -24,6 +24,9 @@ extension BuyerBidStatusExt on BuyerBidStatus {
         throw ArgumentError('Unknown bid status: $s');
     }
   }
+
+  /// DB-safe value (lowercase, no spaces)
+  String toJson() => name.toLowerCase().replaceAll(' ', '');
 }
 
 class BuyerBid {
@@ -61,7 +64,7 @@ class BuyerBid {
       'buyer_id': buyerId,
       'bid_amount': bidAmount,
       'bid_date': bidDate.toIso8601String(),
-      'status': status.name,
+      'status': status.toJson(),
     };
   }
 }

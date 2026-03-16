@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/crop.dart';
 import '../../providers/planting_provider.dart';
+import '../home/farmer_profile_screen.dart';
 
 class PlantingEntryScreen extends ConsumerStatefulWidget {
   const PlantingEntryScreen({super.key});
@@ -12,14 +14,45 @@ class PlantingEntryScreen extends ConsumerStatefulWidget {
 
 class _PlantingEntryScreenState extends ConsumerState<PlantingEntryScreen> {
   final _formKey = GlobalKey<FormState>();
+  String? _selectedFarmerId;
+  List<Map<String, dynamic>> _farmerOptions = [];
+  bool _showFarmerSelect = false;
   final _areaController = TextEditingController();
-  final _yieldController = TextEditingController();
 
   @override
   void dispose() {
     _areaController.dispose();
-    _yieldController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _determineRoleAndLoadFarmers();
+  }
+
+  Future<void> _determineRoleAndLoadFarmers() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    try {
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+      final role = (profile != null && profile['role'] != null) ? profile['role'] as String : 'farmer';
+      if (role != 'farmer') {
+        // admin or extension worker: show farmer select
+        _showFarmerSelect = true;
+        final res = await Supabase.instance.client
+            .from('profiles')
+            .select('id, full_name')
+            .eq('role', 'farmer');
+        _farmerOptions = List<Map<String, dynamic>>.from(res as List<dynamic>);
+        if (_farmerOptions.isNotEmpty) _selectedFarmerId = _farmerOptions.first['id'] as String;
+        if (mounted) setState(() {});
+      }
+    } catch (_) {}
   }
 
   @override
@@ -89,21 +122,17 @@ class _PlantingEntryScreenState extends ConsumerState<PlantingEntryScreen> {
 
                 const SizedBox(height: 12),
 
-                TextFormField(
-                  controller: _yieldController,
-                  decoration: const InputDecoration(
-                    labelText: 'Estimated yield (MT)',
-                    hintText: 'e.g., 0.8',
+                if (_showFarmerSelect) ...[
+                  DropdownButtonFormField<String>(
+                    value: _selectedFarmerId,
+                    decoration: const InputDecoration(labelText: 'Select Farmer'),
+                    items: _farmerOptions
+                        .map((f) => DropdownMenuItem(value: f['id'] as String, child: Text(f['full_name'] ?? f['id'])))
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedFarmerId = v),
                   ),
-                  keyboardType: TextInputType.numberWithOptions(decimal: true),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Enter estimated yield';
-                    final parsed = double.tryParse(v);
-                    if (parsed == null) return 'Invalid number';
-                    if (parsed < 0) return 'Cannot be negative';
-                    return null;
-                  },
-                ),
+                  const SizedBox(height: 12),
+                ],
 
                 const SizedBox(height: 20),
 
@@ -116,23 +145,28 @@ class _PlantingEntryScreenState extends ConsumerState<PlantingEntryScreen> {
                             : () async {
                                 if (!_formKey.currentState!.validate()) return;
                                 final area = double.parse(_areaController.text);
-                                final estYield = double.parse(_yieldController.text);
                                 notifier.setAreaPlantedHa(area);
-                                notifier.setEstimatedYieldMt(estYield);
 
                                 try {
-                                  // TODO: replace with actual farmer id from auth
-                                  await notifier.submitPlantingRecord(farmerId: 'farmer-123');
+                                  final user = Supabase.instance.client.auth.currentUser;
+                                  final farmerId = _showFarmerSelect
+                                      ? (_selectedFarmerId ?? '')
+                                      : (user?.id ?? '');
+
+                                  if (farmerId.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select or login as a farmer')));
+                                    return;
+                                  }
+
+                                  final created = await notifier.submitPlantingRecord(farmerId: farmerId);
                                   if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Planting record submitted')),
-                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Planting record submitted')));
+                                    // redirect to the farmer profile we just recorded for
+                                    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => FarmerProfileScreen(farmerId: farmerId)));
                                   }
                                 } catch (e) {
                                   if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Error: $e')),
-                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                                   }
                                 }
                               },

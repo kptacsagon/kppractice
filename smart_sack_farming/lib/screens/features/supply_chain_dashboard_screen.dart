@@ -20,6 +20,18 @@ class _SupplyChainDashboardScreenState
   late TabController _tabController;
   SupplyChainSummary? _summary;
   bool _isLoading = true;
+  static const List<String> _allowedCrops = [
+    'okra',
+    'eggplant',
+    'stringbeans',
+    'squash',
+    'ampalaya',
+  ];
+
+  bool _isAllowedCrop(String crop) {
+    final key = crop.toLowerCase().replaceAll(' ', '');
+    return _allowedCrops.contains(key);
+  }
 
   @override
   void initState() {
@@ -99,6 +111,20 @@ class _SupplyChainDashboardScreenState
     final s = _summary;
     if (s == null) return const SizedBox.shrink();
 
+    final filteredProjections =
+        s.projections.where((p) => _isAllowedCrop(p.cropType)).toList();
+    final totalUpcomingYield =
+        filteredProjections.fold<double>(0, (t, p) => t + p.projectedYieldKg);
+    final totalFarmers =
+        filteredProjections.fold<int>(0, (t, p) => t + p.farmerCount);
+    final filteredCollisions =
+        s.collisions.where((c) => _isAllowedCrop(c.cropType)).toList();
+    final criticalCrops = filteredProjections
+        .where((p) => p.riskOfOversupply >= 50)
+        .map((p) => p.cropType)
+        .toSet()
+        .toList();
+
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
@@ -109,25 +135,25 @@ class _SupplyChainDashboardScreenState
       child: Row(
         children: [
           _buildSummaryItem(
-            '${(s.totalUpcomingYieldKg / 1000).toStringAsFixed(1)}',
+            '${(totalUpcomingYield / 1000).toStringAsFixed(1)}',
             'Tons Expected',
             Icons.inventory_2_rounded,
           ),
           _divider(),
           _buildSummaryItem(
-            '${s.totalFarmersHarvesting}',
+            '${totalFarmers}',
             'Farmers Active',
             Icons.people_rounded,
           ),
           _divider(),
           _buildSummaryItem(
-            '${s.criticalOversupplyCrops.length}',
+            '${criticalCrops.length}',
             'At-Risk Crops',
             Icons.warning_amber_rounded,
           ),
           _divider(),
           _buildSummaryItem(
-            '${s.collisions.length}',
+            '${filteredCollisions.length}',
             'Collisions',
             Icons.timeline_rounded,
           ),
@@ -169,10 +195,11 @@ class _SupplyChainDashboardScreenState
   // TAB 1: SUPPLY PROJECTIONS
   // ================================================================
   Widget _buildProjectionsTab() {
-    final projections = _summary?.projections ?? [];
+    final projections =
+        (_summary?.projections ?? []).where((p) => _isAllowedCrop(p.cropType)).toList();
     if (projections.isEmpty) {
       return _emptyState('No supply projections available',
-          'Projections are generated from farmer planting records.');
+          'Projections are generated from farmer planting records for selected crops.');
     }
 
     return ListView.builder(
@@ -344,10 +371,11 @@ class _SupplyChainDashboardScreenState
   // TAB 2: HARVEST COLLISIONS
   // ================================================================
   Widget _buildCollisionsTab() {
-    final collisions = _summary?.collisions ?? [];
+    final collisions =
+        (_summary?.collisions ?? []).where((c) => _isAllowedCrop(c.cropType)).toList();
     if (collisions.isEmpty) {
       return _emptyState('No harvest collisions detected',
-          'The system monitors for farmers harvesting simultaneously.');
+          'The system monitors for farmers harvesting simultaneously for selected crops.');
     }
 
     return ListView.builder(
@@ -425,10 +453,11 @@ class _SupplyChainDashboardScreenState
   // TAB 3: ALTERNATIVE MARKET CHANNELS
   // ================================================================
   Widget _buildChannelsTab() {
-    final highRisk = _summary?.highRiskProjections ?? [];
+    final highRisk =
+        (_summary?.highRiskProjections ?? []).where((p) => _isAllowedCrop(p.cropType)).toList();
     if (highRisk.isEmpty) {
       return _emptyState('No surplus detected',
-          'Market channels will be suggested when oversupply risk is high.');
+          'Market channels will be suggested when oversupply risk is high for selected crops.');
     }
 
     return ListView(

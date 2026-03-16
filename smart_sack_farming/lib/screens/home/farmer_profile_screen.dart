@@ -4,7 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
 
 class FarmerProfileScreen extends StatefulWidget {
-  const FarmerProfileScreen({super.key});
+  final String? farmerId;
+  const FarmerProfileScreen({super.key, this.farmerId});
 
   @override
   State<FarmerProfileScreen> createState() => _FarmerProfileScreenState();
@@ -14,6 +15,8 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _profile;
   String? _error;
+  int _activePlantingsCount = 0;
+  List<Map<String, dynamic>> _plantings = [];
 
   @override
   void initState() {
@@ -28,30 +31,29 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
     });
 
     try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) {
-        throw Exception('No authenticated user found.');
-      }
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      final userId = widget.farmerId ?? currentUser?.id;
+      if (userId == null) throw Exception('No farmer id provided or authenticated.');
 
       Map<String, dynamic>? profile;
       try {
         profile = await Supabase.instance.client
             .from('profiles')
             .select('full_name, email, role, age, sex, date_of_birth, address, land_size_ha')
-            .eq('id', user.id)
+            .eq('id', userId)
             .maybeSingle();
       } catch (_) {
         profile = await Supabase.instance.client
             .from('profiles')
             .select('full_name, email, role, address')
-            .eq('id', user.id)
+            .eq('id', userId)
             .maybeSingle();
       }
 
-      final metadata = user.userMetadata ?? <String, dynamic>{};
+      final metadata = (currentUser != null && currentUser.id == userId) ? currentUser.userMetadata ?? <String, dynamic>{} : <String, dynamic>{};
       final mergedProfile = <String, dynamic>{
         ...(profile ?? <String, dynamic>{}),
-        'email': profile?['email'] ?? user.email,
+        'email': profile?['email'] ?? currentUser?.email,
         'age': profile?['age'] ?? metadata['age'],
         'sex': profile?['sex'] ?? metadata['sex'],
         'date_of_birth': profile?['date_of_birth'] ?? metadata['date_of_birth'],
@@ -59,10 +61,24 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
         'land_size_ha': profile?['land_size_ha'] ?? metadata['land_size_ha'],
       };
 
+      // Fetch planting records for this farmer
+      final recs = await Supabase.instance.client
+          .from('planting_records')
+          .select('crop_name, planting_date, expected_harvest_date, status')
+          .eq('farmer_id', userId);
+
+      final plantings = List<Map<String, dynamic>>.from(recs as List<dynamic>? ?? []);
+      final active = plantings.where((p) {
+        final status = (p['status'] as String?) ?? '';
+        return status == 'growing' || status == 'harvesting';
+      }).toList();
+
       if (!mounted) return;
       setState(() {
         _profile = mergedProfile;
         _isLoading = false;
+        _plantings = plantings;
+        _activePlantingsCount = active.length;
       });
     } catch (e) {
       if (!mounted) return;
@@ -163,6 +179,37 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
             _buildField('Date of Birth', _formatDate(profile['date_of_birth'])),
             _buildField('Address', _formatValue(profile['address'])),
             _buildField('Land Size', _formatLandSize(profile['land_size_ha'])),
+            const SizedBox(height: 18),
+            // --- Planting dashboard ---
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.background,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Active plantings: $_activePlantingsCount', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  if (_plantings.isEmpty)
+                    const Text('No planting records found.')
+                  else
+                    Column(
+                      children: _plantings.map((p) {
+                        final crop = p['crop_name'] ?? '';
+                        final planting = p['planting_date'] ?? '';
+                        final harvest = p['expected_harvest_date'] ?? '';
+                        return ListTile(
+                          dense: true,
+                          title: Text(crop.toString()),
+                          subtitle: Text('Planted: ${planting.toString().substring(0,10)}  → Harvest: ${harvest.toString().substring(0,10)}'),
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

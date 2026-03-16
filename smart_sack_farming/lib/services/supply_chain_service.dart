@@ -14,30 +14,59 @@ class SupplyChainService {
   /// potential oversupply and generate actionable recommendations.
   Future<List<SupplyProjection>> generateSupplyProjections() async {
     try {
-      // Fetch all saturation records with expected harvest dates
-      final records = await _client
+      // Prefer planting_records (user submissions). Also accept saturation_records
+      // so the dashboard shows both manual saturation data and planting entries.
+      final plantingRows = await _client
+          .from('planting_records')
+          .select()
+          .not('expected_harvest_date', 'is', null)
+          .order('expected_harvest_date', ascending: true);
+
+      final saturationRows = await _client
           .from('saturation_records')
           .select()
           .not('expected_harvest', 'is', null)
           .order('expected_harvest', ascending: true);
 
-      if (records.isEmpty) return [];
+      final rows = <Map<String, dynamic>>[];
+
+      if (plantingRows is List && plantingRows.isNotEmpty) {
+        for (final r in (plantingRows as List).cast<Map<String, dynamic>>()) {
+          rows.add({
+            'crop': r['crop_name'],
+            'harvest': r['expected_harvest_date'],
+            'area_ha': (r['area_planted_ha'] is num) ? (r['area_planted_ha'] as num).toDouble() : 0.0,
+            'yield_kg': (r['estimated_yield_kg'] is num) ? (r['estimated_yield_kg'] as num).toDouble() : null,
+            'farmer_id': r['farmer_id'],
+          });
+        }
+      }
+
+      if (saturationRows is List && saturationRows.isNotEmpty) {
+        for (final r in (saturationRows as List).cast<Map<String, dynamic>>()) {
+          rows.add({
+            'crop': r['primary_crop'],
+            'harvest': r['expected_harvest'],
+            'area_ha': (r['field_size_ha'] is num) ? (r['field_size_ha'] as num).toDouble() : 0.0,
+            'yield_kg': (r['expected_yield_kg'] is num) ? (r['expected_yield_kg'] as num).toDouble() : null,
+            'farmer_id': r['farmer_id'],
+          });
+        }
+      }
+
+      if (rows.isEmpty) return [];
 
       // Group by crop + harvest month window
       final groups = <String, _HarvestGroup>{};
 
-      for (final record in records) {
-        final crop = record['primary_crop'] as String;
-        final harvestStr = record['expected_harvest'] as String?;
+      for (final record in rows) {
+        final crop = (record['crop'] ?? '') as String;
+        final harvestStr = record['harvest'] as String?;
         if (harvestStr == null) continue;
         final harvest = DateTime.parse(harvestStr);
-        final areaHa = (record['field_size_ha'] is num)
-            ? (record['field_size_ha'] as num).toDouble()
-            : 0.0;
-        final expectedYield = (record['expected_yield_kg'] is num)
-            ? (record['expected_yield_kg'] as num).toDouble()
-            : (areaHa * 5000); // fallback estimate
-        final farmerId = record['farmer_id'] as String;
+        final areaHa = (record['area_ha'] is num) ? (record['area_ha'] as num).toDouble() : 0.0;
+        final expectedYield = (record['yield_kg'] is num) ? (record['yield_kg'] as num).toDouble() : (areaHa * 5000);
+        final farmerId = (record['farmer_id'] as String?) ?? '';
 
         // Group by crop + month
         final key = '${crop}_${harvest.year}_${harvest.month}';
