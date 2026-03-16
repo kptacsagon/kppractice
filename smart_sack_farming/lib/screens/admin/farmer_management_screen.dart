@@ -98,12 +98,23 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
         try {
           final reportsRes = await client
               .from('production_reports')
-              .select('crop_type')
+              .select('crop_type, area_hectares')
               .eq('farmer_id', farmer['id']);
           
           final crops = reportsRes.map((report) => report['crop_type'] as String).toSet().toList();
+          final fallbackLandSize = reportsRes
+              .map((report) => report['area_hectares'])
+              .where((value) => value != null)
+              .cast<num?>()
+              .map((value) => value?.toDouble())
+              .firstWhere((value) => value != null, orElse: () => null);
+
+          if (farmer['land_size_ha'] == null && fallbackLandSize != null) {
+            farmer['land_size_ha'] = fallbackLandSize;
+          }
+
           farmer['crops'] = crops;
-          debugPrint('Farmer ${farmer['id']} - Name: ${farmer['full_name']}, Address: ${farmer['address']}, Crops: $crops');
+          debugPrint('Farmer ${farmer['id']} - Name: ${farmer['full_name']}, Address: ${farmer['address']}, Land Size: ${farmer['land_size_ha']}, Crops: $crops');
         } catch (e) {
           debugPrint('Error fetching crops for farmer ${farmer['id']}: $e');
           farmer['crops'] = [];
@@ -249,10 +260,12 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
         final farmer = _filteredFarmers[index];
         final crops = (farmer['crops'] as List<dynamic>? ?? []).cast<String>();
         final cropsText = crops.join(', ');
+        final landSizeValue = farmer['land_size_ha'];
+        final landSizeText = landSizeValue == null ? 'N/A' : landSizeValue.toString();
         
         final subtitleLines = <Widget>[
           Text('Address: ${farmer['address'] ?? 'No address provided'}'),
-          Text('Land Size: ${farmer['land_size_ha'] ?? 'N/A'} ha'),
+          Text('Land Size: $landSizeText ha'),
         ];
         
         if (cropsText.isNotEmpty) {
