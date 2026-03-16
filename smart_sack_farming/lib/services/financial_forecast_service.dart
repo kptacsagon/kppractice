@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/market_price_model.dart';
+import 'yield_prediction_service.dart';
 
 /// Financial forecasting service that simulates potential profit margins,
 /// compares recommended vs saturated crops, and provides risk assessment.
@@ -231,6 +232,33 @@ class FinancialForecastService {
       'Water/Irrigation': 4000,
       'Equipment Rental': 3000,
     },
+    // Okra (Lady's Finger): PSA Iloilo data — ₱30K-40K/ha
+    'Okra': {
+      'Seeds': 3000,
+      'Fertilizer': 8000,
+      'Pesticides': 5000,
+      'Labor': 12000,      // Frequent harvesting cycles
+      'Water/Irrigation': 3000,
+      'Equipment Rental': 3000,
+    },
+    // Ampalaya (Bitter Melon): PSA Iloilo data — ₱40K-55K/ha
+    'Ampalaya': {
+      'Seeds': 5000,
+      'Fertilizer': 10000,
+      'Pesticides': 5000,
+      'Labor': 15000,      // Includes trellis/stake setup
+      'Water/Irrigation': 4000,
+      'Equipment/Trellis': 5000,
+    },
+    // Stringbeans (Sitaw): PSA Iloilo data — ₱30K-40K/ha
+    'Stringbeans': {
+      'Seeds': 4000,
+      'Fertilizer': 8000,
+      'Pesticides': 4000,
+      'Labor': 12000,      // Includes trellis setup
+      'Water/Irrigation': 3000,
+      'Equipment/Trellis': 4000,
+    },
   };
 
   // Average yield per hectare (kg) — Philippine DA/BAS statistics
@@ -247,10 +275,10 @@ class FinancialForecastService {
     'Root Crops': 12000,   // Sweet potato 10-15 MT/ha
     'Sweet Potato': 12000, // PSA data: 10-15 MT/ha
     'Mango': 8000,         // 6-10 MT/ha (bearing trees)
-    'Eggplant': 25000,     // 20-30 MT/ha
+    'Eggplant': 8481,      // PSA Iloilo actual: 86.93 MT / 10.25 HA = 8.48 MT/ha
     'Tomato': 20000,       // 15-25 MT/ha
     'Onion': 15000,        // 12-18 MT/ha
-    'Squash': 18000,       // 15-20 MT/ha, hardy crop
+    'Squash': 12474,       // PSA Iloilo actual: 97.30 MT / 7.80 HA = 12.47 MT/ha
     'Radish': 15000,       // Fast crop, 12-18 MT/ha
     'Potato': 15000,       // Higher altitude, 12-18 MT/ha
     'Carrot': 20000,       // 15-25 MT/ha
@@ -260,13 +288,20 @@ class FinancialForecastService {
     'Pepper': 15000,       // 10-20 MT/ha
     'Basil': 5000,         // Herb, lower yield
     'Spinach': 12000,      // 10-15 MT/ha
+    // PSA Iloilo crop production data (images)
+    'Okra': 3147,          // PSA Iloilo actual: 29.90 MT / 9.50 HA = 3.15 MT/ha
+    'Ampalaya': 9130,      // PSA Iloilo actual: 52.50 MT / 5.75 HA = 9.13 MT/ha
+    'Stringbeans': 7933,   // PSA Iloilo actual: 49.58 MT / 6.25 HA = 7.93 MT/ha
   };
 
   /// Generate a full financial forecast for a crop.
+  /// [harvestMonth] (1–12): when provided, uses PSA monthly yield rates from
+  /// [YieldPredictionService] instead of the annual average yield.
   Future<CropForecast> forecastCrop({
     required String cropType,
     required double areaHa,
     int? growthDays,
+    int? harvestMonth,
   }) async {
     final prices = await _fetchMarketPrices();
     final price = prices[cropType];
@@ -287,8 +322,18 @@ class FinancialForecastService {
     final totalCost = totalCostPerHa * areaHa;
     final costBreakdown = costMap.map((k, v) => MapEntry(k, v * areaHa));
 
-    // Revenue calculation
-    final yieldPerHa = _avgYieldPerHa[cropType] ?? 5000;
+    // Revenue calculation — use monthly yield rate when harvest month is specified
+    double yieldPerHa = (_avgYieldPerHa[cropType] ?? 5000).toDouble();
+    bool usedMonthlyYield = false;
+    if (harvestMonth != null && harvestMonth >= 1 && harvestMonth <= 12) {
+      final monthlyRateMtHa = YieldPredictionService.getMonthlyYieldMtHa(
+        cropType, DateTime(2026, harvestMonth),
+      );
+      if (monthlyRateMtHa != null && monthlyRateMtHa > 0) {
+        yieldPerHa = monthlyRateMtHa * 1000; // MT/ha → kg/ha
+        usedMonthlyYield = true;
+      }
+    }
     final totalYieldKg = yieldPerHa * areaHa;
     final currentPrice = price?.pricePerKg ?? 30.0;
     final harvestPrice = price?.projectPrice(days) ?? currentPrice;
@@ -307,6 +352,8 @@ class FinancialForecastService {
       currentPricePerKg: currentPrice,
       projectedPricePerKg: harvestPrice,
       priceTrend: price?.trend ?? 'stable',
+      harvestMonth: harvestMonth,
+      usedMonthlyYield: usedMonthlyYield,
       bestCaseRevenue: bestRevenue,
       expectedRevenue: expectedRevenue,
       worstCaseRevenue: worstRevenue,
@@ -330,10 +377,15 @@ class FinancialForecastService {
   Future<List<CropForecast>> compareCrops({
     required List<String> cropTypes,
     required double areaHa,
+    int? harvestMonth,
   }) async {
     final forecasts = <CropForecast>[];
     for (final crop in cropTypes) {
-      final f = await forecastCrop(cropType: crop, areaHa: areaHa);
+      final f = await forecastCrop(
+        cropType: crop,
+        areaHa: areaHa,
+        harvestMonth: harvestMonth,
+      );
       forecasts.add(f);
     }
     // Sort by expected profit descending
@@ -407,6 +459,10 @@ class CropForecast {
   final double currentPricePerKg;
   final double projectedPricePerKg;
   final String priceTrend;
+  /// Set when forecast used a specific harvest month's yield rate.
+  final int? harvestMonth;
+  /// True when [YieldPredictionService] monthly data was used.
+  final bool usedMonthlyYield;
   final double bestCaseRevenue;
   final double expectedRevenue;
   final double worstCaseRevenue;
@@ -427,6 +483,8 @@ class CropForecast {
     required this.currentPricePerKg,
     required this.projectedPricePerKg,
     required this.priceTrend,
+    this.harvestMonth,
+    this.usedMonthlyYield = false,
     required this.bestCaseRevenue,
     required this.expectedRevenue,
     required this.worstCaseRevenue,
@@ -438,6 +496,9 @@ class CropForecast {
     required this.breakEvenPricePerKg,
     required this.roiPercent,
   });
+
+  /// Yield in MT/ha (for display alongside PSA data).
+  double get yieldMtPerHa => areaHa > 0 ? (expectedYieldKg / areaHa / 1000) : 0;
 
   String get profitLabel =>
       expectedProfit >= 0 ? 'Profitable' : 'Loss Expected';

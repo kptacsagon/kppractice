@@ -26,8 +26,17 @@ class _FinancialForecastScreenState extends State<FinancialForecastScreen> {
     'Carrot', 'Cabbage', 'Watermelon', 'Basil', 'Pepper', 'Spinach',
     // PSA OpenSTAT crops - Iloilo Region
     'Squash', 'Radish', 'Potato', 'Banana Saba', 'Banana Lakatan', 'Onion',
+    // PSA Iloilo crop production data (with monthly yields)
+    'Okra', 'Ampalaya', 'Stringbeans',
   ];
   final _selectedCrops = <String>{'Rice', 'Eggplant', 'Tomato'};
+
+  int? _harvestMonth; // 1-12; null = use annual average yield
+
+  static const _monthNames = [
+    '', 'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
 
   @override
   void dispose() {
@@ -42,6 +51,7 @@ class _FinancialForecastScreenState extends State<FinancialForecastScreen> {
       _forecasts = await _service.compareCrops(
         cropTypes: _selectedCrops.toList(),
         areaHa: _areaHa,
+        harvestMonth: _harvestMonth,
       );
     } catch (e) {
       if (mounted) {
@@ -63,6 +73,7 @@ class _FinancialForecastScreenState extends State<FinancialForecastScreen> {
       _detailedForecast = await _service.forecastCrop(
         cropType: cropType,
         areaHa: _areaHa,
+        harvestMonth: _harvestMonth,
       );
     } catch (e) {
       if (mounted) {
@@ -156,6 +167,38 @@ class _FinancialForecastScreenState extends State<FinancialForecastScreen> {
               isDense: true,
             ),
             onChanged: (v) => _areaHa = double.tryParse(v) ?? 1.0,
+          ),
+          const SizedBox(height: 16),
+          const Text('Expected Harvest Month',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textDark)),
+          const SizedBox(height: 4),
+          const Text(
+            'Select a month to use PSA monthly yield rates (Okra, Eggplant, Ampalaya, Squash, Stringbeans)',
+            style: TextStyle(fontSize: 11, color: AppTheme.textLight),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<int?>(
+            value: _harvestMonth,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.calendar_month),
+              isDense: true,
+            ),
+            items: [
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('Annual average (default)'),
+              ),
+              ...List.generate(12, (i) => i + 1).map((m) =>
+                DropdownMenuItem<int?>(
+                  value: m,
+                  child: Text(_monthNames[m]),
+                ),
+              ),
+            ],
+            onChanged: (val) => setState(() => _harvestMonth = val),
           ),
         ],
       ),
@@ -362,6 +405,22 @@ class _FinancialForecastScreenState extends State<FinancialForecastScreen> {
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w600)),
               const Spacer(),
+              if (f.usedMonthlyYield)
+                Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.success.withAlpha(25),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '📊 PSA ${_monthNames[f.harvestMonth!]}',
+                    style: const TextStyle(
+                        fontSize: 10,
+                        color: AppTheme.success,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
               Text(f.trendEmoji, style: const TextStyle(fontSize: 18)),
             ],
           ),
@@ -380,6 +439,7 @@ class _FinancialForecastScreenState extends State<FinancialForecastScreen> {
             ],
           ),
           const SizedBox(height: 12),
+          _buildMiniRow('Yield', '${f.yieldMtPerHa.toStringAsFixed(2)} MT/ha${f.usedMonthlyYield ? ' (monthly PSA)' : ' (annual avg)'}'),
           _buildMiniRow('Market Price', '₱${f.currentPricePerKg}/kg'),
           _buildMiniRow(
               'Projected Price', '₱${f.projectedPricePerKg.toStringAsFixed(1)}/kg'),
