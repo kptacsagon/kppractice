@@ -65,17 +65,27 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
             .eq('role', 'farmer');
         debugPrint('Successfully fetched ${profilesRes.length} farmers with full columns');
       } catch (e) {
-        // If new columns don't exist, fetch only basic columns
-        debugPrint('Full columns failed: $e. Trying basic columns...');
+        // If some new columns don't exist, try a reduced set that still includes land size
+        debugPrint('Full columns failed: $e. Trying reduced columns...');
         try {
           profilesRes = await client
               .from('profiles')
-              .select('id, full_name, address')
+              .select('id, full_name, address, land_size_ha')
               .eq('role', 'farmer');
-          debugPrint('Successfully fetched ${profilesRes.length} farmers with basic columns');
+          debugPrint('Successfully fetched ${profilesRes.length} farmers with reduced columns');
         } catch (e2) {
-          debugPrint('Even basic columns failed: $e2');
-          rethrow;
+          // Last fallback for very old schema
+          debugPrint('Reduced columns failed: $e2. Trying basic columns...');
+          try {
+            profilesRes = await client
+                .from('profiles')
+                .select('id, full_name, address')
+                .eq('role', 'farmer');
+            debugPrint('Successfully fetched ${profilesRes.length} farmers with basic columns');
+          } catch (e3) {
+            debugPrint('Even basic columns failed: $e3');
+            rethrow;
+          }
         }
       }
 

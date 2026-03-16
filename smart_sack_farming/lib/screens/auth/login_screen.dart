@@ -60,6 +60,67 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
+  Future<void> _syncProfileFromMetadata(
+    User user,
+    String role,
+    String emailFallback,
+  ) async {
+    final client = Supabase.instance.client;
+    final metadata = user.userMetadata ?? <String, dynamic>{};
+
+    final address = metadata['address']?.toString().trim();
+    final age = int.tryParse('${metadata['age'] ?? ''}');
+    final landSize = double.tryParse('${metadata['land_size_ha'] ?? ''}');
+    final sex = metadata['sex']?.toString().toLowerCase().trim();
+    final dateOfBirth = metadata['date_of_birth']?.toString().trim();
+
+    final baseData = <String, dynamic>{
+      'id': user.id,
+      'email': user.email ?? emailFallback,
+      'full_name': (metadata['full_name'] ?? emailFallback.split('@')[0]).toString(),
+      'role': role,
+    };
+
+    final farmerFullData = <String, dynamic>{
+      if (age != null) 'age': age,
+      if (sex != null && sex.isNotEmpty) 'sex': sex,
+      if (dateOfBirth != null && dateOfBirth.isNotEmpty) 'date_of_birth': dateOfBirth,
+      if (address != null && address.isNotEmpty) 'address': address,
+      if (landSize != null) 'land_size_ha': landSize,
+    };
+
+    final farmerAddressOnlyData = <String, dynamic>{
+      if (address != null && address.isNotEmpty) 'address': address,
+    };
+
+    final farmerAddressAndLandSizeData = <String, dynamic>{
+      if (address != null && address.isNotEmpty) 'address': address,
+      if (landSize != null) 'land_size_ha': landSize,
+    };
+
+    final candidates = <Map<String, dynamic>>[
+      {...baseData, ...farmerFullData},
+      if (farmerAddressAndLandSizeData.isNotEmpty)
+        {...baseData, ...farmerAddressAndLandSizeData},
+      if (farmerAddressOnlyData.isNotEmpty) {...baseData, ...farmerAddressOnlyData},
+      baseData,
+    ];
+
+    Object? lastError;
+    for (final candidate in candidates) {
+      try {
+        await client.from('profiles').upsert(candidate, onConflict: 'id');
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    if (lastError != null) {
+      print('Profile sync note: $lastError');
+    }
+  }
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -168,6 +229,12 @@ class _LoginScreenState extends State<LoginScreen>
           return;
         }
         // ── End role verification ──────────────────────────────────────
+
+        await _syncProfileFromMetadata(
+          response.user!,
+          actualRole,
+          _emailController.text.trim(),
+        );
 
         if (!mounted) return;
         setState(() => _isLoading = false);

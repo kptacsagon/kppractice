@@ -257,10 +257,25 @@ class _SignUpScreenState extends State<SignUpScreen>
       if (!mounted) return;
 
       if (response.user != null) {
+        var signedInForProfileSync = false;
+
+        if (Supabase.instance.client.auth.currentSession == null) {
+          try {
+            await Supabase.instance.client.auth.signInWithPassword(
+              email: _emailController.text.trim(),
+              password: _passwordController.text,
+            );
+            signedInForProfileSync = true;
+          } catch (e) {
+            print('Auto sign-in for profile sync failed: $e');
+          }
+        }
+
         // Create or update profile in the profiles table (trigger should do this,
         // but we ensure all data is properly saved)
         for (int attempt = 0; attempt < 3; attempt++) {
           try {
+            final client = Supabase.instance.client;
             final existing = await Supabase.instance.client
                 .from('profiles')
                 .select('id')
@@ -282,34 +297,81 @@ class _SignUpScreenState extends State<SignUpScreen>
               'role': roleStr,
             };
 
-            if (isFarmer) {
-              final farmerData = {
-                'age': int.parse(_ageController.text.trim()),
-                'sex': _selectedSex,
-                'date_of_birth': _formatDate(_dateOfBirth!),
-                'address': _addressController.text.trim(),
-                'land_size_ha': double.parse(_landSizeController.text.trim()),
-              };
-              profileInsertData.addAll(farmerData);
-              profileUpdateData.addAll(farmerData);
+            final farmerFullData = isFarmer
+                ? <String, dynamic>{
+                    'age': int.parse(_ageController.text.trim()),
+                    'sex': _selectedSex,
+                    'date_of_birth': _formatDate(_dateOfBirth!),
+                    'address': _addressController.text.trim(),
+                    'land_size_ha': double.parse(_landSizeController.text.trim()),
+                  }
+                : <String, dynamic>{};
+
+            final farmerAddressOnlyData = isFarmer
+                ? <String, dynamic>{
+                    'address': _addressController.text.trim(),
+                  }
+                : <String, dynamic>{};
+
+            final farmerAddressAndLandSizeData = isFarmer
+                ? <String, dynamic>{
+                    'address': _addressController.text.trim(),
+                    'land_size_ha': double.parse(_landSizeController.text.trim()),
+                  }
+                : <String, dynamic>{};
+
+            final updateCandidates = <Map<String, dynamic>>[
+              {...profileUpdateData, ...farmerFullData},
+              if (isFarmer) {...profileUpdateData, ...farmerAddressAndLandSizeData},
+              if (isFarmer) {...profileUpdateData, ...farmerAddressOnlyData},
+              profileUpdateData,
+            ];
+
+            final insertCandidates = <Map<String, dynamic>>[
+              {...profileInsertData, ...farmerFullData},
+              if (isFarmer) {...profileInsertData, ...farmerAddressAndLandSizeData},
+              if (isFarmer) {...profileInsertData, ...farmerAddressOnlyData},
+              profileInsertData,
+            ];
+
+            final candidates = existing != null ? updateCandidates : insertCandidates;
+            Object? lastSaveError;
+
+            for (final candidate in candidates) {
+              try {
+                if (existing != null) {
+                  await client
+                      .from('profiles')
+                      .update(candidate)
+                      .eq('id', response.user!.id);
+                } else {
+                  await client.from('profiles').insert(candidate);
+                }
+                print('Profile saved successfully with candidate: ${candidate.keys.toList()}');
+                lastSaveError = null;
+                break;
+              } catch (saveError) {
+                lastSaveError = saveError;
+                print('Profile save candidate failed: $saveError');
+              }
             }
 
-            if (existing != null) {
-              // Update existing profile created by trigger
-              await Supabase.instance.client
-                  .from('profiles')
-                  .update(profileUpdateData)
-                  .eq('id', response.user!.id);
-              print('Profile updated successfully');
-            } else {
-              // Insert new profile if trigger didn't create it
-              await Supabase.instance.client.from('profiles').insert(profileInsertData);
-              print('Profile created successfully');
+            if (lastSaveError != null) {
+              throw lastSaveError;
             }
+
             break;
           } catch (e) {
             print('Profile creation/update attempt ${attempt + 1}: $e');
             if (attempt < 2) await Future.delayed(const Duration(milliseconds: 500));
+          }
+        }
+
+        if (signedInForProfileSync) {
+          try {
+            await Supabase.instance.client.auth.signOut();
+          } catch (e) {
+            print('Auto sign-out after profile sync failed: $e');
           }
         }
 
