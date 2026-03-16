@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
+import '../../models/crop_data.dart';
 import 'login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -25,6 +26,7 @@ class _SignUpScreenState extends State<SignUpScreen>
   UserRole _selectedRole = UserRole.farmer;
   String? _selectedSex;
   DateTime? _dateOfBirth;
+  List<String> _selectedCrops = [];
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -255,8 +257,8 @@ class _SignUpScreenState extends State<SignUpScreen>
       if (!mounted) return;
 
       if (response.user != null) {
-        // Create profile in the profiles table (trigger should do this,
-        // but we retry here as a fallback)
+        // Create or update profile in the profiles table (trigger should do this,
+        // but we ensure all data is properly saved)
         for (int attempt = 0; attempt < 3; attempt++) {
           try {
             final existing = await Supabase.instance.client
@@ -264,29 +266,68 @@ class _SignUpScreenState extends State<SignUpScreen>
                 .select('id')
                 .eq('id', response.user!.id)
                 .maybeSingle();
-            if (existing != null) break; // trigger already created it
-            final profileData = <String, dynamic>{
+            
+            // Profile data for insert (includes id)
+            final profileInsertData = <String, dynamic>{
               'id': response.user!.id,
               'email': _emailController.text.trim(),
               'full_name': _fullNameController.text.trim(),
               'role': roleStr,
             };
 
+            // Profile data for update (no id - can't update primary key)
+            final profileUpdateData = <String, dynamic>{
+              'email': _emailController.text.trim(),
+              'full_name': _fullNameController.text.trim(),
+              'role': roleStr,
+            };
+
             if (isFarmer) {
-              profileData.addAll({
+              final farmerData = {
                 'age': int.parse(_ageController.text.trim()),
                 'sex': _selectedSex,
                 'date_of_birth': _formatDate(_dateOfBirth!),
                 'address': _addressController.text.trim(),
                 'land_size_ha': double.parse(_landSizeController.text.trim()),
-              });
+              };
+              profileInsertData.addAll(farmerData);
+              profileUpdateData.addAll(farmerData);
             }
 
-            await Supabase.instance.client.from('profiles').insert(profileData);
+            if (existing != null) {
+              // Update existing profile created by trigger
+              await Supabase.instance.client
+                  .from('profiles')
+                  .update(profileUpdateData)
+                  .eq('id', response.user!.id);
+              print('Profile updated successfully');
+            } else {
+              // Insert new profile if trigger didn't create it
+              await Supabase.instance.client.from('profiles').insert(profileInsertData);
+              print('Profile created successfully');
+            }
             break;
           } catch (e) {
-            print('Profile creation attempt ${attempt + 1}: $e');
+            print('Profile creation/update attempt ${attempt + 1}: $e');
             if (attempt < 2) await Future.delayed(const Duration(milliseconds: 500));
+          }
+        }
+
+        // Save selected crops to production_reports if farmer selected any
+        if (isFarmer && _selectedCrops.isNotEmpty) {
+          try {
+            for (var cropName in _selectedCrops) {
+              await Supabase.instance.client.from('production_reports').insert({
+                'farmer_id': response.user!.id,
+                'crop_type': cropName,
+                'area_hectares': double.parse(_landSizeController.text.trim()),
+                'planting_date': DateTime.now().toString().split(' ')[0],
+                'yield_kg': 0,
+              });
+            }
+          } catch (e) {
+            print('Error saving crops to production_reports: $e');
+            // Don't fail signup if crop saving fails
           }
         }
 
@@ -611,6 +652,38 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
                 validator: _validateLandSize,
               ),
+              const SizedBox(height: 20),
+              // Crop Selection for Farmers
+              Text(
+                'Select crops you plan to plant',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textDark,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8.0,
+                runSpacing: 8.0,
+                children: CropData.allCrops.map((crop) {
+                  final isSelected = _selectedCrops.contains(crop.name);
+                  return FilterChip(
+                    label: Text('${crop.icon} ${crop.name}'),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedCrops.add(crop.name);
+                        } else {
+                          _selectedCrops.remove(crop.name);
+                        }
+                      });
+                    },
+                    backgroundColor: Colors.grey[200],
+                    selectedColor: AppTheme.primaryLight.withAlpha(200),
+                  );
+                }).toList(),
+              ),
             ],
             const SizedBox(height: 16),
             // Email
@@ -810,6 +883,7 @@ class _SignUpScreenState extends State<SignUpScreen>
           _dateOfBirth = null;
           _addressController.clear();
           _landSizeController.clear();
+          _selectedCrops.clear();
         }
       }),
       child: AnimatedContainer(

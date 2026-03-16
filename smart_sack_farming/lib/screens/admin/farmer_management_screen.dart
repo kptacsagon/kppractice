@@ -44,6 +44,17 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     });
     try {
       final client = Supabase.instance.client;
+      final user = client.auth.currentUser;
+      
+      if (user == null) {
+        setState(() {
+          _error = 'Not authenticated. Please log in as admin.';
+          _isLoading = false;
+        });
+        return;
+      }
+      
+      debugPrint('Current user: ${user.id}, role: ${user.userMetadata?['role']}');
       
       // Try to fetch with all columns first, fallback to basic columns
       List<dynamic> profilesRes;
@@ -52,16 +63,25 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
             .from('profiles')
             .select('id, full_name, address, sex, age, land_size_ha')
             .eq('role', 'farmer');
+        debugPrint('Successfully fetched ${profilesRes.length} farmers with full columns');
       } catch (e) {
         // If new columns don't exist, fetch only basic columns
-        debugPrint('New columns not available yet, fetching basic columns: $e');
-        profilesRes = await client
-            .from('profiles')
-            .select('id, full_name, address')
-            .eq('role', 'farmer');
+        debugPrint('Full columns failed: $e. Trying basic columns...');
+        try {
+          profilesRes = await client
+              .from('profiles')
+              .select('id, full_name, address')
+              .eq('role', 'farmer');
+          debugPrint('Successfully fetched ${profilesRes.length} farmers with basic columns');
+        } catch (e2) {
+          debugPrint('Even basic columns failed: $e2');
+          rethrow;
+        }
       }
 
       final List<Map<String, dynamic>> farmers = List<Map<String, dynamic>>.from(profilesRes);
+      
+      debugPrint('Farmers data before crop fetch: $farmers');
 
       // Fetch associated crops for each farmer from production_reports
       for (var farmer in farmers) {
@@ -69,10 +89,11 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
           final reportsRes = await client
               .from('production_reports')
               .select('crop_type')
-              .eq('user_id', farmer['id']);
+              .eq('farmer_id', farmer['id']);
           
           final crops = reportsRes.map((report) => report['crop_type'] as String).toSet().toList();
           farmer['crops'] = crops;
+          debugPrint('Farmer ${farmer['id']} - Name: ${farmer['full_name']}, Address: ${farmer['address']}, Crops: $crops');
         } catch (e) {
           debugPrint('Error fetching crops for farmer ${farmer['id']}: $e');
           farmer['crops'] = [];
@@ -89,7 +110,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
         _error = 'Failed to load farmer data: $e';
         _isLoading = false;
       });
-      debugPrint(e.toString());
+      debugPrint('Main error: $e');
     }
   }
 
@@ -122,6 +143,13 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       appBar: AppBar(
         title: const Text('Farmer Management'),
         backgroundColor: AppTheme.primary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _fetchFarmersAndCrops,
+            tooltip: 'Refresh farmer list',
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -209,7 +237,20 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       itemCount: _filteredFarmers.length,
       itemBuilder: (context, index) {
         final farmer = _filteredFarmers[index];
-        final crops = (farmer['crops'] as List<dynamic>).join(', ');
+        final crops = (farmer['crops'] as List<dynamic>? ?? []).cast<String>();
+        final cropsText = crops.join(', ');
+        
+        final subtitleLines = <Widget>[
+          Text('Address: ${farmer['address'] ?? 'No address provided'}'),
+          Text('Land Size: ${farmer['land_size_ha'] ?? 'N/A'} ha'),
+        ];
+        
+        if (cropsText.isNotEmpty) {
+          subtitleLines.add(Text('Crops: $cropsText'));
+        } else {
+          subtitleLines.add(const Text('Crops: No crops recorded yet'));
+        }
+        
         return Card(
           elevation: 2,
           margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
@@ -224,11 +265,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
             title: Text(farmer['full_name'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Address: ${farmer['address'] ?? 'N/A'}'),
-                Text('Land Size: ${farmer['land_size_ha'] ?? 'N/A'} ha'),
-                if (crops.isNotEmpty) Text('Crops: $crops'),
-              ],
+              children: subtitleLines,
             ),
             isThreeLine: true,
           ),
