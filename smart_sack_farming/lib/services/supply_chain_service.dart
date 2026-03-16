@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/recommendation_model.dart';
+import 'yield_prediction_service.dart';
 
 /// Supply chain analytics service providing forward-looking supply projections,
 /// harvest synchronization logic, and oversupply detection for MAO/Associations.
@@ -14,7 +15,7 @@ class SupplyChainService {
   /// potential oversupply and generate actionable recommendations.
   Future<List<SupplyProjection>> generateSupplyProjections() async {
     try {
-      // Query planting_records (without farmer join for now to avoid schema issues)
+      // Query planting_records
       final plantingRows = await _client
           .from('planting_records')
           .select('*')
@@ -30,12 +31,16 @@ class SupplyChainService {
       final rows = <Map<String, dynamic>>[];
 
       if (plantingRows is List && plantingRows.isNotEmpty) {
-        for (final r in (plantingRows as List).cast<Map<String, dynamic>>()) {
+        for (final r in plantingRows.cast<Map<String, dynamic>>()) {
           rows.add({
             'crop': r['crop_name'],
             'harvest': r['expected_harvest_date'],
             'area_ha': (r['area_planted_ha'] is num) ? (r['area_planted_ha'] as num).toDouble() : 0.0,
-            'yield_kg': (r['estimated_yield_kg'] is num) ? (r['estimated_yield_kg'] as num).toDouble() : null,
+            'yield_kg': (r['estimated_yield_kg'] is num)
+                ? (r['estimated_yield_kg'] as num).toDouble()
+                : (r['estimated_yield_mt'] is num)
+                    ? ((r['estimated_yield_mt'] as num).toDouble() * 1000)
+                    : null,
             'farmer_id': r['farmer_id'],
             'farmer_name': null, // No join, so null
             'farmer_address': null,
@@ -46,7 +51,7 @@ class SupplyChainService {
       }
 
       if (saturationRows is List && saturationRows.isNotEmpty) {
-        for (final r in (saturationRows as List).cast<Map<String, dynamic>>()) {
+        for (final r in saturationRows.cast<Map<String, dynamic>>()) {
           rows.add({
             'crop': r['primary_crop'],
             'harvest': r['expected_harvest'],
@@ -63,22 +68,39 @@ class SupplyChainService {
 
       if (rows.isEmpty) return [];
 
-      // No need for separate profile fetch since we joined
+        // Enrich with farmer profile data for MAO visibility
+        final farmerIds = rows
+          .map((r) => (r['farmer_id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+        final profileMap = await _loadFarmerProfilesByIds(farmerIds);
 
       // Group by crop + harvest month window
       final groups = <String, _HarvestGroup>{};
 
       for (final record in rows) {
-        final crop = (record['crop'] ?? '') as String;
+        final crop = (record['crop'] ?? '').toString();
+        if (crop.isEmpty) continue;
         final harvestStr = record['harvest'] as String?;
         if (harvestStr == null) continue;
-        final harvest = DateTime.parse(harvestStr);
+        DateTime harvest;
+        try {
+          harvest = DateTime.parse(harvestStr);
+        } catch (_) {
+          continue;
+        }
         final areaHa = (record['area_ha'] is num)
             ? (record['area_ha'] as num).toDouble()
             : 0.0;
-        final expectedYield = (record['yield_kg'] is num)
+        final dbYieldKg = (record['yield_kg'] is num)
             ? (record['yield_kg'] as num).toDouble()
-            : (areaHa * 5000);
+            : null;
+        final predictedYieldKg = YieldPredictionService.predictYieldKg(
+          cropName: crop,
+          harvestDate: harvest,
+          areaHa: areaHa,
+        );
+        final expectedYield = predictedYieldKg ?? dbYieldKg ?? (areaHa * 5000);
         final farmerId = (record['farmer_id'] as String?) ?? '';
 
         // Group by crop + month
@@ -92,12 +114,25 @@ class SupplyChainService {
           ),
         );
 
-        final name = (record['farmer_name'] as String?) ?? 'Farmer';
-        final address = record['farmer_address'] as String?;
+        final profile = profileMap[farmerId];
+        final profileName = (profile?['full_name'] ?? profile?['email'])
+            ?.toString()
+            .trim();
+        final recordName = (record['farmer_name'])?.toString().trim();
+        final name = (profileName != null && profileName.isNotEmpty)
+            ? profileName
+            : (recordName != null && recordName.isNotEmpty)
+                ? recordName
+                : 'Farmer';
+
+        final address = (profile?['address'] as String?) ??
+            (record['farmer_address'] as String?);
         final landSize = record['farmer_land_area_ha'] is num
             ? (record['farmer_land_area_ha'] as num).toDouble()
-            : null;
-        final barangay = record['barangay'] as String?;
+            : areaHa > 0
+                ? areaHa
+                : null;
+        final barangay = _extractBarangay(address) ?? (record['barangay'] as String?);
 
         groups[key]!.addRecord(
           farmerId: farmerId,
@@ -335,6 +370,31 @@ class SupplyChainService {
   // ================================================================
   // PRIVATE HELPERS
   // ================================================================
+
+  Future<Map<String, Map<String, dynamic>>> _loadFarmerProfilesByIds(
+      Set<String> farmerIds) async {
+    if (farmerIds.isEmpty) return {};
+
+    try {
+      final response = await _client
+          .from('profiles')
+          .select('id, full_name, email, address')
+          .in_('id', farmerIds.toList());
+
+      if (response is! List) return {};
+
+      final map = <String, Map<String, dynamic>>{};
+      for (final row in response.cast<Map<String, dynamic>>()) {
+        final id = row['id']?.toString();
+        if (id == null || id.isEmpty) continue;
+        map[id] = row;
+      }
+      return map;
+    } catch (e) {
+      print('Warning: Could not load farmer profiles for projections: $e');
+      return {};
+    }
+  }
 
   double _calculateOversupplyRisk(_HarvestGroup group) {
     // Based on farmer density, total yield, and typical demand

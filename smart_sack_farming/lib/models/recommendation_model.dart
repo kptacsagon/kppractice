@@ -241,7 +241,6 @@ class SupplyProjection {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': null,
       'crop_type': cropType,
       'projected_yield_kg': projectedYieldKg,
       'harvest_window_start':

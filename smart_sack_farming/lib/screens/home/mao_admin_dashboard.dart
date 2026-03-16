@@ -29,7 +29,6 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
   int _totalFarmers = 0;
   int _pendingVerifications = 0;
   int _activeSubsidies = 0;
-  int _atRiskCrops = 0;
 
   // Chart data
   Map<String, int> _calamityByType = {};
@@ -127,14 +126,6 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
             .length;
       } catch (_) {
         _activeSubsidies = 0;
-      }
-      try {
-        final projData = await client.from('supply_projections').select();
-        _atRiskCrops = (projData as List)
-            .where((p) => (p['risk_of_oversupply'] as num? ?? 0) > 0.5)
-            .length;
-      } catch (_) {
-        _atRiskCrops = 0;
       }
 
       setState(() => _isLoading = false);
@@ -347,9 +338,7 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
               icon: Icons.local_shipping_rounded,
               color: const Color(0xFF1E88E5),
               title: 'Supply Chain',
-              badge: _atRiskCrops > 0
-                  ? '$_atRiskCrops at risk'
-                  : 'Stable',
+              badge: 'Monitor flows',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(

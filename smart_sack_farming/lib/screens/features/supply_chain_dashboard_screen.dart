@@ -2,6 +2,280 @@ import 'package:flutter/material.dart';
 import '../../models/recommendation_model.dart';
 import '../../services/supply_chain_service.dart';
 import '../../theme/app_theme.dart';
+import 'farmer_profile_screen.dart';
+
+class SupplyChainDashboardScreen extends StatefulWidget {
+  const SupplyChainDashboardScreen({super.key});
+
+  @override
+  State<SupplyChainDashboardScreen> createState() => _SupplyChainDashboardScreenState();
+}
+
+class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen> with TickerProviderStateMixin {
+  late final SupplyChainService _service;
+  late TabController _tabController;
+  
+  SupplyChainSummary? _summary;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _service = SupplyChainService();
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    try {
+      final summary = await _service.getDashboardSummary();
+      setState(() {
+        _summary = summary;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading dashboard: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  bool _isAllowedCrop(String cropType) {
+    // Implement your crop filtering logic here
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        title: const Text('Supply Chain Dashboard'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _loadData,
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: AppTheme.primary,
+          unselectedLabelColor: AppTheme.textMedium,
+          indicatorColor: AppTheme.primary,
+          tabs: const [
+            Tab(text: 'Projections'),
+            Tab(text: 'Channels'),
+          ],
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                _buildSummaryStrip(),
+                _buildFarmerListSection(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildProjectionsTab(),
+                      _buildChannelsTab(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildSummaryStrip() {
+    final s = _summary;
+    if (s == null) return const SizedBox.shrink();
+    
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppTheme.primary, AppTheme.primary.withAlpha(220)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(12),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildSummaryItem(
+            '${s.projections.length}',
+            'Projections',
+            Icons.trending_up_rounded,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFarmerListSection() {
+    final s = _summary;
+    if (s == null) return const SizedBox.shrink();
+
+    final farmersById = <String, FarmerSupplyInfo>{};
+    for (final projection in s.projections) {
+      for (final farmer in projection.farmerDetails) {
+        final existing = farmersById[farmer.farmerId];
+        if (existing == null) {
+          farmersById[farmer.farmerId] = farmer;
+        } else {
+          farmersById[farmer.farmerId] = FarmerSupplyInfo(
+            farmerId: existing.farmerId,
+            name: existing.name == 'Farmer' && farmer.name != 'Farmer'
+                ? farmer.name
+                : existing.name,
+            address: existing.address ?? farmer.address,
+            barangay: existing.barangay ?? farmer.barangay,
+            landSizeHa: existing.landSizeHa ?? farmer.landSizeHa,
+            expectedYieldKg: existing.expectedYieldKg + farmer.expectedYieldKg,
+            totalAreaHa: existing.totalAreaHa + farmer.totalAreaHa,
+          );
+        }
+      }
+    }
+    final farmers = farmersById.values.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+    if (farmers.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(8),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Farmers', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 140,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: farmers.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, idx) {
+                final farmer = farmers[idx];
+                final farmerName = farmer.name.trim().isEmpty ? 'Unknown' : farmer.name;
+                final address = farmer.address ?? '';
+                final barangay = farmer.barangay ?? _extractBarangay(address) ?? '';
+
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => FarmerProfileScreen(farmer: farmer),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    width: 140,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withAlpha(25),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.primary.withAlpha(50)),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: AppTheme.primary.withAlpha(80),
+                          child: Icon(Icons.person, size: 24, color: Colors.white),
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: Text(
+                            farmerName,
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        if (barangay.isNotEmpty)
+                          Text('Brgy. $barangay', style: const TextStyle(fontSize: 10, color: AppTheme.textMedium), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String? _extractBarangay(String? address) {
+    if (address == null || address.isEmpty) return null;
+    final match = RegExp(r"\b(?:Brgy\.?|Barangay)\s+([A-Za-z0-9\-\s]+)",
+            caseSensitive: false)
+        .firstMatch(address);
+    return match?.group(1)?.trim();
+  }
+
+  Widget _buildSummaryItem(String value, String label, IconData icon) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, color: Colors.white.withAlpha(200), size: 20),
+          const SizedBox(height: 4),
+          Text(value,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold)),
+          Text(label,
+              style: TextStyle(
+                  color: Colors.white.withAlpha(180),
+                  fontSize: 10),
+              textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+
+  Widget _divider() {
+    return Container(
+      width: 1,
+      height: 40,
+      color: Colors.white.withAlpha(50),
+    );
+  }
 
   Widget _buildProjectionsTab() {
     final projections =
@@ -46,7 +320,7 @@ import '../../theme/app_theme.dart';
               Row(
                 children: [
                   _buildMiniStat(
-                      '${p.projectedYieldTons}T', 'Projected', Icons.scale),
+                      '${(p.projectedYieldKg / 1000).toStringAsFixed(1)}T', 'Projected', Icons.scale),
                   _buildMiniStat('${p.farmerCount}', 'Farmers', Icons.people),
                   _buildMiniStat('${p.totalAreaHa.toStringAsFixed(1)}ha', 'Area',
                       Icons.landscape),
@@ -124,202 +398,6 @@ import '../../theme/app_theme.dart';
       },
     );
   }
-    return Container(
-      width: 1,
-      height: 40,
-      color: Colors.white.withAlpha(50),
-    );
-  }
-
-  // ================================================================
-  // TAB 1: SUPPLY PROJECTIONS
-  // ================================================================
-  Widget _buildProjectionsTab() {
-    final projections =
-        (_summary?.projections ?? []).where((p) => _isAllowedCrop(p.cropType)).toList();
-    if (projections.isEmpty) {
-      return _emptyState('No supply projections available',
-          'Projections are generated from farmer planting records for selected crops.');
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: projections.length,
-      itemBuilder: (context, index) {
-        final p = projections[index];
-        return _buildProjectionCard(p);
-      },
-    );
-  }
-
-  Widget _buildProjectionCard(SupplyProjection p) {
-    final riskColor = p.riskOfOversupply >= 75
-        ? AppTheme.error
-        : p.riskOfOversupply >= 50
-            ? AppTheme.warning
-            : p.riskOfOversupply >= 25
-                ? const Color(0xFFFFA726)
-                : AppTheme.success;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: p.riskOfOversupply >= 50
-            ? Border.all(color: riskColor.withAlpha(60), width: 1.5)
-            : null,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(6),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(p.cropType,
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600)),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: riskColor.withAlpha(20),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${p.oversupplyRiskLabel} RISK',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: riskColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Risk bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: p.riskOfOversupply / 100,
-              backgroundColor: AppTheme.border,
-              valueColor: AlwaysStoppedAnimation(riskColor),
-              minHeight: 8,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Oversupply Risk: ${p.riskOfOversupply.toStringAsFixed(0)}%',
-            style: TextStyle(fontSize: 11, color: riskColor),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _buildMiniStat(
-                  '${p.projectedYieldTons}T', 'Projected', Icons.scale),
-              _buildMiniStat('${p.farmerCount}', 'Farmers', Icons.people),
-              _buildMiniStat('${p.totalAreaHa.toStringAsFixed(1)}ha', 'Area',
-                  Icons.landscape),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Harvest: ${_formatDate(p.harvestWindowStart)} – ${_formatDate(p.harvestWindowEnd)}',
-            style: const TextStyle(fontSize: 12, color: AppTheme.textMedium),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: riskColor.withAlpha(8),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.lightbulb_outline,
-                    size: 16, color: riskColor),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    p.suggestedAction,
-                    style: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textMedium,
-                        height: 1.4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (p.farmerDetails.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: Text(
-                'Farmer details (${p.farmerDetails.length})',
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              children: p.farmerDetails
-                  .map((f) => Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(f.name,
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 2),
-                            Text(
-                                'Address: ${f.address ?? 'N/A'}${f.barangay != null ? ' (Brgy. ${f.barangay})' : ''}',
-                                style: const TextStyle(
-                                    fontSize: 11, color: AppTheme.textMedium)),
-                            const SizedBox(height: 2),
-                            Text(
-                                'Land area: ${f.landSizeHa != null ? '${f.landSizeHa!.toStringAsFixed(2)} ha' : 'Unknown'} • Expected yield: ${f.expectedYieldKg.toStringAsFixed(0)} kg',
-                                style: const TextStyle(
-                                    fontSize: 11, color: AppTheme.textMedium)),
-                          ],
-                        ),
-                      ))
-                  .toList(),
-            ),
-          ],
-          if (p.riskOfOversupply >= 50) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  _tabController.animateTo(2);
-                },
-                icon: const Icon(Icons.store, size: 16),
-                label: const Text('View Market Channels',
-                    style: TextStyle(fontSize: 13)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: riskColor,
-                  side: BorderSide(color: riskColor.withAlpha(80)),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 
   Widget _buildMiniStat(String value, String label, IconData icon) {
     return Expanded(
@@ -343,97 +421,7 @@ import '../../theme/app_theme.dart';
     );
   }
 
-  // ================================================================
-  // TAB 2: HARVEST COLLISIONS
-  // ================================================================
-  Widget _buildCollisionsTab() {
-    final collisions =
-        (_summary?.collisions ?? []).where((c) => _isAllowedCrop(c.cropType)).toList();
-    if (collisions.isEmpty) {
-      return _emptyState('No harvest collisions detected',
-          'The system monitors for farmers harvesting simultaneously for selected crops.');
-    }
-      final filteredProjections =
-          projections.where((p) => _isAllowedCrop(p.cropType)).toList();
-      final totalUpcomingYield =
-          filteredProjections.fold<double>(0, (t, p) => t + p.projectedYieldKg);
-      // Count unique farmer IDs across all projections
-      final uniqueFarmerIds = <String>{};
-      for (final p in filteredProjections) {
-        for (final f in p.farmerDetails) {
-          uniqueFarmerIds.add(f.farmerId);
-        }
-      }
-      final totalFarmers = uniqueFarmerIds.length;
-        return _buildCollisionCard(c);
-      },
-    );
-  }
 
-  Widget _buildCollisionCard(HarvestCollision c) {
-    final color = c.severity == 'critical'
-        ? AppTheme.error
-        : c.severity == 'high'
-            ? AppTheme.warning
-            : const Color(0xFFFFA726);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withAlpha(60)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(6),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(c.severityEmoji, style: const TextStyle(fontSize: 20)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${c.cropType} — ${c.severity.toUpperCase()}',
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '${c.farmerCount} farmers harvesting ${(c.totalYieldKg / 1000).toStringAsFixed(1)} tons around ${_formatDate(c.harvestDate)}',
-            style: const TextStyle(fontSize: 13, color: AppTheme.textMedium),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withAlpha(10),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              c.recommendation,
-              style: const TextStyle(
-                  fontSize: 12, color: AppTheme.textMedium, height: 1.4),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // TAB 3: ALTERNATIVE MARKET CHANNELS
-  // ================================================================
   Widget _buildChannelsTab() {
     final highRisk =
         (_summary?.highRiskProjections ?? []).where((p) => _isAllowedCrop(p.cropType)).toList();
@@ -453,7 +441,7 @@ import '../../theme/app_theme.dart';
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                '${p.cropType} — ${p.projectedYieldTons} tons surplus',
+                '${p.cropType} — ${(p.projectedYieldKg / 1000).toStringAsFixed(1)} tons surplus',
                 style: const TextStyle(
                     fontSize: 16, fontWeight: FontWeight.w600),
               ),
@@ -550,9 +538,6 @@ import '../../theme/app_theme.dart';
     );
   }
 
-  // ================================================================
-  // COMMON
-  // ================================================================
   Widget _emptyState(String title, String subtitle) {
     return Center(
       child: Column(
