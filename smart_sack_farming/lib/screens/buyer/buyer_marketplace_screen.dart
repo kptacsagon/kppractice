@@ -333,50 +333,7 @@ class _BuyerMarketplaceScreenState extends State<BuyerMarketplaceScreen> {
   }
 
   Widget _buildEmptyView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.shopping_basket_outlined,
-              size: 80,
-              color: AppTheme.textLight.withOpacity(0.5),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'No crops available',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textDark,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _selectedFilter == 'high'
-                  ? 'No oversaturated crops are currently listed'
-                  : 'No listings right now. You can message admin directly.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.textMedium),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _openMessageAdmin,
-              icon: const Icon(Icons.message_rounded),
-              label: const Text('Message Admin to Buy'),
-            ),
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: _loadListings,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Refresh'),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const SizedBox.shrink();
   }
 
   Widget _buildListingsGrid() {
