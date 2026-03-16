@@ -101,6 +101,62 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sex VARCHAR(20);
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS date_of_birth DATE;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS land_size_ha DECIMAL(10,2);
 
+-- ── buyer_crop_requests (buyer -> admin crop contact) ───────
+CREATE TABLE IF NOT EXISTS buyer_crop_requests (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  buyer_id              UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  buyer_name            VARCHAR(255),
+  listing_id            UUID,
+  farmer_id             UUID,
+  crop_name             VARCHAR(100) NOT NULL,
+  requested_quantity_kg DECIMAL(12,2) NOT NULL CHECK (requested_quantity_kg > 0),
+  notes                 TEXT,
+  status                VARCHAR(20) NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending', 'reviewed', 'approved', 'rejected')),
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bcr_buyer   ON buyer_crop_requests(buyer_id);
+CREATE INDEX IF NOT EXISTS idx_bcr_crop    ON buyer_crop_requests(crop_name);
+CREATE INDEX IF NOT EXISTS idx_bcr_created ON buyer_crop_requests(created_at);
+
+ALTER TABLE buyer_crop_requests ADD COLUMN IF NOT EXISTS listing_id UUID;
+ALTER TABLE buyer_crop_requests ADD COLUMN IF NOT EXISTS farmer_id UUID;
+
+ALTER TABLE buyer_crop_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Buyers view own crop requests" ON buyer_crop_requests;
+CREATE POLICY "Buyers view own crop requests"
+  ON buyer_crop_requests FOR SELECT USING (auth.uid() = buyer_id);
+
+DROP POLICY IF EXISTS "Admins view all crop requests" ON buyer_crop_requests;
+CREATE POLICY "Admins view all crop requests"
+  ON buyer_crop_requests FOR SELECT USING (
+    (auth.jwt()->'user_metadata'->>'role') IN ('admin','mao')
+  );
+
+DROP POLICY IF EXISTS "Buyers insert own crop requests" ON buyer_crop_requests;
+CREATE POLICY "Buyers insert own crop requests"
+  ON buyer_crop_requests FOR INSERT WITH CHECK (auth.uid() = buyer_id);
+
+DROP POLICY IF EXISTS "Admins update crop requests" ON buyer_crop_requests;
+CREATE POLICY "Admins update crop requests"
+  ON buyer_crop_requests FOR UPDATE USING (
+    (auth.jwt()->'user_metadata'->>'role') IN ('admin','mao')
+  );
+
+DROP POLICY IF EXISTS "Admins delete crop requests" ON buyer_crop_requests;
+CREATE POLICY "Admins delete crop requests"
+  ON buyer_crop_requests FOR DELETE USING (
+    (auth.jwt()->'user_metadata'->>'role') IN ('admin','mao')
+  );
+
+DROP TRIGGER IF EXISTS trg_buyer_crop_requests_updated ON buyer_crop_requests;
+CREATE TRIGGER trg_buyer_crop_requests_updated
+  BEFORE UPDATE ON buyer_crop_requests
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN

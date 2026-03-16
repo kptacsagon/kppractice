@@ -9,6 +9,7 @@ import '../features/crop_recommendation_screen.dart';
 import '../features/financial_forecast_screen.dart';
 import '../admin/market_prices_screen.dart';
 import '../admin/farmer_management_screen.dart';
+import '../admin/buyer_crop_requests_screen.dart';
 
 class MaoAdminDashboard extends StatefulWidget {
   const MaoAdminDashboard({super.key});
@@ -398,6 +399,16 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const FarmerManagementScreen()),
+              ),
+            ),
+            _buildActionCard(
+              icon: Icons.campaign_rounded,
+              color: const Color(0xFF1565C0),
+              title: 'Buyer Crop Requests',
+              badge: 'From buyers',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BuyerCropRequestsScreen()),
               ),
             ),
           ],

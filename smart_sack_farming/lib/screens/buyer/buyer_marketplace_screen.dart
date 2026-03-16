@@ -5,7 +5,7 @@ import '../../models/crop_listing_model.dart';
 import '../../services/marketplace_service.dart';
 import '../auth/login_screen.dart';
 import 'crop_listing_detail_screen.dart';
-import 'buyer_reservations_screen.dart';
+import 'buyer_messages_screen.dart';
 
 class BuyerMarketplaceScreen extends StatefulWidget {
   const BuyerMarketplaceScreen({super.key});
@@ -81,6 +81,13 @@ class _BuyerMarketplaceScreenState extends State<BuyerMarketplaceScreen> {
     );
   }
 
+  void _openMessageAdmin() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BuyerMessagesScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -98,30 +105,12 @@ class _BuyerMarketplaceScreenState extends State<BuyerMarketplaceScreen> {
         ),
         actions: [
           IconButton(
-            icon: Stack(
-              children: [
-                const Icon(Icons.receipt_long_rounded, color: AppTheme.textMedium),
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: AppTheme.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(minWidth: 8, minHeight: 8),
-                  ),
-                ),
-              ],
-            ),
-            tooltip: 'My Reservations',
+            icon: const Icon(Icons.message_rounded, color: AppTheme.textMedium),
+            tooltip: 'Message Admin',
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const BuyerReservationsScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const BuyerMessagesScreen()),
               );
             },
           ),
@@ -134,8 +123,8 @@ class _BuyerMarketplaceScreenState extends State<BuyerMarketplaceScreen> {
       ),
       body: Column(
         children: [
-          // Search and filter bar
-          _buildSearchAndFilterBar(),
+          // Main buyer feature: Message Admin
+          _buildMessageAdminHero(),
           
           // Content
           Expanded(
@@ -146,6 +135,55 @@ class _BuyerMarketplaceScreenState extends State<BuyerMarketplaceScreen> {
                     : _listings.isEmpty
                         ? _buildEmptyView()
                         : _buildListingsGrid(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageAdminHero() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.primary.withOpacity(0.25)),
+        boxShadow: [AppTheme.cardShadow],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.message_rounded, color: AppTheme.primary),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Main Feature: Message Admin',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textDark,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Send what crop/product you want to buy.',
+                  style: TextStyle(color: AppTheme.textMedium, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: _openMessageAdmin,
+            child: const Text('Message'),
           ),
         ],
       ),
@@ -319,11 +357,17 @@ class _BuyerMarketplaceScreenState extends State<BuyerMarketplaceScreen> {
             Text(
               _selectedFilter == 'high'
                   ? 'No oversaturated crops are currently listed'
-                  : 'Check back later for new listings',
+                  : 'No listings right now. You can message admin directly.',
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppTheme.textMedium),
             ),
             const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _openMessageAdmin,
+              icon: const Icon(Icons.message_rounded),
+              label: const Text('Message Admin to Buy'),
+            ),
+            const SizedBox(height: 8),
             TextButton.icon(
               onPressed: _loadListings,
               icon: const Icon(Icons.refresh_rounded),
@@ -539,7 +583,7 @@ class _BuyerMarketplaceScreenState extends State<BuyerMarketplaceScreen> {
                           ),
                         ),
                         child: const Text(
-                          'View & Reserve',
+                          'View & Request via Admin',
                           style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),

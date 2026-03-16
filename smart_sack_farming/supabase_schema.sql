@@ -25,6 +25,7 @@ DROP TABLE IF EXISTS production_reports CASCADE;
 DROP TABLE IF EXISTS calamity_reports   CASCADE;
 DROP TABLE IF EXISTS equipment         CASCADE;
 DROP TABLE IF EXISTS farming_projects   CASCADE;
+DROP TABLE IF EXISTS buyer_crop_requests CASCADE;
 DROP TABLE IF EXISTS profiles          CASCADE;
 
 -- ============================================================
@@ -234,6 +235,26 @@ CREATE TABLE market_prices (
 CREATE INDEX idx_mp_crop ON market_prices(crop_type);
 CREATE INDEX idx_mp_date ON market_prices(price_date);
 
+-- 10. buyer_crop_requests — buyers can request crops to admin only
+CREATE TABLE buyer_crop_requests (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  buyer_id              UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  buyer_name            VARCHAR(255),
+  listing_id            UUID,
+  farmer_id             UUID,
+  crop_name             VARCHAR(100) NOT NULL,
+  requested_quantity_kg DECIMAL(12,2) NOT NULL CHECK (requested_quantity_kg > 0),
+  notes                 TEXT,
+  status                VARCHAR(20) NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending', 'reviewed', 'approved', 'rejected')),
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_bcr_buyer   ON buyer_crop_requests(buyer_id);
+CREATE INDEX idx_bcr_crop    ON buyer_crop_requests(crop_name);
+CREATE INDEX idx_bcr_created ON buyer_crop_requests(created_at);
+
 -- ============================================================
 -- SECTION 3: ENABLE ROW LEVEL SECURITY
 -- ============================================================
@@ -247,6 +268,7 @@ ALTER TABLE rental_requests     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE calamity_reports    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE production_reports  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE market_prices       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE buyer_crop_requests ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
 -- SECTION 4: RLS POLICIES
@@ -371,6 +393,24 @@ CREATE POLICY "Admins manage market prices"
     (auth.jwt()->'user_metadata'->>'role') IN ('admin','mao')
   );
 
+-- buyer_crop_requests
+CREATE POLICY "Buyers view own crop requests"
+  ON buyer_crop_requests FOR SELECT USING (auth.uid() = buyer_id);
+CREATE POLICY "Admins view all crop requests"
+  ON buyer_crop_requests FOR SELECT USING (
+    (auth.jwt()->'user_metadata'->>'role') IN ('admin','mao')
+  );
+CREATE POLICY "Buyers insert own crop requests"
+  ON buyer_crop_requests FOR INSERT WITH CHECK (auth.uid() = buyer_id);
+CREATE POLICY "Admins update crop requests"
+  ON buyer_crop_requests FOR UPDATE USING (
+    (auth.jwt()->'user_metadata'->>'role') IN ('admin','mao')
+  );
+CREATE POLICY "Admins delete crop requests"
+  ON buyer_crop_requests FOR DELETE USING (
+    (auth.jwt()->'user_metadata'->>'role') IN ('admin','mao')
+  );
+
 -- ============================================================
 -- SECTION 5: TRIGGERS
 -- ============================================================
@@ -430,6 +470,7 @@ CREATE TRIGGER trg_rental_requests_updated     BEFORE UPDATE ON rental_requests 
 CREATE TRIGGER trg_calamity_reports_updated    BEFORE UPDATE ON calamity_reports    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_production_reports_updated  BEFORE UPDATE ON production_reports  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_market_prices_updated       BEFORE UPDATE ON market_prices       FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_buyer_crop_requests_updated BEFORE UPDATE ON buyer_crop_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
 -- SECTION 6: STORAGE BUCKET FOR IMAGES (optional)
