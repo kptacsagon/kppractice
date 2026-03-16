@@ -7,12 +7,13 @@ class FarmerRepository {
     try {
       final response = await _client
           .from('planting_records')
-          .select('crop_name, area_planted_ha, planting_date, expected_harvest_date')
+          .select('id, crop_name, area_planted_ha, planting_date, expected_harvest_date')
           .eq('farmer_id', farmerId)
           .order('planting_date', ascending: false);
       
       if (response is List) {
         return response.map((e) => {
+          'plantingRecordId': e['id'],
           'cropName': e['crop_name'] ?? 'Unknown',
           'landArea': e['area_planted_ha'],
           'plantingDate': e['planting_date'],

@@ -34,6 +34,7 @@ class SupplyChainService {
         for (final r in plantingRows.cast<Map<String, dynamic>>()) {
           rows.add({
             'crop': r['crop_name'],
+            'planted': r['planting_date'],
             'harvest': r['expected_harvest_date'],
             'area_ha': (r['area_planted_ha'] is num) ? (r['area_planted_ha'] as num).toDouble() : 0.0,
             'yield_kg': (r['estimated_yield_kg'] is num)
@@ -54,6 +55,7 @@ class SupplyChainService {
         for (final r in saturationRows.cast<Map<String, dynamic>>()) {
           rows.add({
             'crop': r['primary_crop'],
+            'planted': r['planting_date'],
             'harvest': r['expected_harvest'],
             'area_ha': (r['field_size_ha'] is num) ? (r['field_size_ha'] as num).toDouble() : 0.0,
             'yield_kg': (r['expected_yield_kg'] is num) ? (r['expected_yield_kg'] as num).toDouble() : null,
@@ -95,12 +97,29 @@ class SupplyChainService {
         final dbYieldKg = (record['yield_kg'] is num)
             ? (record['yield_kg'] as num).toDouble()
             : null;
-        final predictedYieldKg = YieldPredictionService.predictYieldKg(
-          cropName: crop,
-          harvestDate: harvest,
-          areaHa: areaHa,
-        );
-        final expectedYield = predictedYieldKg ?? dbYieldKg ?? (areaHa * 5000);
+
+        DateTime? planted;
+        final plantedStr = record['planted'] as String?;
+        if (plantedStr != null && plantedStr.isNotEmpty) {
+          try {
+            planted = DateTime.parse(plantedStr);
+          } catch (_) {
+            planted = null;
+          }
+        }
+
+        final predictedYieldKg = (planted != null)
+            ? YieldPredictionService.predictYieldKg(
+                cropType: crop,
+                landAreaHa: areaHa,
+                datePlanted: planted,
+                expectedHarvestDate: harvest,
+              )
+            : 0.0;
+
+        final expectedYield = predictedYieldKg > 0
+            ? predictedYieldKg
+            : dbYieldKg ?? (areaHa * 5000);
         final farmerId = (record['farmer_id'] as String?) ?? '';
 
         // Group by crop + month
@@ -127,12 +146,15 @@ class SupplyChainService {
 
         final address = (profile?['address'] as String?) ??
             (record['farmer_address'] as String?);
+        final profileBarangay = profile?['barangay']?.toString().trim();
         final landSize = record['farmer_land_area_ha'] is num
             ? (record['farmer_land_area_ha'] as num).toDouble()
             : areaHa > 0
                 ? areaHa
                 : null;
-        final barangay = _extractBarangay(address) ?? (record['barangay'] as String?);
+        final barangay = (profileBarangay != null && profileBarangay.isNotEmpty)
+          ? profileBarangay
+          : _extractBarangay(address) ?? (record['barangay'] as String?);
 
         groups[key]!.addRecord(
           farmerId: farmerId,
@@ -376,10 +398,18 @@ class SupplyChainService {
     if (farmerIds.isEmpty) return {};
 
     try {
-      final response = await _client
-          .from('profiles')
-          .select('id, full_name, email, address')
-          .in_('id', farmerIds.toList());
+      dynamic response;
+      try {
+        response = await _client
+            .from('profiles')
+            .select('id, full_name, email, address, barangay')
+            .in_('id', farmerIds.toList());
+      } catch (_) {
+        response = await _client
+            .from('profiles')
+            .select('id, full_name, email, address')
+            .in_('id', farmerIds.toList());
+      }
 
       if (response is! List) return {};
 
@@ -558,10 +588,32 @@ class _HarvestGroup {
 
 String? _extractBarangay(String? address) {
   if (address == null || address.isEmpty) return null;
+
+  final normalizedAddress = address.trim();
+
   final match = RegExp(r"\b(?:Brgy\.?|Barangay)\s+([A-Za-z0-9\-\s]+)",
           caseSensitive: false)
-      .firstMatch(address);
-  return match?.group(1)?.trim();
+      .firstMatch(normalizedAddress);
+
+  final fromPrefix = match?.group(1)?.trim();
+  if (fromPrefix != null && fromPrefix.isNotEmpty) {
+    return fromPrefix;
+  }
+
+  final parts = normalizedAddress
+      .split(',')
+      .map((p) => p.trim())
+      .where((p) => p.isNotEmpty)
+      .toList();
+
+  if (parts.length >= 2) {
+    final last = parts.last;
+    if (last.split(RegExp(r'\s+')).length <= 3) {
+      return last;
+    }
+  }
+
+  return null;
 }
 
 /// A detected harvest collision (multiple farmers harvesting at once).

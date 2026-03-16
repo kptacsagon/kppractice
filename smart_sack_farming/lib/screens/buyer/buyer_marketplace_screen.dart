@@ -6,6 +6,7 @@ import '../../services/marketplace_service.dart';
 import '../auth/login_screen.dart';
 import 'crop_listing_detail_screen.dart';
 import 'buyer_messages_screen.dart';
+import 'marketplace_screen.dart';
 
 class BuyerMarketplaceScreen extends StatefulWidget {
   const BuyerMarketplaceScreen({super.key});
@@ -88,6 +89,23 @@ class _BuyerMarketplaceScreenState extends State<BuyerMarketplaceScreen> {
     );
   }
 
+  void _openBiddingModule() {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in again to access bidding.')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MarketplaceScreen(buyerId: currentUser.id),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -125,6 +143,7 @@ class _BuyerMarketplaceScreenState extends State<BuyerMarketplaceScreen> {
         children: [
           // Main buyer feature: Message Admin
           _buildMessageAdminHero(),
+          _buildBiddingHero(),
           
           // Content
           Expanded(
@@ -184,6 +203,55 @@ class _BuyerMarketplaceScreenState extends State<BuyerMarketplaceScreen> {
           ElevatedButton(
             onPressed: _openMessageAdmin,
             child: const Text('Message'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBiddingHero() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.success.withOpacity(0.25)),
+        boxShadow: [AppTheme.cardShadow],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppTheme.success.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.gavel_rounded, color: AppTheme.success),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Endorsed Products',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textDark,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'View MAO-endorsed products and place bids.',
+                  style: TextStyle(color: AppTheme.textMedium, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: _openBiddingModule,
+            child: const Text('Open'),
           ),
         ],
       ),

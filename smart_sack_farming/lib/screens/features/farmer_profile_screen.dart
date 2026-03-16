@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../repositories/farmer_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/market_service.dart';
 import '../../services/yield_prediction_service.dart';
 
 class FarmerProfileScreen extends StatefulWidget {
@@ -17,11 +18,105 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   List<Map<String, dynamic>> _crops = [];
   Map<String, dynamic>? _farmerProfile;
   bool _loading = true;
+  bool _canEndorseProducts = false;
 
   @override
   void initState() {
     super.initState();
+    _loadCurrentUserRole();
     _loadFarmerData();
+  }
+
+  Future<void> _loadCurrentUserRole() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    var role = (user.userMetadata?['role'] ?? '').toString().toLowerCase();
+
+    if (role.isEmpty) {
+      try {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle();
+        role = (profile?['role'] ?? '').toString().toLowerCase();
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _canEndorseProducts = role == 'admin' || role == 'mao';
+    });
+  }
+
+  Future<void> _endorseCropProduct({
+    required String plantingRecordId,
+    required String cropName,
+  }) async {
+    if (plantingRecordId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to endorse: missing planting record id.')),
+      );
+      return;
+    }
+
+    final bidController = TextEditingController(text: '50.00');
+    final startingBid = await showDialog<double?>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Endorse Product to Buyers'),
+          content: TextField(
+            controller: bidController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Starting bid price (₱/kg)',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext)
+                  .pop(double.tryParse(bidController.text)),
+              child: const Text('Endorse'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (startingBid == null || startingBid <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid starting bid greater than zero.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final maoId = Supabase.instance.client.auth.currentUser?.id;
+      await MarketService.requestEndorsement(
+        plantingRecordId: plantingRecordId,
+        maoId: maoId,
+        startingBid: startingBid,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$cropName endorsed to buyers.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to endorse product: $e')),
+      );
+    }
   }
 
   Future<void> _loadFarmerData() async {
@@ -88,10 +183,18 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
     }
   }
 
-  String? _getYieldForCrop(String cropName, DateTime? harvestDate) {
-    final yieldMtHa = YieldPredictionService.getMonthlyYieldMtHa(cropName, harvestDate);
-    if (yieldMtHa == null) return null;
-    return '${yieldMtHa.toStringAsFixed(2)} MT/HA';
+  String? _getYieldRateForCrop(
+      String cropName, DateTime? plantingDate, DateTime? harvestDate) {
+    if (plantingDate == null || harvestDate == null) return null;
+
+    final rate = YieldPredictionService.monthlyYieldRate(
+      cropType: cropName,
+      datePlanted: plantingDate,
+      expectedHarvestDate: harvestDate,
+    );
+
+    if (rate <= 0) return null;
+    return '${rate.toStringAsFixed(2)} MT/HA/Month';
   }
 
   @override
@@ -254,6 +357,8 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   Widget _buildCropCard(Map<String, dynamic> crop) {
     // Extract and safely convert crop name
     final cropName = (crop['cropName'] ?? crop['crop_name'] ?? 'Unknown Crop').toString().trim();
+    final plantingRecordId =
+        (crop['plantingRecordId'] ?? crop['id'] ?? '').toString();
     
     // Extract date values
     final plantingDateValue = crop['plantingDate'] ?? crop['planting_date'];
@@ -311,16 +416,18 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       }
     }
 
-    final expectedYieldKg = (areaHa != null && parsedHarvestDate != null)
+    final expectedYieldKg =
+      (areaHa != null && parsedPlantingDate != null && parsedHarvestDate != null)
         ? YieldPredictionService.predictYieldKg(
-            cropName: cropName,
-            harvestDate: parsedHarvestDate,
-            areaHa: areaHa,
+        cropType: cropName,
+        landAreaHa: areaHa,
+        datePlanted: parsedPlantingDate,
+        expectedHarvestDate: parsedHarvestDate,
           )
         : null;
 
-    // Get monthly yield
-    final monthlyYield = _getYieldForCrop(cropName, parsedHarvestDate);
+    final monthlyYieldRate =
+      _getYieldRateForCrop(cropName, parsedPlantingDate, parsedHarvestDate);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -357,8 +464,8 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
           _buildDetailRow('📏 Land Area', landAreaDisplay),
           if (expectedYieldKg != null)
             _buildDetailRow('📊 Expected Yield', '${expectedYieldKg.toStringAsFixed(0)} kg'),
-          // Monthly Yield
-          if (monthlyYield != null) ...[
+          // Monthly Yield Rate
+          if (monthlyYieldRate != null) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(10),
@@ -372,7 +479,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Monthly Yield: $monthlyYield',
+                      'Avg Yield Rate: $monthlyYieldRate',
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -381,6 +488,22 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ],
+          if (_canEndorseProducts) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: plantingRecordId.isEmpty
+                    ? null
+                    : () => _endorseCropProduct(
+                          plantingRecordId: plantingRecordId,
+                          cropName: cropName,
+                        ),
+                icon: const Icon(Icons.gavel_rounded, size: 16),
+                label: const Text('Endorse to Buyers'),
               ),
             ),
           ],

@@ -5,6 +5,7 @@ class YieldPredictionService {
       2: 1.15,
       3: 5.25,
       4: 5.50,
+      5: 0.0,
       6: 2.00,
       7: 1.50,
       8: 2.33,
@@ -46,6 +47,9 @@ class YieldPredictionService {
       2: 12.50,
       3: 9.41,
       4: 7.50,
+      5: 0.0,
+      6: 0.0,
+      7: 0.0,
       8: 14.00,
       9: 14.00,
       10: 14.00,
@@ -82,14 +86,78 @@ class YieldPredictionService {
     return cropMonthMap[harvestDate.month];
   }
 
-  static double? predictYieldKg({
-    required String cropName,
-    required DateTime? harvestDate,
-    required double areaHa,
+  static double predictYieldKg({
+    required String cropType,
+    required double landAreaHa,
+    required DateTime datePlanted,
+    required DateTime expectedHarvestDate,
   }) {
-    if (areaHa <= 0 || harvestDate == null) return null;
-    final yieldMtHa = getMonthlyYieldMtHa(cropName, harvestDate);
-    if (yieldMtHa == null) return null;
-    return areaHa * yieldMtHa * 1000;
+    final key = normalizeCropName(cropType);
+    final monthlyRates = _monthlyYieldMtHa[key];
+
+    if (monthlyRates == null || landAreaHa <= 0) return 0;
+    if (!expectedHarvestDate.isAfter(datePlanted)) return 0;
+
+    double rateSum = 0;
+    int dayCount = 0;
+
+    DateTime cursor = datePlanted.add(const Duration(days: 1));
+    while (!cursor.isAfter(expectedHarvestDate)) {
+      final rate = monthlyRates[cursor.month] ?? 0.0;
+      rateSum += rate;
+      dayCount += 1;
+      cursor = cursor.add(const Duration(days: 1));
+    }
+
+    if (dayCount == 0) return 0;
+
+    final avgRateMtPerHa = rateSum / dayCount;
+    return avgRateMtPerHa * landAreaHa * 1000;
+  }
+
+  static double predictYieldMt({
+    required String cropType,
+    required double landAreaHa,
+    required DateTime datePlanted,
+    required DateTime expectedHarvestDate,
+  }) {
+    return predictYieldKg(
+          cropType: cropType,
+          landAreaHa: landAreaHa,
+          datePlanted: datePlanted,
+          expectedHarvestDate: expectedHarvestDate,
+        ) /
+        1000;
+  }
+
+  static double monthlyYieldRate({
+    required String cropType,
+    required DateTime datePlanted,
+    required DateTime expectedHarvestDate,
+  }) {
+    final key = normalizeCropName(cropType);
+    final monthlyRates = _monthlyYieldMtHa[key];
+    if (monthlyRates == null) return 0;
+
+    final days = expectedHarvestDate.difference(datePlanted).inDays;
+    if (days <= 0) return 0;
+
+    double rateSum = 0;
+    int dayCount = 0;
+
+    DateTime cursor = datePlanted.add(const Duration(days: 1));
+    while (!cursor.isAfter(expectedHarvestDate)) {
+      rateSum += monthlyRates[cursor.month] ?? 0.0;
+      dayCount += 1;
+      cursor = cursor.add(const Duration(days: 1));
+    }
+
+    if (dayCount == 0) return 0;
+
+    final avgDailyRate = rateSum / dayCount;
+    final months = days / 30.0;
+    if (months <= 0) return 0;
+
+    return avgDailyRate / months;
   }
 }

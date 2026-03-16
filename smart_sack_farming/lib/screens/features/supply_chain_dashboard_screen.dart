@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/recommendation_model.dart';
+import '../../services/market_service.dart';
 import '../../services/supply_chain_service.dart';
 import '../../theme/app_theme.dart';
 import 'farmer_profile_screen.dart';
@@ -49,6 +50,79 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
   bool _isAllowedCrop(String cropType) {
     // Implement your crop filtering logic here
     return true;
+  }
+
+  Future<void> _endorseProjectionToBuyers(
+    SupplyProjection projection, {
+    FarmerSupplyInfo? farmer,
+  }) async {
+    final bidController = TextEditingController(text: '50.00');
+
+    final startingBid = await showDialog<double?>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Endorse to Registered Buyers'),
+          content: TextField(
+            controller: bidController,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Starting bid price (₱/kg)',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext)
+                    .pop(double.tryParse(bidController.text));
+              },
+              child: const Text('Endorse'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (startingBid == null || startingBid <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid starting bid greater than zero.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final inserted = await MarketService.endorseProjectionToBuyers(
+        cropType: projection.cropType,
+        windowStart: projection.harvestWindowStart,
+        windowEnd: projection.harvestWindowEnd,
+        startingBid: startingBid,
+        farmerId: farmer?.farmerId,
+      );
+
+      if (!mounted) return;
+
+      final farmerLabel = farmer == null ? '' : ' for ${farmer.name}';
+      final message = inserted > 0
+          ? '$inserted ${projection.cropType} record(s)$farmerLabel endorsed to buyers.'
+          : 'No new ${projection.cropType} records$farmerLabel to endorse for this harvest window.';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to endorse products: $e')),
+      );
+    }
   }
 
   @override
@@ -187,8 +261,6 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
               itemBuilder: (context, idx) {
                 final farmer = farmers[idx];
                 final farmerName = farmer.name.trim().isEmpty ? 'Unknown' : farmer.name;
-                final address = farmer.address ?? '';
-                final barangay = farmer.barangay ?? _extractBarangay(address) ?? '';
 
                 return GestureDetector(
                   onTap: () {
@@ -226,8 +298,6 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
                             textAlign: TextAlign.center,
                           ),
                         ),
-                        if (barangay.isNotEmpty)
-                          Text('Brgy. $barangay', style: const TextStyle(fontSize: 10, color: AppTheme.textMedium), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
                       ],
                     ),
                   ),
@@ -238,14 +308,6 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
         ],
       ),
     );
-  }
-
-  String? _extractBarangay(String? address) {
-    if (address == null || address.isEmpty) return null;
-    final match = RegExp(r"\b(?:Brgy\.?|Barangay)\s+([A-Za-z0-9\-\s]+)",
-            caseSensitive: false)
-        .firstMatch(address);
-    return match?.group(1)?.trim();
   }
 
   Widget _buildSummaryItem(String value, String label, IconData icon) {
@@ -266,14 +328,6 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
               textAlign: TextAlign.center),
         ],
       ),
-    );
-  }
-
-  Widget _divider() {
-    return Container(
-      width: 1,
-      height: 40,
-      color: Colors.white.withAlpha(50),
     );
   }
 
@@ -356,6 +410,15 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
                   ],
                 ),
               ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: () => _endorseProjectionToBuyers(p),
+                  icon: const Icon(Icons.gavel_rounded, size: 16),
+                  label: const Text('Endorse to Buyers'),
+                ),
+              ),
               if (p.farmerDetails.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 ExpansionTile(
@@ -378,7 +441,7 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
                                         fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 2),
                                 Text(
-                                    'Address: ${f.address ?? 'N/A'}${f.barangay != null ? ' (Brgy. ${f.barangay})' : ''}',
+                                  'Address: ${f.address ?? 'N/A'}',
                                     style: const TextStyle(
                                         fontSize: 11, color: AppTheme.textMedium)),
                                 const SizedBox(height: 2),
@@ -386,6 +449,16 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
                                     'Land area: ${f.landSizeHa != null ? '${f.landSizeHa!.toStringAsFixed(2)} ha' : 'Unknown'} • Expected yield: ${f.expectedYieldKg.toStringAsFixed(0)} kg',
                                     style: const TextStyle(
                                         fontSize: 11, color: AppTheme.textMedium)),
+                                const SizedBox(height: 6),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () =>
+                                        _endorseProjectionToBuyers(p, farmer: f),
+                                    icon: const Icon(Icons.gavel_rounded, size: 14),
+                                    label: const Text('Endorse Farmer Product'),
+                                  ),
+                                ),
                               ],
                             ),
                           ))
