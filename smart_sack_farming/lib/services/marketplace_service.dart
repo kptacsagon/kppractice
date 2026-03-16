@@ -389,6 +389,63 @@ class MarketplaceService {
   }
 
   // ============================================================
+  // BUYER CROP REQUESTS (ADMIN CONTACT ONLY)
+  // ============================================================
+
+  /// Submit a crop request from buyer to admin.
+  Future<void> submitCropRequestToAdmin({
+    required String cropName,
+    required double requestedQuantityKg,
+    String? listingId,
+    String? farmerId,
+    String? notes,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+
+    final profile = await _client
+        .from('profiles')
+        .select('full_name')
+        .eq('id', userId)
+        .maybeSingle();
+
+    await _client.from('buyer_crop_requests').insert({
+      'buyer_id': userId,
+      'buyer_name': profile?['full_name'] ?? 'Buyer',
+      'listing_id': listingId,
+      'farmer_id': farmerId,
+      'crop_name': cropName,
+      'requested_quantity_kg': requestedQuantityKg,
+      'notes': notes,
+      'status': 'pending',
+    });
+  }
+
+  /// Fetch buyer crop requests for admin review.
+  Future<List<Map<String, dynamic>>> getBuyerCropRequestsForAdmin() async {
+    final response = await _client
+        .from('buyer_crop_requests')
+        .select()
+        .order('created_at', ascending: false);
+
+    return (response as List).cast<Map<String, dynamic>>();
+  }
+
+  /// Fetch current buyer's own crop requests/messages to admin.
+  Future<List<Map<String, dynamic>>> getCurrentBuyerCropRequests() async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+
+    final response = await _client
+        .from('buyer_crop_requests')
+        .select()
+        .eq('buyer_id', userId)
+        .order('created_at', ascending: false);
+
+    return (response as List).cast<Map<String, dynamic>>();
+  }
+
+  // ============================================================
   // STATISTICS
   // ============================================================
 

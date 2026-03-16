@@ -22,7 +22,6 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
   final _quantityController = TextEditingController();
   final _notesController = TextEditingController();
 
-  DateTime? _selectedPickupDate;
   bool _isLoading = false;
   CropListing? _currentListing;
 
@@ -48,40 +47,14 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
     return _requestedQuantity * (_currentListing?.pricePerKg ?? 0);
   }
 
-  bool get _canReserve {
+  bool get _canSubmitRequest {
     return _requestedQuantity > 0 && 
            _requestedQuantity <= (_currentListing?.availableQuantityKg ?? 0);
   }
 
-  Future<void> _selectPickupDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: now.add(const Duration(days: 1)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 30)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppTheme.primary,
-              onPrimary: Colors.white,
-              surface: AppTheme.surface,
-              onSurface: AppTheme.textDark,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) {
-      setState(() => _selectedPickupDate = picked);
-    }
-  }
-
-  Future<void> _submitReservation() async {
+  Future<void> _submitCropRequestToAdmin() async {
     if (!_formKey.currentState!.validate()) return;
-    if (!_canReserve) {
+    if (!_canSubmitRequest) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter a valid quantity'),
@@ -94,10 +67,11 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _marketplaceService.createReservation(
-        listingId: widget.listing.id,
-        quantityKg: _requestedQuantity,
-        pickupDate: _selectedPickupDate,
+      await _marketplaceService.submitCropRequestToAdmin(
+        cropName: _currentListing?.cropName ?? widget.listing.cropName,
+        requestedQuantityKg: _requestedQuantity,
+        listingId: _currentListing?.id ?? widget.listing.id,
+        farmerId: _currentListing?.farmerId ?? widget.listing.farmerId,
         notes: _notesController.text.isEmpty ? null : _notesController.text,
       );
 
@@ -111,7 +85,7 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
               SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Reservation submitted successfully! The farmer will confirm soon.',
+                  'Request sent to admin successfully.',
                   style: TextStyle(fontWeight: FontWeight.w500),
                 ),
               ),
@@ -128,7 +102,7 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to create reservation: ${e.toString()}'),
+          content: Text('Failed to send request to admin: ${e.toString()}'),
           backgroundColor: AppTheme.error,
         ),
       );
@@ -223,7 +197,7 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                // Reservation form
+                // Crop request form (to admin)
                 _buildReservationForm(listing),
                 const SizedBox(height: 100), // Space for bottom button
               ]),
@@ -518,11 +492,11 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.shopping_cart_outlined, 
+                const Icon(Icons.campaign_outlined, 
                     color: AppTheme.primary, size: 24),
                 const SizedBox(width: 10),
                 const Text(
-                  'Make a Reservation',
+                  'Request Crop to Admin',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -539,7 +513,7 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
                 labelText: 'Quantity (kg)',
-                hintText: 'Enter amount to reserve',
+                hintText: 'Enter requested amount',
                 prefixIcon: const Icon(Icons.scale_outlined),
                 suffixText: 'kg',
                 helperText: 'Available: ${listing.availableQuantityKg.toStringAsFixed(0)} kg',
@@ -561,33 +535,13 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Pickup date
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.calendar_month_rounded, 
-                  color: AppTheme.primary),
-              title: Text(
-                _selectedPickupDate != null
-                    ? DateFormat('EEEE, MMMM d, yyyy').format(_selectedPickupDate!)
-                    : 'Select Pickup Date (Optional)',
-                style: TextStyle(
-                  color: _selectedPickupDate != null 
-                      ? AppTheme.textDark 
-                      : AppTheme.textLight,
-                ),
-              ),
-              trailing: const Icon(Icons.arrow_drop_down_rounded),
-              onTap: _selectPickupDate,
-            ),
-            const SizedBox(height: 16),
-
             // Notes input
             TextFormField(
               controller: _notesController,
               maxLines: 2,
               decoration: const InputDecoration(
                 labelText: 'Notes (Optional)',
-                hintText: 'Any special requests or instructions...',
+                hintText: 'Describe crop preferences for admin...',
                 prefixIcon: Icon(Icons.note_outlined),
               ),
             ),
@@ -605,7 +559,7 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Total Amount',
+                    'Estimated Value',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -646,7 +600,7 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _isLoading || !_canReserve ? null : _submitReservation,
+            onPressed: _isLoading || !_canSubmitRequest ? null : _submitCropRequestToAdmin,
             style: ElevatedButton.styleFrom(
               backgroundColor: _currentListing?.saturationLevel == 'high'
                   ? Colors.orange.shade600
@@ -668,10 +622,10 @@ class _CropListingDetailScreenState extends State<CropListingDetailScreen> {
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: const [
-                      Icon(Icons.shopping_cart_checkout_rounded, size: 22),
+                      Icon(Icons.send_rounded, size: 22),
                       SizedBox(width: 10),
                       Text(
-                        'Reserve Now',
+                        'Send Request to Admin',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

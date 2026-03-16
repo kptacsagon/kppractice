@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
+import '../../models/crop_data.dart';
 import 'login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -25,6 +26,7 @@ class _SignUpScreenState extends State<SignUpScreen>
   UserRole _selectedRole = UserRole.farmer;
   String? _selectedSex;
   DateTime? _dateOfBirth;
+  List<String> _selectedCrops = [];
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -255,38 +257,139 @@ class _SignUpScreenState extends State<SignUpScreen>
       if (!mounted) return;
 
       if (response.user != null) {
-        // Create profile in the profiles table (trigger should do this,
-        // but we retry here as a fallback)
+        var signedInForProfileSync = false;
+
+        if (Supabase.instance.client.auth.currentSession == null) {
+          try {
+            await Supabase.instance.client.auth.signInWithPassword(
+              email: _emailController.text.trim(),
+              password: _passwordController.text,
+            );
+            signedInForProfileSync = true;
+          } catch (e) {
+            print('Auto sign-in for profile sync failed: $e');
+          }
+        }
+
+        // Create or update profile in the profiles table (trigger should do this,
+        // but we ensure all data is properly saved)
         for (int attempt = 0; attempt < 3; attempt++) {
           try {
+            final client = Supabase.instance.client;
             final existing = await Supabase.instance.client
                 .from('profiles')
                 .select('id')
                 .eq('id', response.user!.id)
                 .maybeSingle();
-            if (existing != null) break; // trigger already created it
-            final profileData = <String, dynamic>{
+            
+            // Profile data for insert (includes id)
+            final profileInsertData = <String, dynamic>{
               'id': response.user!.id,
               'email': _emailController.text.trim(),
               'full_name': _fullNameController.text.trim(),
               'role': roleStr,
             };
 
-            if (isFarmer) {
-              profileData.addAll({
-                'age': int.parse(_ageController.text.trim()),
-                'sex': _selectedSex,
-                'date_of_birth': _formatDate(_dateOfBirth!),
-                'address': _addressController.text.trim(),
-                'land_size_ha': double.parse(_landSizeController.text.trim()),
-              });
+            // Profile data for update (no id - can't update primary key)
+            final profileUpdateData = <String, dynamic>{
+              'email': _emailController.text.trim(),
+              'full_name': _fullNameController.text.trim(),
+              'role': roleStr,
+            };
+
+            final farmerFullData = isFarmer
+                ? <String, dynamic>{
+                    'age': int.parse(_ageController.text.trim()),
+                    'sex': _selectedSex,
+                    'date_of_birth': _formatDate(_dateOfBirth!),
+                    'address': _addressController.text.trim(),
+                    'land_size_ha': double.parse(_landSizeController.text.trim()),
+                  }
+                : <String, dynamic>{};
+
+            final farmerAddressOnlyData = isFarmer
+                ? <String, dynamic>{
+                    'address': _addressController.text.trim(),
+                  }
+                : <String, dynamic>{};
+
+            final farmerAddressAndLandSizeData = isFarmer
+                ? <String, dynamic>{
+                    'address': _addressController.text.trim(),
+                    'land_size_ha': double.parse(_landSizeController.text.trim()),
+                  }
+                : <String, dynamic>{};
+
+            final updateCandidates = <Map<String, dynamic>>[
+              {...profileUpdateData, ...farmerFullData},
+              if (isFarmer) {...profileUpdateData, ...farmerAddressAndLandSizeData},
+              if (isFarmer) {...profileUpdateData, ...farmerAddressOnlyData},
+              profileUpdateData,
+            ];
+
+            final insertCandidates = <Map<String, dynamic>>[
+              {...profileInsertData, ...farmerFullData},
+              if (isFarmer) {...profileInsertData, ...farmerAddressAndLandSizeData},
+              if (isFarmer) {...profileInsertData, ...farmerAddressOnlyData},
+              profileInsertData,
+            ];
+
+            final candidates = existing != null ? updateCandidates : insertCandidates;
+            Object? lastSaveError;
+
+            for (final candidate in candidates) {
+              try {
+                if (existing != null) {
+                  await client
+                      .from('profiles')
+                      .update(candidate)
+                      .eq('id', response.user!.id);
+                } else {
+                  await client.from('profiles').insert(candidate);
+                }
+                print('Profile saved successfully with candidate: ${candidate.keys.toList()}');
+                lastSaveError = null;
+                break;
+              } catch (saveError) {
+                lastSaveError = saveError;
+                print('Profile save candidate failed: $saveError');
+              }
             }
 
-            await Supabase.instance.client.from('profiles').insert(profileData);
+            if (lastSaveError != null) {
+              throw lastSaveError;
+            }
+
             break;
           } catch (e) {
-            print('Profile creation attempt ${attempt + 1}: $e');
+            print('Profile creation/update attempt ${attempt + 1}: $e');
             if (attempt < 2) await Future.delayed(const Duration(milliseconds: 500));
+          }
+        }
+
+        if (signedInForProfileSync) {
+          try {
+            await Supabase.instance.client.auth.signOut();
+          } catch (e) {
+            print('Auto sign-out after profile sync failed: $e');
+          }
+        }
+
+        // Save selected crops to production_reports if farmer selected any
+        if (isFarmer && _selectedCrops.isNotEmpty) {
+          try {
+            for (var cropName in _selectedCrops) {
+              await Supabase.instance.client.from('production_reports').insert({
+                'farmer_id': response.user!.id,
+                'crop_type': cropName,
+                'area_hectares': double.parse(_landSizeController.text.trim()),
+                'planting_date': DateTime.now().toString().split(' ')[0],
+                'yield_kg': 0,
+              });
+            }
+          } catch (e) {
+            print('Error saving crops to production_reports: $e');
+            // Don't fail signup if crop saving fails
           }
         }
 
@@ -611,6 +714,38 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
                 validator: _validateLandSize,
               ),
+              const SizedBox(height: 20),
+              // Crop Selection for Farmers
+              Text(
+                'Select crops you plan to plant',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textDark,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8.0,
+                runSpacing: 8.0,
+                children: CropData.allCrops.map((crop) {
+                  final isSelected = _selectedCrops.contains(crop.name);
+                  return FilterChip(
+                    label: Text('${crop.icon} ${crop.name}'),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedCrops.add(crop.name);
+                        } else {
+                          _selectedCrops.remove(crop.name);
+                        }
+                      });
+                    },
+                    backgroundColor: Colors.grey[200],
+                    selectedColor: AppTheme.primaryLight.withAlpha(200),
+                  );
+                }).toList(),
+              ),
             ],
             const SizedBox(height: 16),
             // Email
@@ -810,6 +945,7 @@ class _SignUpScreenState extends State<SignUpScreen>
           _dateOfBirth = null;
           _addressController.clear();
           _landSizeController.clear();
+          _selectedCrops.clear();
         }
       }),
       child: AnimatedContainer(
