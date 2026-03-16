@@ -322,6 +322,42 @@ class _SupplyChainDashboardScreenState
               ],
             ),
           ),
+          if (p.farmerDetails.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: Text(
+                'Farmer details (${p.farmerDetails.length})',
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              children: p.farmerDetails
+                  .map((f) => Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(f.name,
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 2),
+                            Text(
+                                'Address: ${f.address ?? 'N/A'}${f.barangay != null ? ' (Brgy. ${f.barangay})' : ''}',
+                                style: const TextStyle(
+                                    fontSize: 11, color: AppTheme.textMedium)),
+                            const SizedBox(height: 2),
+                            Text(
+                                'Land area: ${f.landSizeHa != null ? '${f.landSizeHa!.toStringAsFixed(2)} ha' : 'Unknown'} • Expected yield: ${f.expectedYieldKg.toStringAsFixed(0)} kg',
+                                style: const TextStyle(
+                                    fontSize: 11, color: AppTheme.textMedium)),
+                          ],
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ],
           if (p.riskOfOversupply >= 50) ...[
             const SizedBox(height: 8),
             SizedBox(

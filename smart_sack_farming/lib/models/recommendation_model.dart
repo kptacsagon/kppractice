@@ -195,6 +195,7 @@ class SupplyProjection {
   final double riskOfOversupply;
   final String suggestedAction;
   final String region;
+  final List<FarmerSupplyInfo> farmerDetails;
 
   SupplyProjection({
     required this.id,
@@ -207,6 +208,7 @@ class SupplyProjection {
     required this.riskOfOversupply,
     required this.suggestedAction,
     required this.region,
+    this.farmerDetails = const [],
   });
 
   factory SupplyProjection.fromJson(Map<String, dynamic> json) {
@@ -233,11 +235,13 @@ class SupplyProjection {
           : 0.0,
       suggestedAction: json['suggested_action'] ?? '',
       region: json['region'] ?? 'local',
+      farmerDetails: [],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'id': null,
       'crop_type': cropType,
       'projected_yield_kg': projectedYieldKg,
       'harvest_window_start':
@@ -261,6 +265,27 @@ class SupplyProjection {
 
   String get projectedYieldTons =>
       (projectedYieldKg / 1000).toStringAsFixed(1);
+}
+
+/// Farmer-level supply details used by the MAO supply chain dashboard.
+class FarmerSupplyInfo {
+  final String farmerId;
+  final String name;
+  final String? address;
+  final String? barangay;
+  final double? landSizeHa;
+  final double expectedYieldKg;
+  final double totalAreaHa;
+
+  FarmerSupplyInfo({
+    required this.farmerId,
+    required this.name,
+    this.address,
+    this.barangay,
+    this.landSizeHa,
+    required this.expectedYieldKg,
+    required this.totalAreaHa,
+  });
 }
 
 /// Subsidy allocation tracking for calamity reports.

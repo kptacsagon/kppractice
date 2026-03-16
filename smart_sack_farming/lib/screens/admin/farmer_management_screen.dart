@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../models/crop_data.dart';
 import '../../theme/app_theme.dart';
 
 class FarmerManagementScreen extends StatefulWidget {

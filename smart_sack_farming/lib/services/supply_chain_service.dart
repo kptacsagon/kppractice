@@ -14,11 +14,10 @@ class SupplyChainService {
   /// potential oversupply and generate actionable recommendations.
   Future<List<SupplyProjection>> generateSupplyProjections() async {
     try {
-      // Prefer planting_records (user submissions). Also accept saturation_records
-      // so the dashboard shows both manual saturation data and planting entries.
+      // Query planting_records (without farmer join for now to avoid schema issues)
       final plantingRows = await _client
           .from('planting_records')
-          .select()
+          .select('*')
           .not('expected_harvest_date', 'is', null)
           .order('expected_harvest_date', ascending: true);
 
@@ -38,6 +37,10 @@ class SupplyChainService {
             'area_ha': (r['area_planted_ha'] is num) ? (r['area_planted_ha'] as num).toDouble() : 0.0,
             'yield_kg': (r['estimated_yield_kg'] is num) ? (r['estimated_yield_kg'] as num).toDouble() : null,
             'farmer_id': r['farmer_id'],
+            'farmer_name': null, // No join, so null
+            'farmer_address': null,
+            'farmer_land_area_ha': null,
+            'barangay': null,
           });
         }
       }
@@ -50,11 +53,17 @@ class SupplyChainService {
             'area_ha': (r['field_size_ha'] is num) ? (r['field_size_ha'] as num).toDouble() : 0.0,
             'yield_kg': (r['expected_yield_kg'] is num) ? (r['expected_yield_kg'] as num).toDouble() : null,
             'farmer_id': r['farmer_id'],
+            'farmer_name': null,
+            'farmer_address': null,
+            'farmer_land_area_ha': null,
+            'barangay': null,
           });
         }
       }
 
       if (rows.isEmpty) return [];
+
+      // No need for separate profile fetch since we joined
 
       // Group by crop + harvest month window
       final groups = <String, _HarvestGroup>{};
@@ -64,8 +73,12 @@ class SupplyChainService {
         final harvestStr = record['harvest'] as String?;
         if (harvestStr == null) continue;
         final harvest = DateTime.parse(harvestStr);
-        final areaHa = (record['area_ha'] is num) ? (record['area_ha'] as num).toDouble() : 0.0;
-        final expectedYield = (record['yield_kg'] is num) ? (record['yield_kg'] as num).toDouble() : (areaHa * 5000);
+        final areaHa = (record['area_ha'] is num)
+            ? (record['area_ha'] as num).toDouble()
+            : 0.0;
+        final expectedYield = (record['yield_kg'] is num)
+            ? (record['yield_kg'] as num).toDouble()
+            : (areaHa * 5000);
         final farmerId = (record['farmer_id'] as String?) ?? '';
 
         // Group by crop + month
@@ -78,10 +91,22 @@ class SupplyChainService {
             windowEnd: DateTime(harvest.year, harvest.month + 1, 0),
           ),
         );
+
+        final name = (record['farmer_name'] as String?) ?? 'Farmer';
+        final address = record['farmer_address'] as String?;
+        final landSize = record['farmer_land_area_ha'] is num
+            ? (record['farmer_land_area_ha'] as num).toDouble()
+            : null;
+        final barangay = record['barangay'] as String?;
+
         groups[key]!.addRecord(
           farmerId: farmerId,
           yieldKg: expectedYield,
           areaHa: areaHa,
+          farmerName: name,
+          farmerAddress: address,
+          farmerLandSizeHa: landSize,
+          farmerBarangay: barangay,
         );
       }
 
@@ -103,6 +128,7 @@ class SupplyChainService {
           riskOfOversupply: riskPct,
           suggestedAction: action,
           region: 'local',
+          farmerDetails: group.farmerDetails.values.toList(),
         ));
       }
 
@@ -397,8 +423,11 @@ class SupplyChainService {
 
   Future<void> _persistProjections(List<SupplyProjection> projections) async {
     try {
-      // Clear old projections
-      await _client.from('supply_projections').delete().neq('id', '');
+      // Clear old projections (PostgREST requires a WHERE clause for DELETE)
+      await _client
+          .from('supply_projections')
+          .delete()
+          .not('id', 'is', null);
 
       if (projections.isNotEmpty) {
         final rows = projections.map((p) => p.toJson()).toList();
@@ -419,6 +448,7 @@ class _HarvestGroup {
   final DateTime windowStart;
   final DateTime windowEnd;
   final Set<String> farmerIds = {};
+  final Map<String, FarmerSupplyInfo> farmerDetails = {};
   double totalYieldKg = 0;
   double totalAreaHa = 0;
 
@@ -432,11 +462,46 @@ class _HarvestGroup {
     required String farmerId,
     required double yieldKg,
     required double areaHa,
+    required String farmerName,
+    String? farmerAddress,
+    double? farmerLandSizeHa,
+    String? farmerBarangay,
   }) {
     farmerIds.add(farmerId);
     totalYieldKg += yieldKg;
     totalAreaHa += areaHa;
+
+    final existing = farmerDetails[farmerId];
+    if (existing != null) {
+      farmerDetails[farmerId] = FarmerSupplyInfo(
+        farmerId: existing.farmerId,
+        name: existing.name,
+        address: existing.address,
+        barangay: existing.barangay ?? farmerBarangay,
+        landSizeHa: existing.landSizeHa ?? farmerLandSizeHa,
+        expectedYieldKg: existing.expectedYieldKg + yieldKg,
+        totalAreaHa: existing.totalAreaHa + areaHa,
+      );
+    } else {
+      farmerDetails[farmerId] = FarmerSupplyInfo(
+        farmerId: farmerId,
+        name: farmerName,
+        address: farmerAddress,
+        barangay: farmerBarangay,
+        landSizeHa: farmerLandSizeHa,
+        expectedYieldKg: yieldKg,
+        totalAreaHa: areaHa,
+      );
+    }
   }
+}
+
+String? _extractBarangay(String? address) {
+  if (address == null || address.isEmpty) return null;
+  final match = RegExp(r"\b(?:Brgy\.?|Barangay)\s+([A-Za-z0-9\-\s]+)",
+          caseSensitive: false)
+      .firstMatch(address);
+  return match?.group(1)?.trim();
 }
 
 /// A detected harvest collision (multiple farmers harvesting at once).

@@ -313,7 +313,7 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
-                  value: selectedTrend,
+                  initialValue: selectedTrend,
                   decoration: InputDecoration(
                     labelText: 'Price Trend',
                     filled: true,
