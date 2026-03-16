@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../theme/app_theme.dart';
@@ -13,6 +14,7 @@ class FarmerProfileScreen extends StatefulWidget {
 
 class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   bool _isLoading = true;
+  bool _isUploadingPhoto = false;
   Map<String, dynamic>? _profile;
   String? _error;
   int _activePlantingsCount = 0;
@@ -39,13 +41,13 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       try {
         profile = await Supabase.instance.client
             .from('profiles')
-            .select('full_name, email, role, age, sex, date_of_birth, address, land_size_ha')
+        .select('full_name, email, role, age, sex, date_of_birth, address, land_size_ha, avatar_url')
             .eq('id', userId)
             .maybeSingle();
       } catch (_) {
         profile = await Supabase.instance.client
             .from('profiles')
-            .select('full_name, email, role, address')
+        .select('full_name, email, role, address, avatar_url')
             .eq('id', userId)
             .maybeSingle();
       }
@@ -59,6 +61,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
         'date_of_birth': profile?['date_of_birth'] ?? metadata['date_of_birth'],
         'address': profile?['address'] ?? metadata['address'],
         'land_size_ha': profile?['land_size_ha'] ?? metadata['land_size_ha'],
+        'avatar_url': profile?['avatar_url'] ?? metadata['avatar_url'],
       };
 
       // Fetch planting records for this farmer
@@ -109,6 +112,104 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
     return '${parsed.toStringAsFixed(parsed == parsed.roundToDouble() ? 0 : 2)} ha';
   }
 
+  bool get _isOwnProfile {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser == null) return false;
+    if (widget.farmerId == null) return true;
+    return widget.farmerId == currentUser.id;
+  }
+
+  Future<void> _pickAndUploadProfilePhoto() async {
+    if (!_isOwnProfile) return;
+
+    setState(() => _isUploadingPhoto = true);
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+      if (picked == null) {
+        if (mounted) setState(() => _isUploadingPhoto = false);
+        return;
+      }
+
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser == null) throw Exception('Not authenticated');
+
+      final bytes = await picked.readAsBytes();
+      final fileName = 'avatar_${currentUser.id}_${DateTime.now().millisecondsSinceEpoch}_${picked.name}';
+
+      String uploadBucket = 'profile-images';
+      try {
+        await Supabase.instance.client.storage
+            .from(uploadBucket)
+            .uploadBinary(fileName, bytes);
+      } catch (storageError) {
+        final storageErrorText = storageError.toString().toLowerCase();
+        if (storageErrorText.contains('bucket not found')) {
+          uploadBucket = 'calamity-images';
+          await Supabase.instance.client.storage
+              .from(uploadBucket)
+              .uploadBinary(fileName, bytes);
+        } else {
+          rethrow;
+        }
+      }
+
+      final imageUrl = Supabase.instance.client.storage
+          .from(uploadBucket)
+          .getPublicUrl(fileName);
+
+      await Supabase.instance.client
+          .from('profiles')
+          .update({'avatar_url': imageUrl})
+          .eq('id', currentUser.id);
+
+      if (!mounted) return;
+      setState(() {
+        _profile = {
+          ...?_profile,
+          'avatar_url': imageUrl,
+        };
+        _isUploadingPhoto = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile photo updated successfully.'),
+          backgroundColor: AppTheme.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUploadingPhoto = false);
+      final errorText = e.toString().toLowerCase();
+      if (errorText.contains('bucket not found')) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Profile Photos Setup Required'),
+            content: const Text(
+              'The storage bucket "profile-images" is not created yet in Supabase.\n\n'
+              'Run PROFILE_IMAGES_SETUP.sql in Supabase SQL Editor, then try uploading again.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to upload profile photo: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -157,6 +258,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
 
   Widget _buildProfileContent() {
     final profile = _profile ?? <String, dynamic>{};
+    final avatarUrl = (profile['avatar_url'] ?? '').toString();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -170,6 +272,38 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Center(
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 46,
+                    backgroundColor: AppTheme.primary.withAlpha(25),
+                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                    child: avatarUrl.isEmpty
+                        ? const Icon(Icons.person_rounded, size: 46, color: AppTheme.primary)
+                        : null,
+                  ),
+                  if (_isOwnProfile) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: 36,
+                      child: ElevatedButton.icon(
+                        onPressed: _isUploadingPhoto ? null : _pickAndUploadProfilePhoto,
+                        icon: _isUploadingPhoto
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.photo_camera_outlined, size: 18),
+                        label: Text(_isUploadingPhoto ? 'Uploading...' : 'Upload Photo'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             _buildField('Name', _formatValue(profile['full_name'])),
             _buildField('Email', _formatValue(profile['email'])),
             _buildField('Role', _formatValue(profile['role'])),

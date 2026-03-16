@@ -60,7 +60,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       try {
         profilesRes = await client
             .from('profiles')
-            .select('id, full_name, address, sex, age, land_size_ha')
+            .select('id, full_name, address, sex, age, land_size_ha, avatar_url')
             .eq('role', 'farmer');
         debugPrint('Successfully fetched ${profilesRes.length} farmers with full columns');
       } catch (e) {
@@ -69,7 +69,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
         try {
           profilesRes = await client
               .from('profiles')
-              .select('id, full_name, address, land_size_ha')
+              .select('id, full_name, address, land_size_ha, avatar_url')
               .eq('role', 'farmer');
           debugPrint('Successfully fetched ${profilesRes.length} farmers with reduced columns');
         } catch (e2) {
@@ -279,10 +279,15 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
           child: ListTile(
             leading: CircleAvatar(
               backgroundColor: AppTheme.primary,
-              child: Text(
-                farmer['full_name']?.substring(0, 1) ?? 'F',
-                style: const TextStyle(color: Colors.white),
-              ),
+              backgroundImage: ((farmer['avatar_url'] ?? '').toString().isNotEmpty)
+                  ? NetworkImage((farmer['avatar_url']).toString())
+                  : null,
+              child: ((farmer['avatar_url'] ?? '').toString().isNotEmpty)
+                  ? null
+                  : Text(
+                      farmer['full_name']?.substring(0, 1) ?? 'F',
+                      style: const TextStyle(color: Colors.white),
+                    ),
             ),
             title: Text(farmer['full_name'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Column(
