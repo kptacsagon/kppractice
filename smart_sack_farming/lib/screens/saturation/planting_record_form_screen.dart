@@ -39,7 +39,6 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
 
   // Additional
   String _soilType = 'Loamy';
-  final _expectedYieldController = TextEditingController();
   final _notesController = TextEditingController();
 
   bool _isSaving = false;
@@ -91,7 +90,6 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
   void dispose() {
     _fieldSizeController.dispose();
     _pesticidesController.dispose();
-    _expectedYieldController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -255,17 +253,7 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
                                 setState(() => _soilType = v!),
                           ),
                           const SizedBox(height: 12),
-                          _buildTextField(
-                            controller: _expectedYieldController,
-                            label: 'Expected Yield (tons)',
-                            icon: Icons.balance_rounded,
-                            keyboardType: const TextInputType.numberWithOptions(
-                                decimal: true),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                  RegExp(r'^\d*\.?\d*')),
-                            ],
-                          ),
+                          // Expected yield removed — system calculates harvest date automatically
                           const SizedBox(height: 12),
                           _buildTextField(
                             controller: _notesController,
@@ -754,8 +742,9 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
 
       final data = {
         'farmer_id': user.id,
-        'primary_crop': widget.primaryCrop.name,
-        'companion_crops': widget.companionCrops.map((c) => c.name).toList(),
+        // use DB-safe crop labels (lowercase, no spaces)
+        'primary_crop': widget.primaryCrop.name.toLowerCase().replaceAll(' ', ''),
+        'companion_crops': widget.companionCrops.map((c) => c.name.toLowerCase().replaceAll(' ', '')).toList(),
         'soil_moisture': widget.waterAvailability,
         'saturation_level': widget.saturationLevel.name,
         'planting_date': _formatDate(_plantingDate),
@@ -765,7 +754,6 @@ class _PlantingRecordFormScreenState extends State<PlantingRecordFormScreen> {
         'fertilizer_type': _fertilizerType,
         'irrigation_method': _irrigationMethod,
         'soil_type': _soilType,
-        'expected_yield_kg': double.tryParse(_expectedYieldController.text) ?? 0,
         'notes': _notesController.text,
       };
 

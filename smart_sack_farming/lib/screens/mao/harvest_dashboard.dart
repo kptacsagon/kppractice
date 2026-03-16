@@ -36,7 +36,6 @@ class HarvestDashboard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Expected: ${p.expectedHarvestDate.toLocal()}'.split(' ')[0]),
-                      Text('Est. yield: ${p.estimatedYieldMt} MT'),
                       const SizedBox(height: 6),
                       Row(children: [
                         Container(
