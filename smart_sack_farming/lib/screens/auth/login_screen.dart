@@ -69,6 +69,8 @@ class _LoginScreenState extends State<LoginScreen>
     final metadata = user.userMetadata ?? <String, dynamic>{};
 
     final address = metadata['address']?.toString().trim();
+    final phone = metadata['phone']?.toString().trim();
+    final organization = metadata['organization']?.toString().trim();
     final age = int.tryParse('${metadata['age'] ?? ''}');
     final landSize = double.tryParse('${metadata['land_size_ha'] ?? ''}');
     final sex = metadata['sex']?.toString().toLowerCase().trim();
@@ -86,6 +88,9 @@ class _LoginScreenState extends State<LoginScreen>
       if (sex != null && sex.isNotEmpty) 'sex': sex,
       if (dateOfBirth != null && dateOfBirth.isNotEmpty) 'date_of_birth': dateOfBirth,
       if (address != null && address.isNotEmpty) 'address': address,
+      if (phone != null && phone.isNotEmpty) 'phone': phone,
+      if (organization != null && organization.isNotEmpty)
+        'organization': organization,
       if (landSize != null) 'land_size_ha': landSize,
     };
 

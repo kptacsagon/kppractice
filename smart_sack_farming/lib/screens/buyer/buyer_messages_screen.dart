@@ -14,6 +14,7 @@ class _BuyerMessagesScreenState extends State<BuyerMessagesScreen> {
   final TextEditingController _cropController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
+  DateTime? _preferredCollectionDate;
 
   bool _isLoading = true;
   bool _isSending = false;
@@ -78,6 +79,7 @@ class _BuyerMessagesScreenState extends State<BuyerMessagesScreen> {
       await _marketplaceService.submitCropRequestToAdmin(
         cropName: crop,
         requestedQuantityKg: qty,
+        preferredCollectionDate: _preferredCollectionDate,
         notes: _messageController.text.trim().isEmpty
             ? null
             : _messageController.text.trim(),
@@ -87,6 +89,7 @@ class _BuyerMessagesScreenState extends State<BuyerMessagesScreen> {
       _cropController.clear();
       _quantityController.clear();
       _messageController.clear();
+      setState(() => _preferredCollectionDate = null);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Message sent to admin.'),
@@ -161,6 +164,35 @@ class _BuyerMessagesScreenState extends State<BuyerMessagesScreen> {
                     prefixIcon: Icon(Icons.message_rounded),
                   ),
                 ),
+                const SizedBox(height: 10),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.calendar_month_rounded,
+                      color: AppTheme.primary),
+                  title: Text(
+                    _preferredCollectionDate == null
+                        ? 'Preferred Collection Date (Optional)'
+                        : 'Collect on: ${_preferredCollectionDate!.toIso8601String().split('T')[0]}',
+                    style: TextStyle(
+                      color: _preferredCollectionDate == null
+                          ? AppTheme.textLight
+                          : AppTheme.textDark,
+                    ),
+                  ),
+                  trailing: const Icon(Icons.arrow_drop_down_rounded),
+                  onTap: () async {
+                    final now = DateTime.now();
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _preferredCollectionDate ?? now,
+                      firstDate: now,
+                      lastDate: now.add(const Duration(days: 365)),
+                    );
+                    if (picked != null) {
+                      setState(() => _preferredCollectionDate = picked);
+                    }
+                  },
+                ),
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
@@ -212,6 +244,7 @@ class _BuyerMessagesScreenState extends State<BuyerMessagesScreen> {
       itemBuilder: (context, index) {
         final msg = _messages[index];
         final qty = (msg['requested_quantity_kg'] as num?)?.toDouble();
+        final preferredDate = (msg['preferred_collection_date'] ?? '').toString();
 
         return Card(
           child: ListTile(
@@ -221,6 +254,8 @@ class _BuyerMessagesScreenState extends State<BuyerMessagesScreen> {
               children: [
                 Text('Quantity: ${qty?.toStringAsFixed(2) ?? 'N/A'} kg'),
                 Text('Status: ${(msg['status'] ?? 'pending').toString()}'),
+                if (preferredDate.isNotEmpty)
+                  Text('Collection Date: $preferredDate'),
                 if ((msg['notes'] ?? '').toString().trim().isNotEmpty)
                   Text('Message: ${msg['notes']}'),
               ],

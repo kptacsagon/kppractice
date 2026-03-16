@@ -43,6 +43,7 @@ CREATE TABLE profiles (
   sex         VARCHAR(20) CHECK (sex IN ('male', 'female', 'other')),
   date_of_birth DATE,
   phone       VARCHAR(50),
+  organization VARCHAR(255),
   address     TEXT,
   land_size_ha DECIMAL(10,2),
   avatar_url  TEXT,
@@ -244,6 +245,7 @@ CREATE TABLE buyer_crop_requests (
   farmer_id             UUID,
   crop_name             VARCHAR(100) NOT NULL,
   requested_quantity_kg DECIMAL(12,2) NOT NULL CHECK (requested_quantity_kg > 0),
+  preferred_collection_date DATE,
   notes                 TEXT,
   status                VARCHAR(20) NOT NULL DEFAULT 'pending'
                         CHECK (status IN ('pending', 'reviewed', 'approved', 'rejected')),
@@ -428,6 +430,7 @@ BEGIN
     sex,
     date_of_birth,
     phone,
+    organization,
     address,
     land_size_ha
   )
@@ -440,6 +443,7 @@ BEGIN
     LOWER(NULLIF(NEW.raw_user_meta_data->>'sex', '')),
     NULLIF(NEW.raw_user_meta_data->>'date_of_birth', '')::DATE,
     NEW.raw_user_meta_data->>'phone',
+    NEW.raw_user_meta_data->>'organization',
     NEW.raw_user_meta_data->>'address',
     NULLIF(NEW.raw_user_meta_data->>'land_size_ha', '')::DECIMAL
   );

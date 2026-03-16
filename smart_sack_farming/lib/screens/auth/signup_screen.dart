@@ -16,6 +16,8 @@ class _SignUpScreenState extends State<SignUpScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
+  final _contactController = TextEditingController();
+  final _organizationController = TextEditingController();
   final _ageController = TextEditingController();
   final _addressController = TextEditingController();
   final _landSizeController = TextEditingController();
@@ -61,6 +63,8 @@ class _SignUpScreenState extends State<SignUpScreen>
   void dispose() {
     _animController.dispose();
     _fullNameController.dispose();
+    _contactController.dispose();
+    _organizationController.dispose();
     _ageController.dispose();
     _addressController.dispose();
     _landSizeController.dispose();
@@ -120,9 +124,30 @@ class _SignUpScreenState extends State<SignUpScreen>
   }
 
   String? _validateAddress(String? value) {
-    if (_selectedRole != UserRole.farmer) return null;
+    if (_selectedRole != UserRole.farmer && _selectedRole != UserRole.buyer) {
+      return null;
+    }
     if (value == null || value.trim().isEmpty) {
       return 'Please enter your address';
+    }
+    return null;
+  }
+
+  String? _validateContact(String? value) {
+    if (_selectedRole != UserRole.buyer) return null;
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter your contact number';
+    }
+    if (value.trim().length < 7) {
+      return 'Please enter a valid contact number';
+    }
+    return null;
+  }
+
+  String? _validateOrganization(String? value) {
+    if (_selectedRole != UserRole.buyer) return null;
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter your organization';
     }
     return null;
   }
@@ -232,6 +257,7 @@ class _SignUpScreenState extends State<SignUpScreen>
               ? 'buyer' 
               : 'admin';
       final isFarmer = _selectedRole == UserRole.farmer;
+        final isBuyer = _selectedRole == UserRole.buyer;
 
       final signUpData = <String, dynamic>{
         'full_name': _fullNameController.text.trim(),
@@ -245,6 +271,12 @@ class _SignUpScreenState extends State<SignUpScreen>
           'date_of_birth': _formatDate(_dateOfBirth!),
           'address': _addressController.text.trim(),
           'land_size_ha': double.parse(_landSizeController.text.trim()),
+        });
+      } else if (isBuyer) {
+        signUpData.addAll({
+          'phone': _contactController.text.trim(),
+          'organization': _organizationController.text.trim(),
+          'address': _addressController.text.trim(),
         });
       }
 
@@ -307,30 +339,48 @@ class _SignUpScreenState extends State<SignUpScreen>
                   }
                 : <String, dynamic>{};
 
+            final buyerFullData = isBuyer
+                ? <String, dynamic>{
+                    'phone': _contactController.text.trim(),
+                    'organization': _organizationController.text.trim(),
+                    'address': _addressController.text.trim(),
+                  }
+                : <String, dynamic>{};
+
             final farmerAddressOnlyData = isFarmer
                 ? <String, dynamic>{
                     'address': _addressController.text.trim(),
                   }
                 : <String, dynamic>{};
 
-            final farmerAddressAndLandSizeData = isFarmer
+            final buyerAddressOnlyData = isBuyer
                 ? <String, dynamic>{
                     'address': _addressController.text.trim(),
-                    'land_size_ha': double.parse(_landSizeController.text.trim()),
+                  }
+                : <String, dynamic>{};
+
+            final buyerContactAddressData = isBuyer
+                ? <String, dynamic>{
+                    'phone': _contactController.text.trim(),
+                    'address': _addressController.text.trim(),
                   }
                 : <String, dynamic>{};
 
             final updateCandidates = <Map<String, dynamic>>[
               {...profileUpdateData, ...farmerFullData},
-              if (isFarmer) {...profileUpdateData, ...farmerAddressAndLandSizeData},
+              {...profileUpdateData, ...buyerFullData},
+              if (isBuyer) {...profileUpdateData, ...buyerContactAddressData},
               if (isFarmer) {...profileUpdateData, ...farmerAddressOnlyData},
+              if (isBuyer) {...profileUpdateData, ...buyerAddressOnlyData},
               profileUpdateData,
             ];
 
             final insertCandidates = <Map<String, dynamic>>[
               {...profileInsertData, ...farmerFullData},
-              if (isFarmer) {...profileInsertData, ...farmerAddressAndLandSizeData},
+              {...profileInsertData, ...buyerFullData},
+              if (isBuyer) {...profileInsertData, ...buyerContactAddressData},
               if (isFarmer) {...profileInsertData, ...farmerAddressOnlyData},
+              if (isBuyer) {...profileInsertData, ...buyerAddressOnlyData},
               profileInsertData,
             ];
 
@@ -747,6 +797,53 @@ class _SignUpScreenState extends State<SignUpScreen>
                 }).toList(),
               ),
             ],
+            if (_selectedRole == UserRole.buyer) ...[
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _contactController,
+                keyboardType: TextInputType.phone,
+                style: const TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 15,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Contact Number',
+                  hintText: 'e.g. 09XXXXXXXXX',
+                  prefixIcon: Icon(Icons.phone_outlined, size: 20),
+                ),
+                validator: _validateContact,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _organizationController,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 15,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Organization',
+                  hintText: 'Company / Cooperative / Group',
+                  prefixIcon: Icon(Icons.business_outlined, size: 20),
+                ),
+                validator: _validateOrganization,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _addressController,
+                textCapitalization: TextCapitalization.sentences,
+                style: const TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 15,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Address',
+                  hintText: 'Barangay / Municipality',
+                  prefixIcon: Icon(Icons.location_on_outlined, size: 20),
+                ),
+                validator: _validateAddress,
+              ),
+            ],
             const SizedBox(height: 16),
             // Email
             TextFormField(
@@ -939,10 +1036,21 @@ class _SignUpScreenState extends State<SignUpScreen>
     return GestureDetector(
       onTap: () => setState(() {
         _selectedRole = role;
-        if (_selectedRole != UserRole.farmer) {
+        if (_selectedRole == UserRole.farmer) {
+          _contactController.clear();
+          _organizationController.clear();
+        } else if (_selectedRole == UserRole.buyer) {
           _ageController.clear();
           _selectedSex = null;
           _dateOfBirth = null;
+          _landSizeController.clear();
+          _selectedCrops.clear();
+        } else {
+          _ageController.clear();
+          _selectedSex = null;
+          _dateOfBirth = null;
+          _contactController.clear();
+          _organizationController.clear();
           _addressController.clear();
           _landSizeController.clear();
           _selectedCrops.clear();

@@ -398,6 +398,7 @@ class MarketplaceService {
     required double requestedQuantityKg,
     String? listingId,
     String? farmerId,
+    DateTime? preferredCollectionDate,
     String? notes,
   }) async {
     final userId = currentUserId;
@@ -416,6 +417,8 @@ class MarketplaceService {
       'farmer_id': farmerId,
       'crop_name': cropName,
       'requested_quantity_kg': requestedQuantityKg,
+      'preferred_collection_date':
+          preferredCollectionDate?.toIso8601String().split('T')[0],
       'notes': notes,
       'status': 'pending',
     });

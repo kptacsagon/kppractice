@@ -94,6 +94,7 @@ ALTER TABLE equipment ADD COLUMN IF NOT EXISTS condition VARCHAR(50) NOT NULL DE
 
 -- ── profiles ────────────────────────────────────────────────
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS organization VARCHAR(255);
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS age INT;
@@ -110,6 +111,7 @@ CREATE TABLE IF NOT EXISTS buyer_crop_requests (
   farmer_id             UUID,
   crop_name             VARCHAR(100) NOT NULL,
   requested_quantity_kg DECIMAL(12,2) NOT NULL CHECK (requested_quantity_kg > 0),
+  preferred_collection_date DATE,
   notes                 TEXT,
   status                VARCHAR(20) NOT NULL DEFAULT 'pending'
                         CHECK (status IN ('pending', 'reviewed', 'approved', 'rejected')),
@@ -123,6 +125,7 @@ CREATE INDEX IF NOT EXISTS idx_bcr_created ON buyer_crop_requests(created_at);
 
 ALTER TABLE buyer_crop_requests ADD COLUMN IF NOT EXISTS listing_id UUID;
 ALTER TABLE buyer_crop_requests ADD COLUMN IF NOT EXISTS farmer_id UUID;
+ALTER TABLE buyer_crop_requests ADD COLUMN IF NOT EXISTS preferred_collection_date DATE;
 
 ALTER TABLE buyer_crop_requests ENABLE ROW LEVEL SECURITY;
 
@@ -169,6 +172,7 @@ BEGIN
     sex,
     date_of_birth,
     phone,
+    organization,
     address,
     land_size_ha
   )
@@ -181,6 +185,7 @@ BEGIN
     LOWER(NULLIF(NEW.raw_user_meta_data->>'sex', '')),
     NULLIF(NEW.raw_user_meta_data->>'date_of_birth', '')::DATE,
     NEW.raw_user_meta_data->>'phone',
+    NEW.raw_user_meta_data->>'organization',
     NEW.raw_user_meta_data->>'address',
     NULLIF(NEW.raw_user_meta_data->>'land_size_ha', '')::DECIMAL
   );

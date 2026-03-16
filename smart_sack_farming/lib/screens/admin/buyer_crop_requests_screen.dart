@@ -98,6 +98,7 @@ class _BuyerCropRequestsScreenState extends State<BuyerCropRequestsScreen> {
         final req = _requests[index];
         final quantity = (req['requested_quantity_kg'] as num?)?.toDouble();
         final createdAt = (req['created_at'] ?? '').toString();
+        final preferredDate = (req['preferred_collection_date'] ?? '').toString();
 
         return Card(
           elevation: 1,
@@ -117,6 +118,8 @@ class _BuyerCropRequestsScreenState extends State<BuyerCropRequestsScreen> {
                 const SizedBox(height: 6),
                 Text('Buyer: ${(req['buyer_name'] ?? 'Unknown').toString()}'),
                 Text('Quantity: ${quantity?.toStringAsFixed(2) ?? 'N/A'} kg'),
+                if (preferredDate.isNotEmpty)
+                  Text('Preferred Collection: $preferredDate'),
                 Text('Status: ${(req['status'] ?? 'pending').toString()}'),
                 if ((req['listing_id'] ?? '').toString().isNotEmpty)
                   Text('Listing ID: ${req['listing_id']}'),
