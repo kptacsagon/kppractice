@@ -96,7 +96,10 @@ class _FinancialForecastScreenState extends State<FinancialForecastScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : _runComparison,
+                onPressed: () {
+                  if (_isLoading) return;
+                  _runComparison();
+                },
                 icon: const Icon(Icons.compare_arrows, size: 18),
                 label: const Text('Compare Crops'),
               ),

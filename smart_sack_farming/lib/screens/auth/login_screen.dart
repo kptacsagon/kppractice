@@ -288,6 +288,35 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  Future<void> _handleForgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter your email first to reset password.')),
+      );
+      return;
+    }
+
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password reset link sent to your email.'),
+          backgroundColor: AppTheme.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to send reset link: $e'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -510,7 +539,7 @@ class _LoginScreenState extends State<LoginScreen>
                   ],
                 ),
                 TextButton(
-                  onPressed: () {},
+                  onPressed: _handleForgotPassword,
                   style: TextButton.styleFrom(
                     padding: EdgeInsets.zero,
                     minimumSize: Size.zero,
@@ -638,7 +667,10 @@ class _LoginScreenState extends State<LoginScreen>
         boxShadow: _isLoading ? [] : [AppTheme.buttonShadow],
       ),
       child: ElevatedButton(
-        onPressed: _isLoading ? null : _handleLogin,
+        onPressed: () {
+          if (_isLoading) return;
+          _handleLogin();
+        },
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
           child: _isLoading

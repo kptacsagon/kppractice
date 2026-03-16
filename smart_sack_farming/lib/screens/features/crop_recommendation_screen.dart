@@ -194,7 +194,10 @@ class _CropRecommendationScreenState extends State<CropRecommendationScreen>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _isLoading ? null : _generateRecommendations,
+              onPressed: () {
+                if (_isLoading) return;
+                _generateRecommendations();
+              },
               icon: const Icon(Icons.auto_awesome, size: 18),
               label: const Text('Generate Recommendations'),
             ),

@@ -1161,7 +1161,10 @@ class _SignUpScreenState extends State<SignUpScreen>
         boxShadow: _isLoading ? [] : [AppTheme.buttonShadow],
       ),
       child: ElevatedButton(
-        onPressed: _isLoading ? null : _handleSignUp,
+        onPressed: () {
+          if (_isLoading) return;
+          _handleSignUp();
+        },
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
           child: _isLoading

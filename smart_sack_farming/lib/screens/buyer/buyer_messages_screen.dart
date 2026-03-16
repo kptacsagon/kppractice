@@ -217,7 +217,10 @@ class _BuyerMessagesScreenState extends State<BuyerMessagesScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _isSending ? null : _sendMessage,
+                    onPressed: () {
+                      if (_isSending) return;
+                      _sendMessage();
+                    },
                     icon: _isSending
                         ? const SizedBox(
                             width: 16,

@@ -367,7 +367,10 @@ class _CreateCropListingScreenState extends State<CreateCropListingScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submitListing,
+                  onPressed: () {
+                    if (_isLoading) return;
+                    _submitListing();
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _selectedSaturationLevel == 'high'
                         ? Colors.orange.shade600
