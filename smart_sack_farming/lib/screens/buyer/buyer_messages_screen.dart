@@ -99,12 +99,32 @@ class _BuyerMessagesScreenState extends State<BuyerMessagesScreen> {
       await _loadMessages();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to send message: $e'),
-          backgroundColor: AppTheme.error,
-        ),
-      );
+      final errorText = e.toString();
+      if (errorText.toLowerCase().contains('not set up in the database')) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Database Setup Required'),
+            content: const Text(
+              'Buyer messaging table is not created yet in Supabase.\n\n'
+              'Run the SQL in supabase_migration_v1_to_v2.sql using Supabase SQL Editor, then try again.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send message: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSending = false);
     }

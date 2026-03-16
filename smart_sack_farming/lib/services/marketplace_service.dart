@@ -12,6 +12,12 @@ class MarketplaceService {
   
   String? get currentUserId => _client.auth.currentUser?.id;
 
+  bool _isMissingBuyerCropRequestsTable(Object error) {
+    if (error is! PostgrestException) return false;
+    return error.code == 'PGRST205' &&
+        (error.message.toLowerCase().contains('buyer_crop_requests'));
+  }
+
   // ============================================================
   // CROP LISTINGS
   // ============================================================
@@ -410,28 +416,43 @@ class MarketplaceService {
         .eq('id', userId)
         .maybeSingle();
 
-    await _client.from('buyer_crop_requests').insert({
-      'buyer_id': userId,
-      'buyer_name': profile?['full_name'] ?? 'Buyer',
-      'listing_id': listingId,
-      'farmer_id': farmerId,
-      'crop_name': cropName,
-      'requested_quantity_kg': requestedQuantityKg,
-      'preferred_collection_date':
-          preferredCollectionDate?.toIso8601String().split('T')[0],
-      'notes': notes,
-      'status': 'pending',
-    });
+    try {
+      await _client.from('buyer_crop_requests').insert({
+        'buyer_id': userId,
+        'buyer_name': profile?['full_name'] ?? 'Buyer',
+        'listing_id': listingId,
+        'farmer_id': farmerId,
+        'crop_name': cropName,
+        'requested_quantity_kg': requestedQuantityKg,
+        'preferred_collection_date':
+            preferredCollectionDate?.toIso8601String().split('T')[0],
+        'notes': notes,
+        'status': 'pending',
+      });
+    } catch (e) {
+      if (_isMissingBuyerCropRequestsTable(e)) {
+        throw Exception(
+            'Buyer message feature is not set up in the database yet. Please run the latest SQL migration.');
+      }
+      rethrow;
+    }
   }
 
   /// Fetch buyer crop requests for admin review.
   Future<List<Map<String, dynamic>>> getBuyerCropRequestsForAdmin() async {
-    final response = await _client
-        .from('buyer_crop_requests')
-        .select()
-        .order('created_at', ascending: false);
+    try {
+      final response = await _client
+          .from('buyer_crop_requests')
+          .select()
+          .order('created_at', ascending: false);
 
-    return (response as List).cast<Map<String, dynamic>>();
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      if (_isMissingBuyerCropRequestsTable(e)) {
+        return [];
+      }
+      rethrow;
+    }
   }
 
   /// Fetch current buyer's own crop requests/messages to admin.
@@ -439,13 +460,20 @@ class MarketplaceService {
     final userId = currentUserId;
     if (userId == null) throw Exception('User not authenticated');
 
-    final response = await _client
-        .from('buyer_crop_requests')
-        .select()
-        .eq('buyer_id', userId)
-        .order('created_at', ascending: false);
+    try {
+      final response = await _client
+          .from('buyer_crop_requests')
+          .select()
+          .eq('buyer_id', userId)
+          .order('created_at', ascending: false);
 
-    return (response as List).cast<Map<String, dynamic>>();
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      if (_isMissingBuyerCropRequestsTable(e)) {
+        return [];
+      }
+      rethrow;
+    }
   }
 
   // ============================================================
