@@ -15,6 +15,7 @@ class SupplyChainDashboardScreen extends StatefulWidget {
 class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen> with TickerProviderStateMixin {
   late final SupplyChainService _service;
   late TabController _tabController;
+  static const double _defaultStartingBidPerKg = 50.0;
   
   SupplyChainSummary? _summary;
   bool _isLoading = true;
@@ -56,31 +57,21 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
     SupplyProjection projection, {
     FarmerSupplyInfo? farmer,
   }) async {
-    final bidController = TextEditingController(text: '50.00');
-
-    final startingBid = await showDialog<double?>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Endorse to Registered Buyers'),
-          content: TextField(
-            controller: bidController,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Starting bid price (₱/kg)',
-            ),
+          content: Text(
+            'Use default starting bid of ₱${_defaultStartingBidPerKg.toStringAsFixed(2)}/kg?',
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext)
-                    .pop(double.tryParse(bidController.text));
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('Endorse'),
             ),
           ],
@@ -88,13 +79,7 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
       },
     );
 
-    if (startingBid == null || startingBid <= 0) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid starting bid greater than zero.'),
-        ),
-      );
+    if (confirmed != true) {
       return;
     }
 
@@ -103,7 +88,7 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
         cropType: projection.cropType,
         windowStart: projection.harvestWindowStart,
         windowEnd: projection.harvestWindowEnd,
-        startingBid: startingBid,
+        startingBid: _defaultStartingBidPerKg,
         farmerId: farmer?.farmerId,
       );
 
@@ -154,7 +139,6 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                _buildSummaryStrip(),
                 _buildFarmerListSection(),
                 Expanded(
                   child: TabBarView(
@@ -167,39 +151,6 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
                 ),
               ],
             ),
-    );
-  }
-
-  Widget _buildSummaryStrip() {
-    final s = _summary;
-    if (s == null) return const SizedBox.shrink();
-    
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppTheme.primary, AppTheme.primary.withAlpha(220)],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(12),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildSummaryItem(
-            '${s.projections.length}',
-            'Projections',
-            Icons.trending_up_rounded,
-          ),
-        ],
-      ),
     );
   }
 
@@ -305,27 +256,6 @@ class _SupplyChainDashboardScreenState extends State<SupplyChainDashboardScreen>
               },
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryItem(String value, String label, IconData icon) {
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: Colors.white.withAlpha(200), size: 20),
-          const SizedBox(height: 4),
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold)),
-          Text(label,
-              style: TextStyle(
-                  color: Colors.white.withAlpha(180),
-                  fontSize: 10),
-              textAlign: TextAlign.center),
         ],
       ),
     );

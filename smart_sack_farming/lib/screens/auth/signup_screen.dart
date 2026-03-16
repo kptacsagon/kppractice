@@ -469,16 +469,7 @@ class _SignUpScreenState extends State<SignUpScreen>
           ),
         );
 
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const LoginScreen(),
-            transitionsBuilder: (context, anim, secondaryAnimation, child) {
-              return FadeTransition(opacity: anim, child: child);
-            },
-            transitionDuration: const Duration(milliseconds: 400),
-          ),
-        );
+        _navigateToLogin();
       }
     } on AuthException catch (e) {
       setState(() => _isLoading = false);
@@ -580,6 +571,11 @@ class _SignUpScreenState extends State<SignUpScreen>
                       position: _slideAnim,
                       child: Column(
                         children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _buildBackToLoginButton(),
+                          ),
+                          const SizedBox(height: 8),
                           const SizedBox(height: 28),
                           _buildHeader(),
                           const SizedBox(height: 28),
@@ -596,6 +592,33 @@ class _SignUpScreenState extends State<SignUpScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _navigateToLogin() {
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const LoginScreen(),
+        transitionsBuilder: (context, anim, secondaryAnimation, child) {
+          return FadeTransition(opacity: anim, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
+  Widget _buildBackToLoginButton() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(35),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        onPressed: _navigateToLogin,
+        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        tooltip: 'Back to Sign In',
       ),
     );
   }
@@ -1200,19 +1223,7 @@ class _SignUpScreenState extends State<SignUpScreen>
               style: TextStyle(color: AppTheme.textMedium, fontSize: 14),
             ),
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pushReplacement(
-                  PageRouteBuilder(
-                    pageBuilder: (context, animation, secondaryAnimation) =>
-                        const LoginScreen(),
-                    transitionsBuilder:
-                        (context, anim, secondaryAnimation, child) {
-                      return FadeTransition(opacity: anim, child: child);
-                    },
-                    transitionDuration: const Duration(milliseconds: 400),
-                  ),
-                );
-              },
+              onPressed: _navigateToLogin,
               style: TextButton.styleFrom(
                 padding: EdgeInsets.zero,
                 minimumSize: Size.zero,

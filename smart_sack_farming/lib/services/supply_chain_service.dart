@@ -144,6 +144,10 @@ class SupplyChainService {
                 ? recordName
                 : 'Farmer';
 
+        if (_isExcludedFarmerName(name)) {
+          continue;
+        }
+
         final address = (profile?['address'] as String?) ??
             (record['farmer_address'] as String?);
         final profileBarangay = profile?['barangay']?.toString().trim();
@@ -424,6 +428,17 @@ class SupplyChainService {
       print('Warning: Could not load farmer profiles for projections: $e');
       return {};
     }
+  }
+
+  bool _isExcludedFarmerName(String name) {
+    final normalized =
+        name.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+    const excludedNames = {
+      'farmer three',
+      'king phillip tacsagon',
+      'sir jhon',
+    };
+    return excludedNames.contains(normalized);
   }
 
   double _calculateOversupplyRisk(_HarvestGroup group) {
