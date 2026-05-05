@@ -563,10 +563,10 @@ class _LoginScreenState extends State<LoginScreen>
 
   Widget _buildRoleSelector() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         const Text(
-          'Sign in as',
+          'Sign In As',
           style: TextStyle(
             color: AppTheme.textDark,
             fontSize: 16,

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
-import '../../models/crop_data.dart';
+import '../../config/supabase_config.dart';
 import 'login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -237,7 +237,18 @@ class _SignUpScreenState extends State<SignUpScreen>
 
   Future<void> _handleSignUp() async {
     if (!_formKey.currentState!.validate()) return;
-
+    
+    if (!supabaseConfigLooksValid()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Supabase configuration looks invalid. Set SUPABASE_URL and SUPABASE_ANON_KEY in lib/config/supabase_config.dart or pass them with --dart-define.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     if (!_agreedToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -493,16 +504,42 @@ class _SignUpScreenState extends State<SignUpScreen>
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: AppTheme.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+      final msg = e.toString();
+      if (msg.contains('Failed to fetch') || msg.toLowerCase().contains('clientexception')) {
+        // Likely DNS / network unreachable for the Supabase project
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: const [
+                  Icon(Icons.wifi_off, color: Colors.white, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(child: Text('Network error: Unable to reach authentication service.')),
+                ]),
+                const SizedBox(height: 6),
+                const Text('Check your internet connection and verify SUPABASE_URL in config/supabase_config.dart'),
+              ],
+            ),
+            backgroundColor: AppTheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 6),
           ),
-        ),
-      );
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${msg}'),
+            backgroundColor: AppTheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -786,38 +823,6 @@ class _SignUpScreenState extends State<SignUpScreen>
                   prefixIcon: Icon(Icons.landscape_outlined, size: 20),
                 ),
                 validator: _validateLandSize,
-              ),
-              const SizedBox(height: 20),
-              // Crop Selection for Farmers
-              Text(
-                'Select crops you plan to plant',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textDark,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8.0,
-                runSpacing: 8.0,
-                children: CropData.allCrops.map((crop) {
-                  final isSelected = _selectedCrops.contains(crop.name);
-                  return FilterChip(
-                    label: Text('${crop.icon} ${crop.name}'),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      setState(() {
-                        if (selected) {
-                          _selectedCrops.add(crop.name);
-                        } else {
-                          _selectedCrops.remove(crop.name);
-                        }
-                      });
-                    },
-                    backgroundColor: Colors.grey[200],
-                    selectedColor: AppTheme.primaryLight.withAlpha(200),
-                  );
-                }).toList(),
               ),
             ],
             if (_selectedRole == UserRole.buyer) ...[

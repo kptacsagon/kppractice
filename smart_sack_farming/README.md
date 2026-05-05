@@ -2,6 +2,12 @@
 
 A new Flutter project.
 
+## Product Documentation
+
+- AgriFinancial Model PRD: [AGRIFINANCIAL_MODEL_MODULE_PRD.md](AGRIFINANCIAL_MODEL_MODULE_PRD.md)
+- Flutter implementation checklist: [AGRIFINANCIAL_MODEL_IMPLEMENTATION_CHECKLIST.md](AGRIFINANCIAL_MODEL_IMPLEMENTATION_CHECKLIST.md)
+- Claude Prompt (PRD generator): [AGRI_FINANCIAL_CLAUDE_PROMPT.md](AGRI_FINANCIAL_CLAUDE_PROMPT.md)
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.
