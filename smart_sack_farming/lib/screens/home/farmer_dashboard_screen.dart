@@ -2,18 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../auth/login_screen.dart';
-import 'farmer_profile_screen.dart';
-import '../features/progressive_profit_loss_screen.dart';
+import '../farmer/farmer_profile_screen_v2.dart';
 import '../features/rentals_screen.dart';
 import '../features/reports_screen.dart';
-import '../features/weather_screen.dart';
-import '../features/crop_recommendation_screen.dart';
 import '../features/agrisense_dss_screen.dart';
-import '../features/financial_forecast_screen.dart';
-import '../features/agronomic_logbook_screen.dart';
 import '../features/agri_financial_model_screen.dart';
 import '../saturation/saturation_meter_screen.dart';
-import '../farmer/planting_entry_screen.dart';
 import '../farmer/my_market_screen.dart';
 
 class FarmerDashboardScreen extends StatelessWidget {
@@ -101,16 +95,6 @@ class FarmerDashboardScreen extends StatelessWidget {
                           _navigateToFeature(context, 'Saturation Meter'),
                     ),
                     _buildFeatureCard(
-                      icon: Icons.trending_up_rounded,
-                      iconColor: const Color(0xFF2196F3),
-                      title: 'Profit & Loss Calculator',
-                      description:
-                          'Calculate your farming profits and track financial performance',
-                      buttonText: 'Calculate P&L',
-                      onTap: () =>
-                          _navigateToFeature(context, 'P&L Calculator'),
-                    ),
-                    _buildFeatureCard(
                       icon: Icons.two_wheeler_rounded,
                       iconColor: const Color(0xFF673AB7),
                       title: 'Rentals',
@@ -128,24 +112,6 @@ class FarmerDashboardScreen extends StatelessWidget {
                       onTap: () => _navigateToFeature(context, 'Reports'),
                     ),
                     _buildFeatureCard(
-                      icon: Icons.cloud_outlined,
-                      iconColor: const Color(0xFF2196F3),
-                      title: 'Weather',
-                      description: 'Check weather forecasts for your area',
-                      buttonText: 'View Weather',
-                      onTap: () => _navigateToFeature(context, 'Weather'),
-                    ),
-                    _buildFeatureCard(
-                      icon: Icons.psychology_rounded,
-                      iconColor: const Color(0xFF2E7D32),
-                      title: 'Crop Recommendations',
-                      description:
-                          'AI-powered planting advice with suitability scores',
-                      buttonText: 'Get Recommendations',
-                      onTap: () =>
-                          _navigateToFeature(context, 'Crop Recommendations'),
-                    ),
-                    _buildFeatureCard(
                       icon: Icons.insights_rounded,
                       iconColor: const Color(0xFF00897B),
                       title: 'AgriSense DSS',
@@ -153,16 +119,6 @@ class FarmerDashboardScreen extends StatelessWidget {
                           'Analyze oversupply risk with OSI and crop alternatives',
                       buttonText: 'Open AgriSense',
                       onTap: () => _navigateToFeature(context, 'AgriSense DSS'),
-                    ),
-                    _buildFeatureCard(
-                      icon: Icons.account_balance_wallet_rounded,
-                      iconColor: const Color(0xFF7B1FA2),
-                      title: 'Financial Forecast',
-                      description:
-                          'Simulate profit scenarios and compare crop returns',
-                      buttonText: 'View Forecast',
-                      onTap: () =>
-                          _navigateToFeature(context, 'Financial Forecast'),
                     ),
                     _buildFeatureCard(
                       icon: Icons.account_balance_rounded,
@@ -175,16 +131,6 @@ class FarmerDashboardScreen extends StatelessWidget {
                           _navigateToFeature(context, 'AgriFinancial Model'),
                     ),
                     _buildFeatureCard(
-                      icon: Icons.grass_rounded,
-                      iconColor: const Color(0xFF2E7D32),
-                      title: 'Planting Entry',
-                      description:
-                          'Log new planting activities and request endorsements',
-                      buttonText: 'Add Planting',
-                      onTap: () =>
-                          _navigateToFeature(context, 'Planting Entry'),
-                    ),
-                    _buildFeatureCard(
                       icon: Icons.storefront_rounded,
                       iconColor: const Color(0xFF00A86B),
                       title: 'My Market',
@@ -192,15 +138,6 @@ class FarmerDashboardScreen extends StatelessWidget {
                           'View market endorsements linked to your plantings',
                       buttonText: 'Open Market',
                       onTap: () => _navigateToFeature(context, 'My Market'),
-                    ),
-                    _buildFeatureCard(
-                      icon: Icons.menu_book_rounded,
-                      iconColor: const Color(0xFF5D4037),
-                      title: 'Farm Logbook',
-                      description:
-                          'Record and track all agronomic events and activities',
-                      buttonText: 'Open Logbook',
-                      onTap: () => _navigateToFeature(context, 'Farm Logbook'),
                     ),
                     _buildFeatureCard(
                       icon: Icons.person_rounded,
@@ -318,12 +255,6 @@ class FarmerDashboardScreen extends StatelessWidget {
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const SaturationMeterScreen()));
-    } else if (featureName == 'P&L Calculator') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const ProgressiveProfitLossCalculatorScreen(),
-        ),
-      );
     } else if (featureName == 'Rentals') {
       Navigator.of(
         context,
@@ -332,38 +263,18 @@ class FarmerDashboardScreen extends StatelessWidget {
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const ReportsScreen()));
-    } else if (featureName == 'Weather') {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const WeatherScreen()));
-    } else if (featureName == 'Crop Recommendations') {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const CropRecommendationScreen()),
-      );
     } else if (featureName == 'AgriSense DSS') {
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const AgriSenseDssScreen()));
-    } else if (featureName == 'Financial Forecast') {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const FinancialForecastScreen()),
-      );
     } else if (featureName == 'AgriFinancial Model') {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const AgriFinancialModelScreen()),
       );
-    } else if (featureName == 'Farm Logbook') {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const AgronomicLogbookScreen()));
     } else if (featureName == 'My Profile') {
       Navigator.of(
         context,
-      ).push(MaterialPageRoute(builder: (_) => const FarmerProfileScreen()));
-    } else if (featureName == 'Planting Entry') {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const PlantingEntryScreen()));
+      ).push(MaterialPageRoute(builder: (_) => const FarmerProfileScreenV2()));
     } else if (featureName == 'My Market') {
       final user = Supabase.instance.client.auth.currentUser;
       final farmerId = user?.id ?? 'farmer-unknown';

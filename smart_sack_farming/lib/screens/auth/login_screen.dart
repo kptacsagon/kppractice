@@ -6,6 +6,7 @@ import '../home/farmer_dashboard_screen.dart';
 import '../home/mao_admin_dashboard.dart';
 import '../buyer/buyer_marketplace_screen.dart';
 import 'signup_screen.dart';
+import 'complete_profile_screen.dart';
 
 enum UserRole { farmer, admin, buyer }
 
@@ -244,17 +245,41 @@ class _LoginScreenState extends State<LoginScreen>
         if (!mounted) return;
         setState(() => _isLoading = false);
 
+        // Check if profile needs completion
+        bool needsCompletion = false;
+        try {
+          final profile = await Supabase.instance.client
+              .from('profiles')
+              .select('age, address, phone, organization')
+              .eq('id', response.user!.id)
+              .maybeSingle();
+
+          if (profile != null) {
+            if (_selectedRole == UserRole.farmer) {
+              needsCompletion = profile['age'] == null || profile['address'] == null;
+            } else if (_selectedRole == UserRole.buyer) {
+              needsCompletion = profile['phone'] == null || profile['organization'] == null;
+            }
+          }
+        } catch (e) {
+          needsCompletion = true;
+        }
+
         Widget destination;
-        switch (_selectedRole) {
-          case UserRole.farmer:
-            destination = const FarmerDashboardScreen();
-            break;
-          case UserRole.admin:
-            destination = const MaoAdminDashboard();
-            break;
-          case UserRole.buyer:
-            destination = const BuyerMarketplaceScreen();
-            break;
+        if (needsCompletion && _selectedRole != UserRole.admin) {
+          destination = CompleteProfileScreen(role: _selectedRole);
+        } else {
+          switch (_selectedRole) {
+            case UserRole.farmer:
+              destination = const FarmerDashboardScreen();
+              break;
+            case UserRole.admin:
+              destination = const MaoAdminDashboard();
+              break;
+            case UserRole.buyer:
+              destination = const BuyerMarketplaceScreen();
+              break;
+          }
         }
 
         Navigator.of(context).pushReplacement(
@@ -322,38 +347,68 @@ class _LoginScreenState extends State<LoginScreen>
     final size = MediaQuery.of(context).size;
     final isWide = size.width > 600;
 
+    const Color darkGreen = Color(0xFF0B2114);
+    const Color offWhite = Color(0xFFF6F7F0);
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
+        backgroundColor: offWhite,
         body: Stack(
           children: [
-            // Background gradient
-            Container(
-              height: size.height * 0.42,
-              decoration: BoxDecoration(gradient: AppTheme.primaryGradient),
-            ),
-            // Background pattern circles
+            // Top Wavy Background
             Positioned(
-              top: -60,
-              right: -40,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withAlpha(15),
+              top: 0,
+              left: 0,
+              right: 0,
+              height: size.height * 0.40,
+              child: ClipPath(
+                clipper: TopWaveClipper(),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: darkGreen,
+                    // Optional subtle gradient matching the image
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFF0F2618), Color(0xFF081C10)],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Background pattern behind Logo
+            Positioned(
+              top: size.height * 0.1,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  width: 140,
+                  height: 140,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withAlpha(5),
+                  ),
                 ),
               ),
             ),
             Positioned(
-              top: 80,
-              left: -60,
-              child: Container(
-                width: 150,
-                height: 150,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withAlpha(10),
+              top: size.height * 0.12,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withAlpha(20),
+                      width: 1,
+                      style: BorderStyle.solid,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -370,16 +425,13 @@ class _LoginScreenState extends State<LoginScreen>
                       position: _slideAnim,
                       child: Column(
                         children: [
-                          const SizedBox(height: 36),
+                          const SizedBox(height: 20),
                           // Logo & Title
                           _buildHeader(),
-                          const SizedBox(height: 32),
-                          // Login Card
-                          _buildLoginCard(),
+                          const SizedBox(height: 48),
+                          // Login Options and Form
+                          _buildLoginSection(),
                           const SizedBox(height: 24),
-                          // Footer
-                          _buildFooter(),
-                          const SizedBox(height: 32),
                         ],
                       ),
                     ),
@@ -401,259 +453,298 @@ class _LoginScreenState extends State<LoginScreen>
           width: 72,
           height: 72,
           decoration: BoxDecoration(
-            color: Colors.white.withAlpha(30),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withAlpha(40), width: 1.5),
+            color: const Color(0xFF235332), // Darker green circle
+            shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.yard_rounded, color: Colors.white, size: 36),
+          child: const Center(
+            child: Icon(Icons.eco_rounded, color: Color(0xFFC49A50), size: 36), // Using eco with brownish/gold color resembling the sack plant
+          ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         const Text(
           'SmartSack Farm',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 26,
+            fontSize: 28,
             fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
+            letterSpacing: -0.5,
           ),
         ),
         const SizedBox(height: 6),
         Text(
-          'Monitor your smart sack farming system',
+          'FARMING INTELLIGENCE PLATFORM',
           style: TextStyle(
-            color: Colors.white.withAlpha(200),
-            fontSize: 14,
+            color: Colors.white.withAlpha(150),
+            fontSize: 12,
+            letterSpacing: 1.2,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildLoginCard() {
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [AppTheme.cardShadow],
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Role Selector
-            _buildRoleSelector(),
-            const SizedBox(height: 28),
-            // Email
-            TextFormField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              style: const TextStyle(
-                color: AppTheme.textDark,
-                fontSize: 15,
-              ),
-              decoration: InputDecoration(
-                labelText: 'Email Address',
-                hintText: _selectedRole == UserRole.farmer
-                    ? 'farmer@smartsack.farm'
-                    : _selectedRole == UserRole.buyer
-                        ? 'buyer@smartsack.farm'
-                        : 'admin@smartsack.farm',
-                prefixIcon: const Icon(Icons.email_outlined, size: 20),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your email';
-                }
-                if (!value.contains('@')) {
-                  return 'Please enter a valid email';
-                }
-                return null;
-              },
+  Widget _buildLoginSection() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Role Selector
+          const Text(
+            'SIGN IN AS',
+            style: TextStyle(
+              color: Color(0xFF5D846D),
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.5,
             ),
-            const SizedBox(height: 18),
-            // Password
-            TextFormField(
-              controller: _passwordController,
-              obscureText: _obscurePassword,
-              style: const TextStyle(
-                color: AppTheme.textDark,
-                fontSize: 15,
+          ),
+          const SizedBox(height: 12),
+          _buildRoleSelector(),
+          const SizedBox(height: 24),
+          // Email
+          TextFormField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            style: const TextStyle(
+              color: AppTheme.textDark,
+              fontSize: 15,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Email address',
+              hintStyle: const TextStyle(color: Color(0xFF8F9F94)),
+              fillColor: Colors.white,
+              filled: true,
+              prefixIcon: const Icon(Icons.mail_outline, size: 22, color: Color(0xFF7E9786)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Color(0xFFE5E9E0)),
               ),
-              decoration: InputDecoration(
-                labelText: 'Password',
-                hintText: '••••••••',
-                prefixIcon: const Icon(Icons.lock_outline, size: 20),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    size: 20,
-                    color: AppTheme.textLight,
-                  ),
-                  onPressed: () =>
-                      setState(() => _obscurePassword = !_obscurePassword),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Color(0xFFE5E9E0)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Color(0xFF285437), width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 20),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your email';
+              }
+              if (!value.contains('@')) {
+                return 'Please enter a valid email';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          // Password
+          TextFormField(
+            controller: _passwordController,
+            obscureText: _obscurePassword,
+            style: const TextStyle(
+              color: AppTheme.textDark,
+              fontSize: 15,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Password',
+              hintStyle: const TextStyle(color: Color(0xFF8F9F94)),
+              fillColor: Colors.white,
+              filled: true,
+              prefixIcon: const Icon(Icons.lock_outline, size: 22, color: Color(0xFF7E9786)),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  size: 20,
+                  color: const Color(0xFF7E9786),
                 ),
+                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your password';
-                }
-                if (value.length < 6) {
-                  return 'Password must be at least 6 characters';
-                }
-                return null;
-              },
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Color(0xFFE5E9E0)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Color(0xFFE5E9E0)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Color(0xFF285437), width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 20),
             ),
-            const SizedBox(height: 14),
-            // Remember me & Forgot Password
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    SizedBox(
-                      height: 24,
-                      width: 24,
-                      child: Checkbox(
-                        value: _rememberMe,
-                        onChanged: (v) =>
-                            setState(() => _rememberMe = v ?? false),
-                        activeColor: AppTheme.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        side: const BorderSide(color: AppTheme.border),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your password';
+              }
+              if (value.length < 6) {
+                return 'Password must be at least 6 characters';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          // Remember me & Forgot Password
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: Checkbox(
+                      value: _rememberMe,
+                      onChanged: (v) => setState(() => _rememberMe = v ?? false),
+                      activeColor: const Color(0xFF285437),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
                       ),
+                      side: const BorderSide(color: Color(0xFFC0CEC3), width: 1.5),
                     ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Remember me',
-                      style: TextStyle(
-                        color: AppTheme.textMedium,
-                        fontSize: 13,
-                      ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Remember me',
+                    style: TextStyle(
+                      color: Color(0xFF5D846D),
+                      fontSize: 14,
                     ),
-                  ],
-                ),
-                TextButton(
-                  onPressed: _handleForgotPassword,
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  child: const Text(
-                    'Forgot Password?',
-                    style: TextStyle(fontSize: 13),
+                ],
+              ),
+              TextButton(
+                onPressed: _handleForgotPassword,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'Forgot password?',
+                  style: TextStyle(
+                    color: Color(0xFF235560), // Tealish dark tone
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // Login Button
-            _buildLoginButton(),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Login Button
+          _buildLoginButton(),
+          const SizedBox(height: 32),
+          // Footer
+          _buildFooter(),
+        ],
       ),
     );
   }
 
   Widget _buildRoleSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    return Row(
       children: [
-        const Text(
-          'Sign In As',
-          style: TextStyle(
-            color: AppTheme.textDark,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+        Expanded(
+          child: _buildRoleCard(
+            role: UserRole.farmer,
+            icon: Icons.pin_drop_outlined, // Closer to image mock
+            label: 'Farmer',
           ),
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildRoleChip(
-                role: UserRole.farmer,
-                icon: Icons.agriculture_rounded,
-                label: 'Farmer',
-                color: AppTheme.farmerColor,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildRoleChip(
-                role: UserRole.buyer,
-                icon: Icons.shopping_cart_rounded,
-                label: 'Buyer',
-                color: AppTheme.buyerColor,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildRoleChip(
-                role: UserRole.admin,
-                icon: Icons.admin_panel_settings_rounded,
-                label: 'Admin',
-                color: AppTheme.adminColor,
-              ),
-            ),
-          ],
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildRoleCard(
+            role: UserRole.buyer,
+            icon: Icons.shopping_bag_outlined,
+            label: 'Buyer',
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildRoleCard(
+            role: UserRole.admin,
+            icon: Icons.person_outline,
+            label: 'Admin',
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildRoleChip({
+  Widget _buildRoleCard({
     required UserRole role,
     required IconData icon,
     required String label,
-    required Color color,
   }) {
     final isSelected = _selectedRole == role;
+    final activeBg = const Color(0xFF264C34);
+    final activeFg = Colors.white;
+    final inactiveBg = Colors.white;
+    final inactiveBorder = const Color(0xFFE5E9E0);
+    final inactiveFg = const Color(0xFF2A5239); // Dark green icon for inactive
+    final inactiveLabel = const Color(0xFF5A7A66);
 
     return GestureDetector(
       onTap: () => setState(() => _selectedRole = role),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        duration: const Duration(milliseconds: 200),
+        height: 100,
         decoration: BoxDecoration(
-          color: isSelected ? color.withAlpha(20) : AppTheme.background,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? color : AppTheme.border,
-            width: isSelected ? 2 : 1,
-          ),
+          color: isSelected ? activeBg : inactiveBg,
+          borderRadius: BorderRadius.circular(16),
+          border: isSelected ? null : Border.all(color: inactiveBorder),
         ),
-        child: Column(
+        child: Stack(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: isSelected ? color.withAlpha(30) : AppTheme.border.withAlpha(60),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                color: isSelected ? color : AppTheme.textLight,
-                size: 24,
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.white.withAlpha(20) : const Color(0xFFE9F0EC),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: isSelected ? activeFg : inactiveFg,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: isSelected ? activeFg : inactiveLabel,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? color : AppTheme.textMedium,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 14,
+            if (isSelected)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF8DC099),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, size: 14, color: Colors.white),
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -661,12 +752,17 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildLoginButton() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: _isLoading ? [] : [AppTheme.buttonShadow],
-      ),
+    return SizedBox(
+      height: 56,
       child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF142B1B), // Very dark green/black
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 0,
+        ),
         onPressed: () {
           if (_isLoading) return;
           _handleLogin();
@@ -685,15 +781,30 @@ class _LoginScreenState extends State<LoginScreen>
               : Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      _selectedRole == UserRole.farmer
-                          ? 'Sign in as Farmer'
-                          : _selectedRole == UserRole.buyer
-                              ? 'Sign in as Buyer'
-                              : 'Sign in as Admin',
+                    Expanded(
+                      child: Text(
+                        _selectedRole == UserRole.farmer
+                            ? 'Sign in as Farmer'
+                            : _selectedRole == UserRole.buyer
+                                ? 'Sign in as Buyer'
+                                : 'Sign in as Admin',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     const SizedBox(width: 8),
-                    const Icon(Icons.arrow_forward_rounded, size: 20),
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withAlpha(40),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.arrow_forward_rounded, size: 16),
+                    ),
                   ],
                 ),
         ),
@@ -702,51 +813,64 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildFooter() {
-    return Column(
+    return Wrap(
+      alignment: WrapAlignment.center,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              "Don't have an account? ",
-              style: TextStyle(color: AppTheme.textMedium, fontSize: 14),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pushReplacement(
-                  PageRouteBuilder(
-                    pageBuilder: (context, animation, secondaryAnimation) =>
-                        const SignUpScreen(),
-                    transitionsBuilder:
-                        (context, anim, secondaryAnimation, child) {
-                      return FadeTransition(opacity: anim, child: child);
-                    },
-                    transitionDuration: const Duration(milliseconds: 400),
-                  ),
-                );
-              },
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text(
-                'Sign Up',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
+        const Text(
+          "New here? ",
+          style: TextStyle(color: Color(0xFF8F9F94), fontSize: 14),
         ),
-        const SizedBox(height: 16),
-        Text(
-          '© 2026 SmartSack Farm · v1.0.0',
-          style: TextStyle(
-            color: AppTheme.textLight.withAlpha(180),
-            fontSize: 12,
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pushReplacement(
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) =>
+                    const SignUpScreen(),
+                transitionsBuilder:
+                    (context, anim, secondaryAnimation, child) {
+                  return FadeTransition(opacity: anim, child: child);
+                },
+                transitionDuration: const Duration(milliseconds: 400),
+              ),
+            );
+          },
+          style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: const Text(
+            'Create an account',
+            style: TextStyle(
+              color: Color(0xFF336345),
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
           ),
         ),
       ],
     );
   }
+}
 
+class TopWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.lineTo(0, size.height - 40); // Start from top left, go down
+    
+    // Wave down then up softly
+    path.cubicTo(
+      size.width * 0.35, size.height, // Control point 1
+      size.width * 0.65, size.height - 60, // Control point 2
+      size.width, size.height - 20 // End point
+    );
+    
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
