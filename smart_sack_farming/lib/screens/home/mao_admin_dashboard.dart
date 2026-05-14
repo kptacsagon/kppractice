@@ -12,6 +12,8 @@ import '../auth/login_screen.dart';
 import '../features/financial_forecast_screen.dart';
 import '../features/supply_chain_dashboard_screen.dart';
 import '../features/verification_workflow_screen.dart';
+import '../mao/agrisense_municipal_dashboard.dart';
+import '../mao/agrisense_municipal_analytics_screen.dart';
 
 class MaoAdminDashboard extends StatefulWidget {
   const MaoAdminDashboard({super.key});
@@ -347,6 +349,8 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       const _NavItem('Interventions', Icons.build_outlined),
       const _NavItem('Alerts', Icons.notifications_none_rounded),
       const _NavItem('Reports', Icons.description_outlined),
+      const _NavItem('AgriSense', Icons.location_city_rounded),
+      const _NavItem('Saturation Analytics', Icons.analytics_rounded),
     ];
 
     return Container(
@@ -504,45 +508,57 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       case 0:
         return;
       case 1:
-        await Navigator.push(
+        await Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const FarmerManagementScreen()),
         );
         break;
       case 2:
-        await Navigator.push(
+        await Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const SupplyMapScreen()),
         );
         break;
       case 3:
-        await Navigator.push(
+        await Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const FinancialForecastScreen()),
         );
         break;
       case 4:
-        await Navigator.push(
+        await Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const MarketPricesScreen()),
         );
         break;
       case 5:
-        await Navigator.push(
+        await Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const InterventionManagementScreen()),
         );
         break;
       case 6:
-        await Navigator.push(
+        await Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const AlertsNotificationsScreen()),
         );
         break;
       case 7:
-        await Navigator.push(
+        await Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const ReportsAnalyticsScreen()),
+        );
+        break;
+      case 8:
+        await Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AgrisenseMunicipalDashboardScreen()),
+        );
+        break;
+      case 9:
+        await Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AgrisenseMunicipalAnalyticsScreen()),
         );
         break;
       default:

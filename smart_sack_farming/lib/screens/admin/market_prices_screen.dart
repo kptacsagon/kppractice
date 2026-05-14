@@ -117,14 +117,14 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
           .select()
           .order('crop_type', ascending: true);
 
-      if (mounted) {
+      if (context.mounted) {
         setState(() {
           _prices = List<Map<String, dynamic>>.from(response);
           _loading = false;
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (context.mounted) {
         setState(() {
           _error = e.toString();
           _loading = false;
@@ -336,7 +336,7 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
 
   Future<void> _onNavTap(int index) async {
     setState(() => _selectedNavIndex = index);
-    if (!mounted) return;
+    if (!context.mounted) return;
 
     if (index == 4) return;
     if (index == 0) {
@@ -368,7 +368,7 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
       return;
     }
     if (index == 5) {
-      await Navigator.push(
+      await Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const InterventionManagementScreen()),
       );
@@ -1051,17 +1051,15 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
                     }
 
                     await _loadPrices();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(isEditing ? 'Price updated' : 'Price added')),
-                      );
-                    }
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(content: Text(isEditing ? 'Price updated' : 'Price added')),
+                    );
                   } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e')),
-                      );
-                    }
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')),
+                    );
                   }
                 },
                 child: Text(isEditing ? 'Update' : 'Add'),
@@ -1091,17 +1089,15 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
               try {
                 await Supabase.instance.client.from('market_prices').delete().eq('id', id);
                 await _loadPrices();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Price deleted')),
-                  );
-                }
+                if (!mounted) return;
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(content: Text('Price deleted')),
+                );
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
-                }
+                if (!mounted) return;
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
               }
             },
             child: const Text('Delete'),

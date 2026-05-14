@@ -394,7 +394,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       return;
     }
     if (index == 4) {
-      await Navigator.push(
+      await Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const MarketPricesScreen()),
       );

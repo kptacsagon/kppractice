@@ -87,8 +87,10 @@ class MarketplaceScreen extends ConsumerWidget {
                 Navigator.of(context).pop();
                 try {
                   await MarketService.placeBid(endorsementId: endorsement.id, buyerId: buyerId, amount: v);
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bid placed')));
                 } catch (e) {
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error placing bid: $e')));
                 }
               }, child: const Text('Submit')))

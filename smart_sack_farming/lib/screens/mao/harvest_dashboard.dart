@@ -80,10 +80,12 @@ class HarvestDashboard extends ConsumerWidget {
 
     try {
       await MarketService.requestEndorsement(plantingRecordId: record.id, maoId: maoId, startingBid: starting);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Endorsement published')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(content: Text('Endorsement published')));
       ref.refresh(upcomingPlantingsProvider);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 }

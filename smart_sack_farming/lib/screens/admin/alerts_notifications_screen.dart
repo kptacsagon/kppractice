@@ -356,7 +356,7 @@ class _AlertsNotificationsScreenState extends State<AlertsNotificationsScreen> {
       return;
     }
 
-    await Navigator.push(
+    await Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const SupplyChainDashboardScreen()),
     );

@@ -13,16 +13,22 @@ class AgriSenseInput {
 }
 
 class AgriSenseForecast {
+  final double srsScore;
   final double projectedDemandMt;
   final double projectedSupplyMt;
   final double projectedPricePerKg;
+  final double priceForecastMin;
+  final double priceForecastMax;
   final String priceTrend;
   final String confidence;
 
   const AgriSenseForecast({
+    required this.srsScore,
     required this.projectedDemandMt,
     required this.projectedSupplyMt,
     required this.projectedPricePerKg,
+    required this.priceForecastMin,
+    required this.priceForecastMax,
     required this.priceTrend,
     required this.confidence,
   });
@@ -46,7 +52,7 @@ class AgriSenseAlternative {
 
 class AgriSenseRecommendation {
   final double osi;
-  final String riskLevel;
+  final String riskTier;
   final String summary;
   final String primaryAction;
   final List<String> triggeredRules;
@@ -54,7 +60,7 @@ class AgriSenseRecommendation {
 
   const AgriSenseRecommendation({
     required this.osi,
-    required this.riskLevel,
+    required this.riskTier,
     required this.summary,
     required this.primaryAction,
     required this.triggeredRules,

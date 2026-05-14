@@ -693,11 +693,13 @@ class _ReportsScreenState extends State<ReportsScreen>
                       .delete()
                       .eq('id', report.id);
                   _loadData();
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(this.context).showSnackBar(
                     const SnackBar(content: Text('Report deleted')),
                   );
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(this.context).showSnackBar(
                     SnackBar(content: Text('Error deleting: $e'), backgroundColor: Colors.red),
                   );
                 }
@@ -1013,8 +1015,9 @@ class _ReportsScreenState extends State<ReportsScreen>
                     }
                   }
 
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  if (!mounted) return;
+                  Navigator.pop(this.context);
+                  ScaffoldMessenger.of(this.context).showSnackBar(
                     const SnackBar(
                       content: Text('Calamity reported successfully'),
                       backgroundColor: Colors.green,
@@ -1022,7 +1025,8 @@ class _ReportsScreenState extends State<ReportsScreen>
                   );
                   _loadData(); // Reload from Supabase
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(this.context).showSnackBar(
                     SnackBar(
                       content: Text('Error saving report: $e'),
                       backgroundColor: Colors.red,
@@ -1156,8 +1160,9 @@ class _ReportsScreenState extends State<ReportsScreen>
                       .from('production_reports')
                       .insert(data);
 
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  if (!mounted) return;
+                  Navigator.pop(this.context);
+                  ScaffoldMessenger.of(this.context).showSnackBar(
                     const SnackBar(
                       content: Text('Production report added successfully'),
                       backgroundColor: Colors.green,
@@ -1165,7 +1170,8 @@ class _ReportsScreenState extends State<ReportsScreen>
                   );
                   _loadData(); // Reload from Supabase
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(this.context).showSnackBar(
                     SnackBar(
                       content: Text('Error saving report: $e'),
                       backgroundColor: Colors.red,

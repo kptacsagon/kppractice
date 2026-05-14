@@ -159,13 +159,13 @@ class _PlantingEntryScreenState extends ConsumerState<PlantingEntryScreen> {
                                   }
 
                                   final created = await notifier.submitPlantingRecord(farmerId: farmerId);
-                                  if (mounted) {
+                                  if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Planting record submitted')));
                                     // redirect to the farmer profile we just recorded for
                                     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => FarmerProfileScreen(farmerId: farmerId)));
                                   }
                                 } catch (e) {
-                                  if (mounted) {
+                                  if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                                   }
                                 }
@@ -206,8 +206,9 @@ class _PlantingEntryScreenState extends ConsumerState<PlantingEntryScreen> {
                           );
 
                           if (starting != null) {
+                            if (!mounted) return;
                             // Placeholder: show confirmation. Real implementation will call MarketService.requestEndorsement
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Requested endorsement (start \u20B1${starting.toStringAsFixed(2)})')));
+                            ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text('Requested endorsement (start \u20B1${starting.toStringAsFixed(2)})')));
                           }
                         },
                         child: const Text('Request Endorsement'),

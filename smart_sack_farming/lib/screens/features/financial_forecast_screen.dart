@@ -358,14 +358,14 @@ class _FinancialForecastScreenState extends State<FinancialForecastScreen> {
       return;
     }
     if (index == 4) {
-      await Navigator.push(
+      await Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const MarketPricesScreen()),
       );
       return;
     }
     if (index == 5) {
-      await Navigator.push(
+      await Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const InterventionManagementScreen()),
       );

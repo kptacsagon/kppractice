@@ -23,7 +23,8 @@ class _SignUpScreenState extends State<SignUpScreen>
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  int _currentStep = 0; // 0 = Details, 1 = Password
+  int _currentStep = 0; // 0 = Details, 1 = Role Selection, 2 = Password
+  UserRole _selectedRole = UserRole.farmer;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -82,6 +83,9 @@ class _SignUpScreenState extends State<SignUpScreen>
         return;
       }
       setState(() => _currentStep = 1);
+    } else if (_currentStep == 1) {
+      // Role selection step - just move to next
+      setState(() => _currentStep = 2);
     }
   }
 
@@ -138,7 +142,7 @@ class _SignUpScreenState extends State<SignUpScreen>
         data: {
           'full_name': _fullNameController.text.trim(),
           'phone': _phoneController.text.trim(),
-          'role': 'farmer',
+          'role': _selectedRole.toString().split('.').last,
         },
       );
 
@@ -152,7 +156,7 @@ class _SignUpScreenState extends State<SignUpScreen>
             'email': _emailController.text.trim(),
             'full_name': _fullNameController.text.trim(),
             'phone': _phoneController.text.trim(),
-            'role': 'farmer',
+            'role': _selectedRole.toString().split('.').last,
           });
         } catch (e) {
           print('Profile creation note: $e');
@@ -356,6 +360,8 @@ class _SignUpScreenState extends State<SignUpScreen>
   Widget _buildStepContent() {
     if (_currentStep == 0) {
       return _buildDetailsStep();
+    } else if (_currentStep == 1) {
+      return _buildRoleSelectionStep();
     } else {
       return _buildPasswordStep();
     }
@@ -499,7 +505,7 @@ class _SignUpScreenState extends State<SignUpScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'Next — Set password',
+                  'Next — Choose role',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -542,6 +548,174 @@ class _SignUpScreenState extends State<SignUpScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildRoleSelectionStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Choose your role',
+          style: TextStyle(
+            color: Color(0xFF142B1B),
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Select how you want to use SmartSack Farm',
+          style: TextStyle(
+            color: Color(0xFF5D846D),
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 32),
+        // Role Selection Cards
+        _buildRoleCard(
+          role: UserRole.farmer,
+          title: 'Farmer',
+          description: 'Grow better crops with smart recommendations and market insights',
+          icon: Icons.agriculture,
+        ),
+        const SizedBox(height: 16),
+        _buildRoleCard(
+          role: UserRole.buyer,
+          title: 'Buyer',
+          description: 'Connect with local farmers and manage your purchases',
+          icon: Icons.shopping_cart,
+        ),
+        const SizedBox(height: 16),
+        _buildRoleCard(
+          role: UserRole.admin,
+          title: 'Admin',
+          description: 'Manage the platform and oversee community operations',
+          icon: Icons.admin_panel_settings,
+        ),
+        const SizedBox(height: 40),
+        // Next Button
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF142B1B),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 0,
+            ),
+            onPressed: _goToNextStep,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Next — Set password',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Icon(Icons.arrow_forward_rounded, size: 20),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleCard({
+    required UserRole role,
+    required String title,
+    required String description,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedRole == role;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedRole = role),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF285437) : const Color(0xFFE5E9E0),
+            width: isSelected ? 2 : 1.5,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF285437).withAlpha(25),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  )
+                ]
+              : [],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFF285437).withAlpha(20)
+                    : const Color(0xFFF0F5F2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: isSelected ? const Color(0xFF285437) : const Color(0xFF7E9786),
+                size: 32,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected ? const Color(0xFF285437) : const Color(0xFF142B1B),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF5D846D),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Container(
+                width: 24,
+                height: 24,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF285437),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 

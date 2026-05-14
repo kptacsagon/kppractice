@@ -330,7 +330,7 @@ class _InterventionManagementScreenState extends State<InterventionManagementScr
       return;
     }
 
-    await Navigator.push(
+    await Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const SupplyChainDashboardScreen()),
     );

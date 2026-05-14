@@ -111,6 +111,7 @@ class AgriSenseDssService {
 
     final safeDemand = projectedDemand <= 0 ? 1.0 : projectedDemand;
     final osi = projectedSupply / safeDemand;
+    final srsScore = osi * 100;
 
     final pressureEffect = (osi - 1.0) * 0.18;
     final projectedPrice =
@@ -124,24 +125,24 @@ class AgriSenseDssService {
       projectedPrice: projectedPrice,
     );
 
-    final riskLevel = _riskLevel(osi);
+    final riskTier = _riskTier(srsScore);
     final rules = <String>[];
 
     String summary;
     String primaryAction;
 
-    if (osi > 1.2) {
+    if (srsScore > 100) {
       rules.add('Rule Set 1: Oversupply Condition');
       summary =
           'High oversupply risk detected for ${input.cropType} in ${input.region}.';
       primaryAction =
           'Reduce planned volume and switch part of area to alternatives.';
-    } else if (trend == 'decreasing' && osi > 1.0) {
+    } else if (trend == 'decreasing' && srsScore >= 81) {
       rules.add('Rule Set 2: Price Decline Condition');
       summary =
           'Moderate oversupply pressure with weakening price trend for ${input.cropType}.';
       primaryAction = 'Plant conservatively and avoid full-area expansion.';
-    } else if (osi < 1.0 && trend != 'decreasing') {
+    } else if (srsScore < 60 && trend != 'decreasing') {
       rules.add('Rule Set 3: Safe Condition');
       summary =
           '${input.cropType} is currently within safer supply-demand bounds.';
@@ -153,6 +154,7 @@ class AgriSenseDssService {
     }
 
     final confidence = _confidenceLabel(input: input);
+    final priceBand = _priceBand(confidence: confidence);
 
     final alternatives = _buildAlternatives(
       inputCrop: input.cropType,
@@ -163,15 +165,18 @@ class AgriSenseDssService {
     return AgriSenseResult(
       input: input,
       forecast: AgriSenseForecast(
+        srsScore: srsScore,
         projectedDemandMt: projectedDemand,
         projectedSupplyMt: projectedSupply,
         projectedPricePerKg: projectedPrice,
+        priceForecastMin: projectedPrice * (1 - priceBand),
+        priceForecastMax: projectedPrice * (1 + priceBand),
         priceTrend: trend,
         confidence: confidence,
       ),
       recommendation: AgriSenseRecommendation(
         osi: osi,
-        riskLevel: riskLevel,
+        riskTier: riskTier,
         summary: summary,
         primaryAction: primaryAction,
         triggeredRules: rules,
@@ -242,10 +247,22 @@ class AgriSenseDssService {
     return 'stable';
   }
 
-  String _riskLevel(double osi) {
-    if (osi > 1.2) return 'high';
-    if (osi >= 1.0) return 'moderate';
-    return 'low';
+  String _riskTier(double srsScore) {
+    if (srsScore > 100) return 'dark_red';
+    if (srsScore >= 81) return 'red';
+    if (srsScore >= 61) return 'amber';
+    return 'green';
+  }
+
+  double _priceBand({required String confidence}) {
+    switch (confidence) {
+      case 'high':
+        return 0.08;
+      case 'medium':
+        return 0.12;
+      default:
+        return 0.18;
+    }
   }
 
   String _confidenceLabel({required AgriSenseInput input}) {

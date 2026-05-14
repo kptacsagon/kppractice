@@ -420,7 +420,7 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
       return;
     }
     if (index == 4) {
-      await Navigator.push(
+      await Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const MarketPricesScreen()),
       );

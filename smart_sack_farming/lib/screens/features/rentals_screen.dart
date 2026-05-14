@@ -103,7 +103,8 @@ class _RentalsScreenState extends State<RentalsScreen>
 
       await Supabase.instance.client.from('equipment').insert(data);
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      ScaffoldMessenger.of(this.context).showSnackBar(
         const SnackBar(
           content: Text('Equipment added successfully'),
           backgroundColor: Colors.green,
@@ -112,7 +113,8 @@ class _RentalsScreenState extends State<RentalsScreen>
       );
       _loadEquipment();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      ScaffoldMessenger.of(this.context).showSnackBar(
         SnackBar(content: Text('Error adding equipment: $e'), backgroundColor: Colors.red),
       );
     }
@@ -125,7 +127,8 @@ class _RentalsScreenState extends State<RentalsScreen>
           .delete()
           .eq('id', equipment.id);
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      ScaffoldMessenger.of(this.context).showSnackBar(
         const SnackBar(
           content: Text('Equipment removed'),
           duration: Duration(seconds: 1),
@@ -133,7 +136,8 @@ class _RentalsScreenState extends State<RentalsScreen>
       );
       _loadEquipment();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      ScaffoldMessenger.of(this.context).showSnackBar(
         SnackBar(content: Text('Error removing: $e'), backgroundColor: Colors.red),
       );
     }

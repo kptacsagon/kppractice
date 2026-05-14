@@ -100,7 +100,8 @@ class _BuyerReservationsScreenState extends State<BuyerReservationsScreen>
 
     try {
       await _marketplaceService.cancelReservation(reservationId);
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      ScaffoldMessenger.of(this.context).showSnackBar(
         const SnackBar(
           content: Text('Reservation cancelled successfully'),
           backgroundColor: AppTheme.success,
@@ -108,7 +109,8 @@ class _BuyerReservationsScreenState extends State<BuyerReservationsScreen>
       );
       _loadReservations();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      ScaffoldMessenger.of(this.context).showSnackBar(
         SnackBar(
           content: Text('Failed to cancel: ${e.toString()}'),
           backgroundColor: AppTheme.error,

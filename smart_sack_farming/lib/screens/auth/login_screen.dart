@@ -282,6 +282,7 @@ class _LoginScreenState extends State<LoginScreen>
           }
         }
 
+        if (!mounted) return;
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) => destination,

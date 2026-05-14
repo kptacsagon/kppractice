@@ -8,6 +8,9 @@ import '../features/reports_screen.dart';
 import '../features/agrisense_dss_screen.dart';
 import '../features/agri_financial_model_screen.dart';
 import '../saturation/saturation_meter_screen.dart';
+import '../farmer/agrisense_farmer_registration_screen.dart';
+import '../farmer/agrisense_farm_registry_screen.dart';
+import '../farmer/agrisense_seasonal_crop_submission_screen.dart';
 import '../farmer/my_market_screen.dart';
 
 class FarmerDashboardScreen extends StatelessWidget {
@@ -156,6 +159,30 @@ class FarmerDashboardScreen extends StatelessWidget {
                       buttonText: 'Contact Support',
                       onTap: () => _navigateToFeature(context, 'Support'),
                     ),
+                    _buildFeatureCard(
+                      icon: Icons.app_registration,
+                      iconColor: const Color(0xFF1976D2),
+                      title: 'AgriSense Registration',
+                      description: 'Register as an AgriSense connected farmer.',
+                      buttonText: 'Complete Profile',
+                      onTap: () => _navigateToFeature(context, 'AgriSense Registration'),
+                    ),
+                    _buildFeatureCard(
+                      icon: Icons.landscape,
+                      iconColor: const Color(0xFF388E3C),
+                      title: 'AgriSense Farm Registry',
+                      description: 'Map out your farm parcel and geometry.',
+                      buttonText: 'Open Farm Registry',
+                      onTap: () => _navigateToFeature(context, 'AgriSense Farm Registry'),
+                    ),
+                    _buildFeatureCard(
+                      icon: Icons.grass,
+                      iconColor: const Color(0xFFFFF176),
+                      title: 'Predictive Planting',
+                      description: 'Submit your crop schedule for saturation validation.',
+                      buttonText: 'Crop Schedule',
+                      onTap: () => _navigateToFeature(context, 'AgriSense Seasonal Crops'),
+                    ),
                   ],
                 ),
               ],
@@ -263,6 +290,13 @@ class FarmerDashboardScreen extends StatelessWidget {
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const ReportsScreen()));
+    } else if (featureName == 'AgriSense Registration') {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AgrisenseFarmerRegistrationScreen()));
+    } else if (featureName == 'AgriSense Farm Registry') {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AgrisenseFarmRegistryScreen()));
+    } else if (featureName == 'AgriSense Seasonal Crops') {
+      // NOTE: Using 'farm-123' as dummy. Ideally passed dynamically after registry
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AgrisenseSeasonalCropSubmissionScreen(farmId: 'farm-123')));
     } else if (featureName == 'AgriSense DSS') {
       Navigator.of(
         context,
