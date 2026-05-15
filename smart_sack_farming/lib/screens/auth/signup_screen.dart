@@ -17,7 +17,8 @@ class SignUpScreen extends StatefulWidget {
 class _SignUpScreenState extends State<SignUpScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _fullNameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -58,7 +59,8 @@ class _SignUpScreenState extends State<SignUpScreen>
   @override
   void dispose() {
     _animController.dispose();
-    _fullNameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
@@ -69,9 +71,15 @@ class _SignUpScreenState extends State<SignUpScreen>
   void _goToNextStep() {
     if (_currentStep == 0) {
       // Validate details form
-      if (_fullNameController.text.trim().isEmpty) {
+      if (_firstNameController.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter your full name')),
+          const SnackBar(content: Text('Please enter your first name')),
+        );
+        return;
+      }
+      if (_lastNameController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter your last name')),
         );
         return;
       }
@@ -136,11 +144,12 @@ class _SignUpScreenState extends State<SignUpScreen>
     setState(() => _isLoading = true);
 
     try {
+      final fullName = '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
       final response = await Supabase.instance.client.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         data: {
-          'full_name': _fullNameController.text.trim(),
+          'full_name': fullName,
           'phone': _phoneController.text.trim(),
           'role': _selectedRole.toString().split('.').last,
         },
@@ -154,7 +163,7 @@ class _SignUpScreenState extends State<SignUpScreen>
           await Supabase.instance.client.from('profiles').insert({
             'id': response.user!.id,
             'email': _emailController.text.trim(),
-            'full_name': _fullNameController.text.trim(),
+            'full_name': fullName,
             'phone': _phoneController.text.trim(),
             'role': _selectedRole.toString().split('.').last,
           });
@@ -388,15 +397,45 @@ class _SignUpScreenState extends State<SignUpScreen>
           ),
         ),
         const SizedBox(height: 32),
-        // Full Name
+        // First Name
         TextFormField(
-          controller: _fullNameController,
+          controller: _firstNameController,
           style: const TextStyle(
             color: AppTheme.textDark,
             fontSize: 15,
           ),
           decoration: InputDecoration(
-            hintText: 'Full name',
+            hintText: 'First name',
+            hintStyle: const TextStyle(color: Color(0xFF8F9F94)),
+            fillColor: Colors.white,
+            filled: true,
+            prefixIcon:
+                const Icon(Icons.person_outline, size: 22, color: Color(0xFF7E9786)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFFE5E9E0)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFFE5E9E0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFF285437), width: 1.5),
+            ),
+            contentPadding: const EdgeInsets.symmetric(vertical: 20),
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Last Name
+        TextFormField(
+          controller: _lastNameController,
+          style: const TextStyle(
+            color: AppTheme.textDark,
+            fontSize: 15,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Last name',
             hintStyle: const TextStyle(color: Color(0xFF8F9F94)),
             fillColor: Colors.white,
             filled: true,

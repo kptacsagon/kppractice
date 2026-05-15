@@ -97,7 +97,6 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         // For buyers, use direct update (can be enhanced with RPC later)
         final updateData = <String, dynamic>{
           if (_contactController.text.trim().isNotEmpty) 'phone': _contactController.text.trim(),
-          if (_organizationController.text.trim().isNotEmpty) 'organization': _organizationController.text.trim(),
           if (_addressController.text.trim().isNotEmpty) 'address': _addressController.text.trim(),
           'profile_complete': true,
         };

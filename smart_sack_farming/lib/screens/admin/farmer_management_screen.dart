@@ -31,6 +31,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   int _selectedNavIndex = 1;
   String _searchTerm = '';
   String? _selectedAddress;
+  Map<String, dynamic>? _selectedFarmer;
 
   List<Map<String, dynamic>> _farmers = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _filteredFarmers = <Map<String, dynamic>>[];
@@ -441,77 +442,162 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(isDesktop ? 24 : 16, 22, isDesktop ? 24 : 16, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          child: isDesktop && _selectedFarmer != null
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Farmer Management',
+                                      style: TextStyle(
+                                        color: _text,
+                                        fontSize: 40,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'Manage farmer profiles and production data',
+                                      style: TextStyle(
+                                        color: _muted,
+                                        fontSize: 34 / 2,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              FilledButton.icon(
+                                onPressed: () {},
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: _sidebarGreen,
+                                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.add, color: Colors.white),
+                                label: const Text(
+                                  'Add Farmer',
+                                  style: TextStyle(color: Colors.white, fontSize: 34 / 2),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+                          _buildFilterRow(uniqueAddresses),
+                          const SizedBox(height: 16),
+                          _buildTableCard(),
+                          const SizedBox(height: 16),
+                          Wrap(
+                            spacing: 16,
+                            runSpacing: 12,
+                            children: [
+                              _buildSummaryCard('Total Farmers', '$totalFarmers', const Color(0xFF2E7D32)),
+                              _buildSummaryCard('Coop Members', '$coopMembers', const Color(0xFF1565C0)),
+                              _buildSummaryCard(
+                                'Total Land Area',
+                                '${totalLandArea.toStringAsFixed(1)} ha',
+                                const Color(0xFF2E7D32),
+                              ),
+                              _buildSummaryCard(
+                                'Avg Land/Farmer',
+                                '${avgLand.toStringAsFixed(1)} ha',
+                                const Color(0xFF1565C0),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      flex: 1,
+                      child: _buildFarmerDetailsPanel(),
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Text(
-                          'Farmer Management',
-                          style: TextStyle(
-                            color: _text,
-                            fontSize: 40,
-                            fontWeight: FontWeight.w700,
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Farmer Management',
+                                style: TextStyle(
+                                  color: _text,
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Manage farmer profiles and production data',
+                                style: TextStyle(
+                                  color: _muted,
+                                  fontSize: 34 / 2,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Manage farmer profiles and production data',
-                          style: TextStyle(
-                            color: _muted,
-                            fontSize: 34 / 2,
-                            fontWeight: FontWeight.w500,
+                        FilledButton.icon(
+                          onPressed: () {},
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _sidebarGreen,
+                            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          icon: const Icon(Icons.add, color: Colors.white),
+                          label: const Text(
+                            'Add Farmer',
+                            style: TextStyle(color: Colors.white, fontSize: 34 / 2),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  FilledButton.icon(
-                    onPressed: () {},
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _sidebarGreen,
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                    const SizedBox(height: 18),
+                    _buildFilterRow(uniqueAddresses),
+                    const SizedBox(height: 16),
+                    _buildTableCard(),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 12,
+                      children: [
+                        _buildSummaryCard('Total Farmers', '$totalFarmers', const Color(0xFF2E7D32)),
+                        _buildSummaryCard('Coop Members', '$coopMembers', const Color(0xFF1565C0)),
+                        _buildSummaryCard(
+                          'Total Land Area',
+                          '${totalLandArea.toStringAsFixed(1)} ha',
+                          const Color(0xFF2E7D32),
+                        ),
+                        _buildSummaryCard(
+                          'Avg Land/Farmer',
+                          '${avgLand.toStringAsFixed(1)} ha',
+                          const Color(0xFF1565C0),
+                        ),
+                      ],
                     ),
-                    icon: const Icon(Icons.add, color: Colors.white),
-                    label: const Text(
-                      'Add Farmer',
-                      style: TextStyle(color: Colors.white, fontSize: 34 / 2),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              _buildFilterRow(uniqueAddresses),
-              const SizedBox(height: 16),
-              _buildTableCard(),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 16,
-                runSpacing: 12,
-                children: [
-                  _buildSummaryCard('Total Farmers', '$totalFarmers', const Color(0xFF2E7D32)),
-                  _buildSummaryCard('Coop Members', '$coopMembers', const Color(0xFF1565C0)),
-                  _buildSummaryCard(
-                    'Total Land Area',
-                    '${totalLandArea.toStringAsFixed(1)} ha',
-                    const Color(0xFF2E7D32),
-                  ),
-                  _buildSummaryCard(
-                    'Avg Land/Farmer',
-                    '${avgLand.toStringAsFixed(1)} ha',
-                    const Color(0xFF1565C0),
-                  ),
-                ],
-              ),
-            ],
-          ),
+                  ],
+                ),
         ),
       ),
     );
@@ -696,135 +782,138 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                 final recordCount = _farmerRecordCount[(farmer['id'] ?? '').toString()] ?? 0;
                 final coopMember = _isCoopMember(farmer);
 
-                return Container(
-                  decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: _border)),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 70,
-                        child: Text(displayId,
-                            style: TextStyle(color: _text, fontSize: 15)),
-                      ),
-                      SizedBox(
-                        width: 190,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _splitNameForTwoLines(fullName),
-                              style: TextStyle(
-                                color: _text,
-                                fontSize: 36 / 2,
-                                height: 1.25,
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedFarmer = farmer),
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      border: Border(bottom: BorderSide(color: _border)),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 70,
+                          child: Text(displayId,
+                              style: TextStyle(color: _text, fontSize: 15)),
+                        ),
+                        SizedBox(
+                          width: 190,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _splitNameForTwoLines(fullName),
+                                style: TextStyle(
+                                  color: _text,
+                                  fontSize: 36 / 2,
+                                  height: 1.25,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '$recordCount records',
-                              style: const TextStyle(
-                                color: Color(0xFF64748B),
-                                fontSize: 15,
+                              const SizedBox(height: 2),
+                              Text(
+                                '$recordCount records',
+                                style: const TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 15,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      SizedBox(
-                        width: 70,
-                        child: Text(
-                          age,
-                          style: TextStyle(color: _text, fontSize: 16),
+                        SizedBox(
+                          width: 70,
+                          child: Text(
+                            age,
+                            style: TextStyle(color: _text, fontSize: 16),
+                          ),
                         ),
-                      ),
-                      SizedBox(
-                        width: 140,
-                        child: Text(
-                          contact,
-                          style: TextStyle(color: _text, fontSize: 16),
+                        SizedBox(
+                          width: 140,
+                          child: Text(
+                            contact,
+                            style: TextStyle(color: _text, fontSize: 16),
+                          ),
                         ),
-                      ),
-                      SizedBox(
-                        width: 130,
-                        child: Text(
-                          barangay,
-                          style: TextStyle(color: _text, fontSize: 16),
+                        SizedBox(
+                          width: 130,
+                          child: Text(
+                            barangay,
+                            style: TextStyle(color: _text, fontSize: 16),
+                          ),
                         ),
-                      ),
-                      SizedBox(
-                        width: 115,
-                        child: Text(
-                          landSize <= 0
-                              ? 'N/A'
-                              : '${_trimNumber(landSize)} ha',
-                          style: TextStyle(color: _text, fontSize: 16),
+                        SizedBox(
+                          width: 115,
+                          child: Text(
+                            landSize <= 0
+                                ? 'N/A'
+                                : '${_trimNumber(landSize)} ha',
+                            style: TextStyle(color: _text, fontSize: 16),
+                          ),
                         ),
-                      ),
-                      SizedBox(
-                        width: 140,
-                        child: Wrap(
-                          spacing: 4,
-                          runSpacing: 4,
-                          children: (crops.isEmpty ? ['-'] : crops.take(2)).map((crop) {
-                            return Container(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        SizedBox(
+                          width: 140,
+                          child: Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: (crops.isEmpty ? ['-'] : crops.take(2)).map((crop) {
+                              return Container(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFCFF3D8),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  crop,
+                                  style: const TextStyle(
+                                    color: Color(0xFF04854A),
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 130,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFCFF3D8),
-                                borderRadius: BorderRadius.circular(6),
+                                color: coopMember
+                                    ? const Color(0xFFCFF3D8)
+                                    : const Color(0xFFE5E7EB),
+                                borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
-                                crop,
-                                style: const TextStyle(
-                                  color: Color(0xFF04854A),
-                                  fontSize: 15,
+                                coopMember ? 'Yes' : 'No',
+                                style: TextStyle(
+                                  color: coopMember
+                                      ? const Color(0xFF04854A)
+                                      : const Color(0xFF64748B),
+                                  fontSize: 16,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 130,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: coopMember
-                                  ? const Color(0xFFCFF3D8)
-                                  : const Color(0xFFE5E7EB),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              coopMember ? 'Yes' : 'No',
-                              style: TextStyle(
-                                color: coopMember
-                                    ? const Color(0xFF04854A)
-                                    : const Color(0xFF64748B),
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(
-                        width: 96,
-                        child: Text(
-                          'View\nDetails',
-                          style: TextStyle(
-                            color: Color(0xFF1C8B44),
-                            fontSize: 36 / 2,
-                            fontWeight: FontWeight.w600,
-                            height: 1.35,
+                        SizedBox(
+                          width: 96,
+                          child: Text(
+                            'View\nDetails',
+                            style: TextStyle(
+                              color: Color(0xFF1C8B44),
+                              fontSize: 36 / 2,
+                              fontWeight: FontWeight.w600,
+                              height: 1.35,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               }),
@@ -884,6 +973,139 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
               color: valueColor,
               fontSize: 64 / 2,
               fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFarmerDetailsPanel() {
+    if (_selectedFarmer == null) {
+      return const SizedBox.shrink();
+    }
+
+    final farmer = _selectedFarmer!;
+    final fullName = ((farmer['full_name'] ?? 'N/A').toString()).trim();
+    final age = _extractAge(farmer);
+    final contact = _extractContact(farmer);
+    final address = _normalizeAddress(farmer['address']);
+    final landSize = double.tryParse((farmer['land_size_ha'] ?? '').toString()) ?? 0;
+    final crops = ((farmer['crops'] as List<dynamic>? ?? <dynamic>[]).cast<String>())
+        .where((crop) => crop.trim().isNotEmpty)
+        .toList();
+    final recordCount = _farmerRecordCount[(farmer['id'] ?? '').toString()] ?? 0;
+    final coopMember = _isCoopMember(farmer);
+    final sex = (farmer['sex'] ?? 'N/A').toString();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(8),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Farmer Details',
+                  style: TextStyle(
+                    color: _text,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: _muted),
+                  onPressed: () => setState(() => _selectedFarmer = null),
+                  constraints: const BoxConstraints(),
+                  padding: EdgeInsets.zero,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(height: 1, color: _border),
+            const SizedBox(height: 16),
+            _buildDetailRow('Full Name', fullName),
+            _buildDetailRow('Age', age),
+            _buildDetailRow('Sex', sex),
+            _buildDetailRow('Contact', contact),
+            _buildDetailRow('Address', address),
+            _buildDetailRow('Land Area', landSize <= 0 ? 'N/A' : '${_trimNumber(landSize)} ha'),
+            _buildDetailRow('Coop Member', coopMember ? 'Yes' : 'No'),
+            _buildDetailRow('Production Records', '$recordCount'),
+            if (crops.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Crops',
+                style: TextStyle(
+                  color: _text,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: crops.map((crop) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFCFF3D8),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      crop,
+                      style: const TextStyle(
+                        color: Color(0xFF04854A),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: _muted,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: _text,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
