@@ -14,6 +14,7 @@ import '../features/supply_chain_dashboard_screen.dart';
 import '../features/verification_workflow_screen.dart';
 import '../mao/agrisense_municipal_dashboard.dart';
 import '../mao/agrisense_municipal_analytics_screen.dart';
+import '../admin/agrisense_farm_verification_screen.dart';
 
 class MaoAdminDashboard extends StatefulWidget {
   const MaoAdminDashboard({super.key});
@@ -152,6 +153,15 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
 
       _pendingVerifications =
           calamities.where((c) => (c['status'] ?? 'reported') == 'reported').length;
+
+      // Count pending farm verifications from AgriSense Farm Registry
+      try {
+        final pendingFarms = await client
+            .from('agrisense_farms')
+            .select('id')
+            .eq('verification_status', 'Pending Verification');
+        _pendingVerifications += (pendingFarms as List).length;
+      } catch (_) {}
 
       _totalPlantedAreaHa = 0;
       for (final project in projects) {
@@ -351,6 +361,7 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       const _NavItem('Reports', Icons.description_outlined),
       const _NavItem('AgriSense', Icons.location_city_rounded),
       const _NavItem('Saturation Analytics', Icons.analytics_rounded),
+      const _NavItem('Farm Verification', Icons.fact_check_rounded),
     ];
 
     return Container(
@@ -550,16 +561,25 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
         );
         break;
       case 8:
-        await Navigator.pushReplacement(
+        await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const AgrisenseMunicipalDashboardScreen()),
         );
+        setState(() => _selectedNavIndex = 0);
         break;
       case 9:
-        await Navigator.pushReplacement(
+        await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const AgrisenseMunicipalAnalyticsScreen()),
         );
+        setState(() => _selectedNavIndex = 0);
+        break;
+      case 10:
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AgrisenseFarmVerificationScreen()),
+        );
+        setState(() => _selectedNavIndex = 0);
         break;
       default:
         return;
@@ -685,6 +705,8 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
                         ))
                     .toList(),
               ),
+              const SizedBox(height: 14),
+              _buildFarmVerificationBanner(context),
               const SizedBox(height: 18),
               _responsiveRow(
                 isDesktop: isDesktop,
@@ -743,6 +765,55 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
         const SizedBox(width: 16),
         Expanded(child: right),
       ],
+    );
+  }
+
+  Widget _buildFarmVerificationBanner(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisenseFarmVerificationScreen())),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: _pendingVerifications > 0 ? const Color(0xFFFFFBEB) : const Color(0xFFDCFCE7),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _pendingVerifications > 0 ? const Color(0xFFF59E0B) : const Color(0xFF86EFAC),
+          ),
+        ),
+        child: Row(children: [
+          Icon(
+            Icons.fact_check_rounded,
+            color: _pendingVerifications > 0 ? const Color(0xFFF59E0B) : const Color(0xFF16A34A),
+            size: 22,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                _pendingVerifications > 0
+                    ? '$_pendingVerifications Farm${_pendingVerifications > 1 ? 's' : ''} Pending Verification'
+                    : 'All Farms Verified',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700, fontSize: 13,
+                  color: _pendingVerifications > 0 ? const Color(0xFF92400E) : const Color(0xFF166534),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _pendingVerifications > 0
+                    ? 'Tap to review and approve farm submissions.'
+                    : 'No pending farm verifications at this time.',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: _pendingVerifications > 0 ? const Color(0xFF78350F) : const Color(0xFF166534),
+                ),
+              ),
+            ]),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: Color(0xFF9CA3AF)),
+        ]),
+      ),
     );
   }
 

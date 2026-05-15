@@ -151,6 +151,10 @@ class _FinancialForecastScreenState extends State<FinancialForecastScreen> {
               foregroundColor: _text,
               elevation: 0,
               title: const Text('Oversupply Prediction & Forecast'),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MaoAdminDashboard())),
+              ),
             ),
             drawer: Drawer(child: _buildSidebar()),
             body: _buildContent(isDesktop: false),

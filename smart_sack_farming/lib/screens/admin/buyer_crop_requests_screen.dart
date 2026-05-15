@@ -51,6 +51,10 @@ class _BuyerCropRequestsScreenState extends State<BuyerCropRequestsScreen> {
       appBar: AppBar(
         title: const Text('Buyer Crop Requests'),
         backgroundColor: AppTheme.primary,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.maybePop(context),
+        ),
         actions: [
           IconButton(
             onPressed: _loadRequests,

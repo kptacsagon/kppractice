@@ -213,6 +213,10 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
               foregroundColor: _text,
               elevation: 0,
               title: const Text('Supply Map'),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MaoAdminDashboard())),
+              ),
             ),
             drawer: Drawer(child: _buildSidebar()),
             body: _buildContent(isDesktop: false),

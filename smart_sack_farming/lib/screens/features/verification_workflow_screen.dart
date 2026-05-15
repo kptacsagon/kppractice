@@ -101,6 +101,10 @@ class _VerificationWorkflowScreenState
         title: const Text('Verification & Subsidies'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.maybePop(context),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),

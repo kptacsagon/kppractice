@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/agrisense_alert.dart';
 import '../models/agrisense_crop_history.dart';
@@ -17,9 +18,28 @@ class AgrisenseRepository {
   // --- Farmer Profiles ---
 
   Future<void> saveFarmerProfile(AgrisenseFarmerProfile profile) async {
-    await _supabase
+    final payload = profile.toJson();
+    debugPrint('[AgrisenseRepo] saveFarmerProfile payload keys: ${payload.keys.toList()}');
+
+    // Check whether a row already exists for this user.
+    final existing = await _supabase
         .from('agrisense_farmer_profiles')
-        .upsert(profile.toJson());
+        .select('id')
+        .eq('user_id', profile.userId)
+        .maybeSingle();
+
+    if (existing != null) {
+      // Row exists — update it using the primary key.
+      await _supabase
+          .from('agrisense_farmer_profiles')
+          .update(payload)
+          .eq('user_id', profile.userId);
+    } else {
+      // No row yet — insert a new one.
+      await _supabase
+          .from('agrisense_farmer_profiles')
+          .insert(payload);
+    }
   }
 
   Future<AgrisenseFarmerProfile?> getFarmerProfile(String userId) async {
@@ -37,10 +57,73 @@ class AgrisenseRepository {
 
   // --- Farms ---
 
+  /// Returns the agrisense_farmer_profiles.id (DB UUID) for the given auth user.
+  /// Returns null if no profile exists — caller must handle this case.
+  Future<String?> getFarmerProfileId(String authUserId) async {
+    final response = await _supabase
+        .from('agrisense_farmer_profiles')
+        .select('id')
+        .eq('user_id', authUserId)
+        .maybeSingle();
+    return response?['id'] as String?;
+  }
+
+  /// Creates a minimal farmer profile for the given auth user if one doesn't exist,
+  /// then returns the agrisense_farmer_profiles.id. This ensures the FK reference
+  /// in agrisense_farms.farmer_id is always valid before any farm insert.
+  Future<String> ensureFarmerProfileAndGetId(String authUserId) async {
+    // First try to find existing profile
+    final existingId = await getFarmerProfileId(authUserId);
+    if (existingId != null) return existingId;
+
+    // No profile — create a minimal stub so farm FK is satisfied.
+    // The farmer completes their profile separately via the registration screen.
+    final inserted = await _supabase
+        .from('agrisense_farmer_profiles')
+        .insert({
+          'user_id': authUserId,
+          'full_name': 'Pending Registration',
+          'barangay': 'Tubungan',
+          'municipality': 'Tubungan',
+          'province': 'Iloilo',
+          'verification_status': 'Pending',
+        })
+        .select('id')
+        .single();
+
+    return inserted['id'] as String;
+  }
+
   Future<void> saveFarm(AgrisenseFarm farm) async {
-    await _supabase
-        .from('agrisense_farms')
-        .insert(farm.toJson());
+    // Validate that we have a real profile UUID before touching the DB.
+    // Passing auth.uid() here would violate the FK constraint.
+    if (farm.farmerId.isEmpty || farm.farmerId == 'unknown') {
+      throw Exception('Cannot save farm: farmer profile ID is missing. '
+          'Complete AgriSense Registration first.');
+    }
+
+    // Try the full extended schema first.
+    try {
+      await _supabase.from('agrisense_farms').insert(farm.toJson());
+      return;
+    } on PostgrestException catch (e) {
+      // If it's a FK violation, re-throw immediately — retrying won't help.
+      if (e.code == '23503') rethrow;
+      // If it's a column-not-found error (42703), fall through to base-column save.
+      if (e.code != '42703') rethrow;
+    }
+
+    // Fallback: DB hasn't had the schema migration applied yet.
+    // Only send the original columns that are guaranteed to exist.
+    await _supabase.from('agrisense_farms').insert({
+      'farmer_id': farm.farmerId,
+      'farm_name': farm.farmName,
+      'barangay': farm.barangay,
+      'municipality': farm.municipality,
+      'total_area_hectares': farm.totalAreaHectares,
+      'soil_classification': farm.soilClassification,
+      'irrigation_classification': farm.irrigationType,
+    });
   }
 
   Future<List<AgrisenseFarm>> getFarmsByFarmer(String farmerId) async {
