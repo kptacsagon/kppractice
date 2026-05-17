@@ -1180,6 +1180,7 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       child: Scrollbar(
         thumbVisibility: true,
         child: ListView.separated(
+          primary: true,
           itemCount: _recentAlerts.length,
           separatorBuilder: (_, __) => const SizedBox(height: 14),
           itemBuilder: (context, index) {
