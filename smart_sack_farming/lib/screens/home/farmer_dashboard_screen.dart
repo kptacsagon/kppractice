@@ -12,6 +12,7 @@ import '../farmer/agrisense_farmer_registration_screen.dart';
 import '../farmer/agrisense_farm_registry_screen.dart';
 import '../farmer/agrisense_seasonal_crop_submission_screen.dart';
 import '../farmer/my_market_screen.dart';
+import '../farmer/crop_cycling_monitoring_dashboard.dart';
 
 class FarmerDashboardScreen extends StatelessWidget {
   const FarmerDashboardScreen({super.key});
@@ -183,6 +184,15 @@ class FarmerDashboardScreen extends StatelessWidget {
                       buttonText: 'Crop Schedule',
                       onTap: () => _navigateToFeature(context, 'AgriSense Seasonal Crops'),
                     ),
+                    _buildFeatureCard(
+                      icon: Icons.eco_rounded,
+                      iconColor: const Color(0xFF26A69A),
+                      title: 'Crop Cycling Monitoring',
+                      description:
+                          'Track crop rotation, soil health, and risk assessment for your fields',
+                      buttonText: 'Monitor Crops',
+                      onTap: () => _navigateToFeature(context, 'Crop Cycling Monitoring'),
+                    ),
                   ],
                 ),
               ],
@@ -314,6 +324,10 @@ class FarmerDashboardScreen extends StatelessWidget {
       final farmerId = user?.id ?? 'farmer-unknown';
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => MyMarketScreen(farmerId: farmerId)),
+      );
+    } else if (featureName == 'Crop Cycling Monitoring') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const CropCyclingMonitoringDashboard()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
