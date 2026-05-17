@@ -3,11 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../auth/login_screen.dart';
 import '../farmer/farmer_profile_screen_v2.dart';
-import '../features/rentals_screen.dart';
-import '../features/reports_screen.dart';
 import '../features/agrisense_dss_screen.dart';
 import '../features/agri_financial_model_screen.dart';
-import '../saturation/saturation_meter_screen.dart';
 import '../farmer/agrisense_farmer_registration_screen.dart';
 import '../farmer/agrisense_farm_registry_screen.dart';
 import '../farmer/agrisense_seasonal_crop_submission_screen.dart';
@@ -87,33 +84,6 @@ class FarmerDashboardScreen extends StatelessWidget {
                   mainAxisSpacing: 16,
                   childAspectRatio: 0.75,
                   children: [
-                    _buildFeatureCard(
-                      icon: Icons.opacity_rounded,
-                      iconColor: const Color(0xFF00BCD4),
-                      title: 'Saturation Meter',
-                      description:
-                          'Measure and monitor water availability saturation levels',
-                      buttonText: 'Check Saturation',
-                      onTap: () =>
-                          _navigateToFeature(context, 'Saturation Meter'),
-                    ),
-                    _buildFeatureCard(
-                      icon: Icons.two_wheeler_rounded,
-                      iconColor: const Color(0xFF673AB7),
-                      title: 'Rentals',
-                      description:
-                          'Browse and manage available farming equipment rentals',
-                      buttonText: 'View Rentals',
-                      onTap: () => _navigateToFeature(context, 'Rentals'),
-                    ),
-                    _buildFeatureCard(
-                      icon: Icons.bar_chart_rounded,
-                      iconColor: const Color(0xFF4CAF50),
-                      title: 'Reports',
-                      description: 'View your farm production reports',
-                      buttonText: 'Generate Report',
-                      onTap: () => _navigateToFeature(context, 'Reports'),
-                    ),
                     _buildFeatureCard(
                       icon: Icons.insights_rounded,
                       iconColor: const Color(0xFF00897B),
@@ -278,19 +248,7 @@ class FarmerDashboardScreen extends StatelessWidget {
   }
 
   void _navigateToFeature(BuildContext context, String featureName) {
-    if (featureName == 'Saturation Meter') {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const SaturationMeterScreen()));
-    } else if (featureName == 'Rentals') {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const RentalsScreen()));
-    } else if (featureName == 'Reports') {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const ReportsScreen()));
-    } else if (featureName == 'AgriSense Registration') {
+    if (featureName == 'AgriSense Registration') {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AgrisenseFarmerRegistrationScreen()));
     } else if (featureName == 'AgriSense Farm Registry') {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AgrisenseFarmRegistryScreen()));
