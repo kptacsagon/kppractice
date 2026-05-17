@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(flutter analyze *)",
-      "Bash(flutter run *)"
+      "Bash(flutter run *)",
+      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\Asus\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Asus-Desktop-ilych-files-kppractice\\\\c152379e-a98b-4558-a4e2-f0a2de908fde\\\\tasks\\\\bs5nw9xcy.output' -Wait | Select-String -Pattern 'Running|Compiling|Error|error|Warning|✓|✗|lib/|Connecting|debug|http'\")",
+      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\Asus\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Asus-Desktop-ilych-files-kppractice\\\\c152379e-a98b-4558-a4e2-f0a2de908fde\\\\tasks\\\\b219s2m97.output' -Wait | Select-String -Pattern 'Running|Compiling|Error|error:|✓|✗|debug|http|Connecting|Detach'\")",
+      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\Asus\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Asus-Desktop-ilych-files-kppractice\\\\c152379e-a98b-4558-a4e2-f0a2de908fde\\\\tasks\\\\bq0bnfhl1.output' -Wait | Select-String -Pattern 'Launching|Building|Error|error:|Compiling|debug|Detach|flutter run'\")",
+      "Bash(flutter devices *)"
     ]
   }
 }
