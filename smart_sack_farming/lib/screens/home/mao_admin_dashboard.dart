@@ -15,6 +15,8 @@ import '../features/verification_workflow_screen.dart';
 import '../mao/agrisense_municipal_dashboard.dart';
 import '../mao/agrisense_municipal_analytics_screen.dart';
 import '../admin/agrisense_farm_verification_screen.dart';
+import '../admin/agri_financial_mao_screen.dart';
+import '../saturation/saturation_heatmap_screen.dart';
 
 class MaoAdminDashboard extends StatefulWidget {
   const MaoAdminDashboard({super.key});
@@ -362,6 +364,8 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       const _NavItem('AgriSense', Icons.location_city_rounded),
       const _NavItem('Saturation Analytics', Icons.analytics_rounded),
       const _NavItem('Farm Verification', Icons.fact_check_rounded),
+      const _NavItem('SRS Heat Map', Icons.map_rounded),
+      const _NavItem('Financial Risk', Icons.account_balance_rounded),
     ];
 
     return Container(
@@ -578,6 +582,20 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
         await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const AgrisenseFarmVerificationScreen()),
+        );
+        setState(() => _selectedNavIndex = 0);
+        break;
+      case 11:
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SaturationHeatmapScreen(adminView: true)),
+        );
+        setState(() => _selectedNavIndex = 0);
+        break;
+      case 12:
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AgriFinancialMaoScreen()),
         );
         setState(() => _selectedNavIndex = 0);
         break;

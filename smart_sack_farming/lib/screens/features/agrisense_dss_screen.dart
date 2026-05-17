@@ -6,6 +6,7 @@ import '../../models/agrisense_farmer_profile.dart';
 import '../../models/agrisense_program_enrollment.dart';
 import '../../models/agrisense_saturation_score.dart';
 import '../../repositories/agrisense_repository.dart';
+import 'agri_financial_dss_screen.dart';
 import 'agrisense_csi_screen.dart';
 import 'agrisense_dpac_screen.dart';
 import 'agrisense_ffp_screen.dart';
@@ -123,8 +124,8 @@ class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
         Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisensePdewScreen()));
       case 'Market':
         Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisenseMpiScreen()));
-      case 'Finance':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisenseFfpScreen()));
+      case 'Financial Model':
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgriFinancialDssScreen()));
       case 'Harvest':
         Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisensePhmlScreen()));
       case 'Programs':
@@ -380,7 +381,7 @@ class _StatusGrid extends StatelessWidget {
     _ModuleMeta('Weather', Icons.cloud_rounded, 'WCRA'),
     _ModuleMeta('Pest Alert', Icons.bug_report_rounded, 'PDEW'),
     _ModuleMeta('Market', Icons.storefront_rounded, 'MPI'),
-    _ModuleMeta('Finance', Icons.calculate_rounded, 'FFP'),
+    _ModuleMeta('Financial Model', Icons.account_balance_rounded, 'FFP'),
     _ModuleMeta('Harvest', Icons.agriculture_rounded, 'PHML'),
     _ModuleMeta('Programs', Icons.verified_user_rounded, 'DPAC'),
   ];
@@ -776,7 +777,7 @@ class _BottomNav extends StatelessWidget {
     _NavItem('Weather', Icons.cloud_rounded, 'Weather'),
     _NavItem('Pest Alert', Icons.bug_report_rounded, 'Pest Alert'),
     _NavItem('Market', Icons.storefront_rounded, 'Market'),
-    _NavItem('Finance', Icons.calculate_rounded, 'Finance'),
+    _NavItem('Financial Model', Icons.account_balance_rounded, 'Financial Model'),
     _NavItem('Harvest', Icons.agriculture_rounded, 'Harvest'),
     _NavItem('Programs', Icons.verified_user_rounded, 'Programs'),
   ];

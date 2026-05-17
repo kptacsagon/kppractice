@@ -71,7 +71,6 @@ class _LoginScreenState extends State<LoginScreen>
 
     final address = metadata['address']?.toString().trim();
     final phone = metadata['phone']?.toString().trim();
-    final organization = metadata['organization']?.toString().trim();
     final age = int.tryParse('${metadata['age'] ?? ''}');
     final landSize = double.tryParse('${metadata['land_size_ha'] ?? ''}');
     final sex = metadata['sex']?.toString().toLowerCase().trim();
@@ -90,8 +89,6 @@ class _LoginScreenState extends State<LoginScreen>
       if (dateOfBirth != null && dateOfBirth.isNotEmpty) 'date_of_birth': dateOfBirth,
       if (address != null && address.isNotEmpty) 'address': address,
       if (phone != null && phone.isNotEmpty) 'phone': phone,
-      if (organization != null && organization.isNotEmpty)
-        'organization': organization,
       if (landSize != null) 'land_size_ha': landSize,
     };
 
@@ -250,7 +247,7 @@ class _LoginScreenState extends State<LoginScreen>
         try {
           final profile = await Supabase.instance.client
               .from('profiles')
-              .select('age, address, phone, organization')
+              .select('age, address, phone')
               .eq('id', response.user!.id)
               .maybeSingle();
 
@@ -258,7 +255,7 @@ class _LoginScreenState extends State<LoginScreen>
             if (_selectedRole == UserRole.farmer) {
               needsCompletion = profile['age'] == null || profile['address'] == null;
             } else if (_selectedRole == UserRole.buyer) {
-              needsCompletion = profile['phone'] == null || profile['organization'] == null;
+              needsCompletion = profile['phone'] == null;
             }
           }
         } catch (e) {

@@ -119,19 +119,24 @@ class AgriFinancialService {
     final from = (page - 1) * limit;
     final to = from + limit - 1;
 
-    final response = await query
-        .order('transaction_date', ascending: false)
-        .order('created_at', ascending: false)
-        .range(from, to);
+    try {
+      final response = await query
+          .order('transaction_date', ascending: false)
+          .order('created_at', ascending: false)
+          .range(from, to);
 
-    final rows = (response as List)
-        .map((r) => FinancialTransaction.fromJson(r as Map<String, dynamic>))
-        .toList();
+      final rows = (response as List)
+          .map((r) => FinancialTransaction.fromJson(r as Map<String, dynamic>))
+          .toList();
 
-    final runningMap = await _getRunningBalanceMap(userId);
-    return rows
-        .map((tx) => tx.copyWith(runningBalance: runningMap[tx.id]))
-        .toList();
+      final runningMap = await _getRunningBalanceMap(userId);
+      return rows
+          .map((tx) => tx.copyWith(runningBalance: runningMap[tx.id]))
+          .toList();
+    } on PostgrestException catch (e) {
+      if (e.code == 'PGRST205' || e.code == '42P01') return [];
+      rethrow;
+    }
   }
 
   Future<FinancialTransaction> createTransaction(
@@ -394,17 +399,22 @@ class AgriFinancialService {
   }
 
   Future<List<FinancialTransaction>> _getAllTransactions(String userId) async {
-    final response = await _client
-        .from('financial_transactions')
-        .select()
-        .eq('user_id', userId)
-        .eq('is_deleted', false)
-        .order('transaction_date', ascending: true)
-        .order('created_at', ascending: true);
+    try {
+      final response = await _client
+          .from('financial_transactions')
+          .select()
+          .eq('user_id', userId)
+          .eq('is_deleted', false)
+          .order('transaction_date', ascending: true)
+          .order('created_at', ascending: true);
 
-    return (response as List)
-        .map((r) => FinancialTransaction.fromJson(r as Map<String, dynamic>))
-        .toList();
+      return (response as List)
+          .map((r) => FinancialTransaction.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } on PostgrestException catch (e) {
+      if (e.code == 'PGRST205' || e.code == '42P01') return [];
+      rethrow;
+    }
   }
 
   Future<Map<String, double>> _getRunningBalanceMap(String userId) async {

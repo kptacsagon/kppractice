@@ -5,6 +5,7 @@ import '../farmer/create_crop_listing_screen.dart';
 import 'mix_match_screen.dart';
 import 'saturation_meter_screen.dart';
 import 'planting_record_form_screen.dart';
+import 'saturation_heatmap_screen.dart';
 
 class SaturationResultScreen extends StatelessWidget {
   final CropData crop;
@@ -62,6 +63,36 @@ class SaturationResultScreen extends StatelessWidget {
 
             // Recommendation card
             _buildRecommendationCard(),
+            const SizedBox(height: 24),
+
+            // View Heat Map button
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SaturationHeatmapScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.heat_pump_rounded, size: 20),
+                label: const Text(
+                  'View Saturation Heat Map',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C4DFF),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
 
             // Action buttons based on saturation level

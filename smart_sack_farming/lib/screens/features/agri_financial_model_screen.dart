@@ -77,7 +77,11 @@ class _AgriFinancialModelScreenState extends State<AgriFinancialModelScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingSummary = false);
-      _showError('Failed to load summary: $e');
+      // Silently ignore missing table — DB migration not yet run
+      final msg = e.toString();
+      if (!msg.contains('PGRST205') && !msg.contains('42P01')) {
+        _showError('Failed to load summary: $e');
+      }
     }
   }
 
@@ -101,7 +105,10 @@ class _AgriFinancialModelScreenState extends State<AgriFinancialModelScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingTransactions = false);
-      _showError('Failed to load transactions: $e');
+      final msg = e.toString();
+      if (!msg.contains('PGRST205') && !msg.contains('42P01')) {
+        _showError('Failed to load transactions: $e');
+      }
     }
   }
 

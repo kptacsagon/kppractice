@@ -6,8 +6,10 @@ import '../farmer/farmer_profile_screen_v2.dart';
 import '../features/rentals_screen.dart';
 import '../features/reports_screen.dart';
 import '../features/agrisense_dss_screen.dart';
+import '../features/agri_financial_dss_screen.dart';
 import '../features/agri_financial_model_screen.dart';
 import '../saturation/saturation_meter_screen.dart';
+import '../saturation/saturation_heatmap_screen.dart';
 import '../farmer/agrisense_farm_registry_screen.dart';
 import '../farmer/agrisense_seasonal_crop_submission_screen.dart';
 import '../farmer/my_market_screen.dart';
@@ -87,33 +89,6 @@ class FarmerDashboardScreen extends StatelessWidget {
                   childAspectRatio: 0.75,
                   children: [
                     _buildFeatureCard(
-                      icon: Icons.opacity_rounded,
-                      iconColor: const Color(0xFF00BCD4),
-                      title: 'Saturation Meter',
-                      description:
-                          'Measure and monitor water availability saturation levels',
-                      buttonText: 'Check Saturation',
-                      onTap: () =>
-                          _navigateToFeature(context, 'Saturation Meter'),
-                    ),
-                    _buildFeatureCard(
-                      icon: Icons.two_wheeler_rounded,
-                      iconColor: const Color(0xFF673AB7),
-                      title: 'Rentals',
-                      description:
-                          'Browse and manage available farming equipment rentals',
-                      buttonText: 'View Rentals',
-                      onTap: () => _navigateToFeature(context, 'Rentals'),
-                    ),
-                    _buildFeatureCard(
-                      icon: Icons.bar_chart_rounded,
-                      iconColor: const Color(0xFF4CAF50),
-                      title: 'Reports',
-                      description: 'View your farm production reports',
-                      buttonText: 'Generate Report',
-                      onTap: () => _navigateToFeature(context, 'Reports'),
-                    ),
-                    _buildFeatureCard(
                       icon: Icons.insights_rounded,
                       iconColor: const Color(0xFF00897B),
                       title: 'AgriSense DSS',
@@ -121,16 +96,6 @@ class FarmerDashboardScreen extends StatelessWidget {
                           'Analyze oversupply risk with OSI and crop alternatives',
                       buttonText: 'Open AgriSense',
                       onTap: () => _navigateToFeature(context, 'AgriSense DSS'),
-                    ),
-                    _buildFeatureCard(
-                      icon: Icons.account_balance_rounded,
-                      iconColor: const Color(0xFF455A64),
-                      title: 'AgriFinancial Model',
-                      description:
-                          'Track income, expenses, and lender-ready reports',
-                      buttonText: 'Open Finance',
-                      onTap: () =>
-                          _navigateToFeature(context, 'AgriFinancial Model'),
                     ),
                     _buildFeatureCard(
                       icon: Icons.storefront_rounded,
@@ -165,6 +130,14 @@ class FarmerDashboardScreen extends StatelessWidget {
                       description: 'Submit your crop schedule for saturation validation.',
                       buttonText: 'Crop Schedule',
                       onTap: () => _navigateToFeature(context, 'AgriSense Seasonal Crops'),
+                    ),
+                    _buildFeatureCard(
+                      icon: Icons.map_rounded,
+                      iconColor: const Color(0xFF16A34A),
+                      title: 'SRS Heat Map',
+                      description: 'View barangay-level crop saturation risk scores on a live map.',
+                      buttonText: 'View Heat Map',
+                      onTap: () => _navigateToFeature(context, 'SRS Heat Map'),
                     ),
                     _buildFeatureCard(
                       icon: Icons.support_agent_rounded,
@@ -298,6 +271,14 @@ class FarmerDashboardScreen extends StatelessWidget {
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const FarmerProfileScreenV2()));
+    } else if (featureName == 'Financial DSS') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const AgriFinancialDssScreen()),
+      );
+    } else if (featureName == 'SRS Heat Map') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const SaturationHeatmapScreen()),
+      );
     } else if (featureName == 'My Market') {
       final user = Supabase.instance.client.auth.currentUser;
       final farmerId = user?.id ?? 'farmer-unknown';

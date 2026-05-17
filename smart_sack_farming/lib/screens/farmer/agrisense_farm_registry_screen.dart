@@ -13,9 +13,9 @@ import 'package:postgrest/postgrest.dart' show PostgrestException;
 const _kGreen = Color(0xFF1B7737);
 const _kBg = Color(0xFFF0F5F1);
 
-// Tubungan, Iloilo — geographic center
-const _kTubunganLat = 10.8814;
-const _kTubunganLng = 122.5344;
+// Tubungan, Iloilo — corrected geographic center
+const _kTubunganLat = 10.7654;
+const _kTubunganLng = 122.3181;
 
 // ─── 48 official barangays of Tubungan, Iloilo ───────────────────────────────
 const _kBarangays = [
