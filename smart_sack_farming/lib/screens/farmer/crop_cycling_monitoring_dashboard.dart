@@ -1,17 +1,23 @@
+// This file is deprecated - use crop_cycling_monitoring_simple.dart instead
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import '../models/crop_cycling_model.dart';
-import '../services/crop_cycling_monitoring_service.dart';
 
-/// AgriSense DSS - Crop Cycling Monitoring Dashboard
-/// Monitors crop rotation, soil health, and provides rotation recommendations
-class CropCyclingMonitoringDashboard extends StatefulWidget {
-  final String farmerId;
-
+class CropCyclingMonitoringDashboard extends StatelessWidget {
+  final String? farmerId;
+  
   const CropCyclingMonitoringDashboard({
-    required this.farmerId,
+    this.farmerId,
     Key? key,
   }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Text('Use CropCyclingMonitoringSimple instead'),
+      ),
+    );
+  }
+}
 
   @override
   State<CropCyclingMonitoringDashboard> createState() =>
@@ -22,6 +28,7 @@ class _CropCyclingMonitoringDashboardState
     extends State<CropCyclingMonitoringDashboard> {
   final _service = CropCyclingMonitoringService();
   
+  late String _farmerId;
   late Future<List<FarmerField>> _fieldsFuture;
   FarmerField? _selectedField;
   late Future<List<CropRotationHistory>> _rotationHistoryFuture;
@@ -30,9 +37,11 @@ class _CropCyclingMonitoringDashboardState
   @override
   void initState() {
     super.initState();
-    _fieldsFuture = _service.getFarmerFields(widget.farmerId);
+    // Get farmerId from parameter or from current user
+    _farmerId = widget.farmerId ?? Supabase.instance.client.auth.currentUser?.id ?? 'unknown';
+    _fieldsFuture = _service.getFarmerFields(_farmerId);
     _rotationHistoryFuture = Future.value([]);
-    _alertsFuture = _service.getFarmerAlerts(widget.farmerId);
+    _alertsFuture = _service.getFarmerAlerts(_farmerId);
   }
 
   void _selectField(FarmerField field) {
@@ -44,11 +53,11 @@ class _CropCyclingMonitoringDashboardState
 
   void _refreshData() {
     setState(() {
-      _fieldsFuture = _service.getFarmerFields(widget.farmerId);
+      _fieldsFuture = _service.getFarmerFields(_farmerId);
       if (_selectedField != null) {
         _rotationHistoryFuture = _service.getFieldRotationHistory(_selectedField!.id);
       }
-      _alertsFuture = _service.getFarmerAlerts(widget.farmerId);
+      _alertsFuture = _service.getFarmerAlerts(_farmerId);
     });
   }
 

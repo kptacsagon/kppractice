@@ -12,7 +12,7 @@ import '../farmer/agrisense_farmer_registration_screen.dart';
 import '../farmer/agrisense_farm_registry_screen.dart';
 import '../farmer/agrisense_seasonal_crop_submission_screen.dart';
 import '../farmer/my_market_screen.dart';
-import '../farmer/crop_cycling_monitoring_dashboard.dart';
+import '../farmer/crop_cycling_monitoring_simple.dart';
 
 class FarmerDashboardScreen extends StatelessWidget {
   const FarmerDashboardScreen({super.key});
@@ -327,7 +327,7 @@ class FarmerDashboardScreen extends StatelessWidget {
       );
     } else if (featureName == 'Crop Cycling Monitoring') {
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const CropCyclingMonitoringDashboard()),
+        MaterialPageRoute(builder: (_) => const CropCyclingMonitoringSimple()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
