@@ -6,6 +6,7 @@ import '../../models/agrisense_farmer_profile.dart';
 import '../../models/agrisense_program_enrollment.dart';
 import '../../models/agrisense_saturation_score.dart';
 import '../../repositories/agrisense_repository.dart';
+import '../farmer/crop_cycling_monitoring_simple.dart';
 import 'agrisense_csi_screen.dart';
 import 'agrisense_dpac_screen.dart';
 import 'agrisense_ffp_screen.dart';
@@ -129,6 +130,8 @@ class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
         Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisensePhmlScreen()));
       case 'Programs':
         Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisenseDpacScreen()));
+      case 'Crop Cycling':
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const CropCyclingMonitoringSimple()));
     }
   }
 
@@ -383,6 +386,7 @@ class _StatusGrid extends StatelessWidget {
     _ModuleMeta('Finance', Icons.calculate_rounded, 'FFP'),
     _ModuleMeta('Harvest', Icons.agriculture_rounded, 'PHML'),
     _ModuleMeta('Programs', Icons.verified_user_rounded, 'DPAC'),
+    _ModuleMeta('Crop Cycling', Icons.loop_rounded, 'CCM'),
   ];
 
   @override
@@ -779,6 +783,7 @@ class _BottomNav extends StatelessWidget {
     _NavItem('Finance', Icons.calculate_rounded, 'Finance'),
     _NavItem('Harvest', Icons.agriculture_rounded, 'Harvest'),
     _NavItem('Programs', Icons.verified_user_rounded, 'Programs'),
+    _NavItem('Crop Cycle', Icons.loop_rounded, 'Crop Cycling'),
   ];
 
   @override
