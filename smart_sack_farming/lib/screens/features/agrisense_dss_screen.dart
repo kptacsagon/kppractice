@@ -15,6 +15,7 @@ import 'agrisense_mpi_screen.dart';
 import 'agrisense_pdew_screen.dart';
 import 'agrisense_phml_screen.dart';
 import 'agrisense_piae_screen.dart';
+import 'agrisense_saturation_heatmap_screen.dart';
 import 'agrisense_wcra_screen.dart';
 
 const _kGreen = Color(0xFF1B7737);
@@ -135,6 +136,8 @@ class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
         Navigator.push(context, MaterialPageRoute(builder: (_) => const CropCyclingMonitoringSimple()));
       case 'Planting Advisor':
         Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisenseCpaScreen()));
+      case 'Heatmap':
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisenseSaturationHeatmapScreen()));
     }
   }
 
@@ -391,6 +394,7 @@ class _StatusGrid extends StatelessWidget {
     _ModuleMeta('Programs', Icons.verified_user_rounded, 'DPAC'),
     _ModuleMeta('Crop Cycling', Icons.loop_rounded, 'CCM'),
     _ModuleMeta('Planting Advisor', Icons.tips_and_updates_rounded, 'CPA'),
+    _ModuleMeta('Heatmap', Icons.map_rounded, 'HMP'),
   ];
 
   @override
@@ -789,6 +793,7 @@ class _BottomNav extends StatelessWidget {
     _NavItem('Programs', Icons.verified_user_rounded, 'Programs'),
     _NavItem('Crop Cycle', Icons.loop_rounded, 'Crop Cycling'),
     _NavItem('Planting', Icons.tips_and_updates_rounded, 'Planting Advisor'),
+    _NavItem('Heatmap', Icons.map_rounded, 'Heatmap'),
   ];
 
   @override
