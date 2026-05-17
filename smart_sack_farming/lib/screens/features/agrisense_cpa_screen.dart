@@ -37,6 +37,25 @@ const _kMockSrs = {
   'Onion': 85.0,
 };
 
+// Approximate days-to-maturity ranges (min, max) per crop
+const _kDtm = {
+  'Ampalaya':    (55, 65),
+  'Eggplant':    (65, 80),
+  'Okra':        (50, 60),
+  'Squash':      (60, 75),
+  'String Bean': (50, 65),
+  'Tomato':      (70, 90),
+  'Garlic':      (90, 120),
+  'Onion':       (90, 120),
+};
+
+// Mock projected supply (MT) used to rank competition among pakbet crops
+const _kMockSupplyMt = {
+  'Ampalaya': 18.5, 'Eggplant': 42.0, 'Okra': 14.0,
+  'Squash': 27.0,   'String Bean': 22.0, 'Tomato': 55.0,
+  'Garlic': 31.0,   'Onion': 63.0,
+};
+
 class AgrisenseCpaScreen extends StatefulWidget {
   const AgrisenseCpaScreen({super.key});
 
@@ -129,19 +148,25 @@ class _AgrisenseCpaScreenState extends State<AgrisenseCpaScreen> {
 
       final srs = match?.srsScore ?? (_kMockSrs[_selectedCrop] ?? 60.0);
 
-      // Alternatives: other crops with lower SRS, sorted best first
+      // Alternatives: other pakbet crops with lower SRS
       List<_CropOption> alternatives;
       final dbAlts = allScores
-          .where((s) => s.cropType.toLowerCase() != _selectedCrop!.toLowerCase() && s.srsScore < srs)
+          .where((s) => _kCrops.contains(s.cropType) && s.cropType.toLowerCase() != _selectedCrop!.toLowerCase() && s.srsScore < srs)
           .map((s) => _CropOption(s.cropType, s.srsScore))
           .toList();
-
       alternatives = dbAlts.isNotEmpty ? dbAlts : _buildMockAlternatives(_selectedCrop!, srs);
+
+      // Competing crops: other pakbet crops ranked by supply (highest first)
+      final competingCrops = _buildCompetingCrops(_selectedCrop!, allScores);
+
+      // Harvest window
+      final harvestWindow = _buildHarvestWindow(_selectedCrop!, _plantingDate);
 
       if (mounted) {
         setState(() {
           _result = _AdvisorResult(
             crop: _selectedCrop!,
+            municipality: _municipality,
             plantingDate: _plantingDate,
             season: season,
             srs: srs,
@@ -150,26 +175,57 @@ class _AgrisenseCpaScreenState extends State<AgrisenseCpaScreen> {
             priceMin: match?.priceForecastMin,
             priceMax: match?.priceForecastMax,
             alternatives: alternatives,
+            competingCrops: competingCrops,
+            harvestWindow: harvestWindow,
           );
           _isLoading = false;
         });
       }
     } catch (_) {
-      // Full mock fallback
       final srs = _kMockSrs[_selectedCrop] ?? 60.0;
       if (mounted) {
         setState(() {
           _result = _AdvisorResult(
             crop: _selectedCrop!,
+            municipality: _municipality,
             plantingDate: _plantingDate,
             season: _seasonLabel(_plantingDate),
             srs: srs,
             alternatives: _buildMockAlternatives(_selectedCrop!, srs),
+            competingCrops: _buildCompetingCrops(_selectedCrop!, []),
+            harvestWindow: _buildHarvestWindow(_selectedCrop!, _plantingDate),
           );
           _isLoading = false;
         });
       }
     }
+  }
+
+  List<_CompetingCrop> _buildCompetingCrops(String selected, List<AgrisenseSaturationScore> dbScores) {
+    return _kCrops
+        .where((c) => c != selected)
+        .map((c) {
+          final dbMatch = dbScores.cast<AgrisenseSaturationScore?>().firstWhere(
+            (s) => s?.cropType.toLowerCase() == c.toLowerCase(),
+            orElse: () => null,
+          );
+          final supply = dbMatch?.projectedSupplyMt ?? _kMockSupplyMt[c] ?? 20.0;
+          final srs = dbMatch?.srsScore ?? _kMockSrs[c] ?? 50.0;
+          return _CompetingCrop(c, supply, srs);
+        })
+        .toList()
+      ..sort((a, b) => b.supplyMt.compareTo(a.supplyMt));
+  }
+
+  _HarvestWindow? _buildHarvestWindow(String crop, DateTime plantingDate) {
+    final dtm = _kDtm[crop];
+    if (dtm == null) return null;
+    return _HarvestWindow(
+      earliest: plantingDate.add(Duration(days: dtm.$1)),
+      latest: plantingDate.add(Duration(days: dtm.$2)),
+      minDays: dtm.$1,
+      maxDays: dtm.$2,
+    );
   }
 
   List<_CropOption> _buildMockAlternatives(String selected, double srs) {
@@ -533,16 +589,28 @@ class _ResultCard extends StatelessWidget {
           ),
         ),
 
-        // Alternatives section
+        // Harvest estimator
+        if (result.harvestWindow != null) ...[
+          const SizedBox(height: 14),
+          _HarvestCard(crop: result.crop, window: result.harvestWindow!),
+        ],
+
+        // Competing crops
+        if (result.competingCrops.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _CompetingCropsCard(crops: result.competingCrops, municipality: result.municipality),
+        ],
+
+        // Suggested safe alternatives (High Risk / Critical only)
         if (!isSafe && result.alternatives.isNotEmpty) ...[
           const SizedBox(height: 16),
           const Text(
-            'Recommended Alternatives',
+            'Suggested Safe Crops',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
           ),
           const SizedBox(height: 4),
           const Text(
-            'These crops have lower saturation risk for the same period.',
+            'Lower saturation risk for the same planting period.',
             style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 10),
@@ -624,6 +692,212 @@ class _AltCropTile extends StatelessWidget {
   }
 }
 
+// ─── Harvest Estimator Card ───────────────────────────────────────────────────
+
+class _HarvestCard extends StatelessWidget {
+  final String crop;
+  final _HarvestWindow window;
+  const _HarvestCard({required this.crop, required this.window});
+
+  String _fmt(DateTime d) =>
+      '${_kMonths[d.month - 1]} ${d.day}, ${d.year}';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.event_available_rounded, color: Color(0xFF3B82F6), size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Harvest Date Estimate',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _InfoTile(
+                  label: 'Earliest Harvest',
+                  value: _fmt(window.earliest),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _InfoTile(
+                  label: 'Latest Harvest',
+                  value: _fmt(window.latest),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F9FF),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFBAE6FD)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF0284C7)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$crop matures in ${window.minDays}–${window.maxDays} days after planting.',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF0369A1)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Competing Crops Card ─────────────────────────────────────────────────────
+
+class _CompetingCropsCard extends StatelessWidget {
+  final List<_CompetingCrop> crops;
+  final String municipality;
+  const _CompetingCropsCard({required this.crops, required this.municipality});
+
+  @override
+  Widget build(BuildContext context) {
+    final maxSupply = crops.fold(0.0, (m, c) => c.supplyMt > m ? c.supplyMt : m);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.people_alt_rounded, color: Color(0xFFEA580C), size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Competing Crops This Season',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
+                    ),
+                    Text(
+                      'What other farmers in the area are planting',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ...crops.take(5).map((c) => _CompetingRow(crop: c, maxSupply: maxSupply)),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompetingRow extends StatelessWidget {
+  final _CompetingCrop crop;
+  final double maxSupply;
+  const _CompetingRow({required this.crop, required this.maxSupply});
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = maxSupply == 0 ? 0.0 : (crop.supplyMt / maxSupply).clamp(0.0, 1.0);
+    final tier = _tier(crop.srs);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              crop.crop,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF374151)),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(
+                    value: ratio,
+                    backgroundColor: const Color(0xFFE5E7EB),
+                    valueColor: AlwaysStoppedAnimation<Color>(tier.color),
+                    minHeight: 7,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${crop.supplyMt.toStringAsFixed(1)} MT projected supply',
+                  style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: tier.color.withAlpha(20),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              tier.label,
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: tier.color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  _TierData _tier(double srs) {
+    if (srs > 80) return _TierData('High', const Color(0xFFDC2626));
+    if (srs > 60) return _TierData('Moderate', const Color(0xFFF59E0B));
+    return _TierData('Safe', const Color(0xFF16A34A));
+  }
+}
+
 class _InfoTile extends StatelessWidget {
   final String label;
   final String value;
@@ -654,6 +928,7 @@ class _InfoTile extends StatelessWidget {
 
 class _AdvisorResult {
   final String crop;
+  final String municipality;
   final DateTime plantingDate;
   final String season;
   final double srs;
@@ -662,9 +937,12 @@ class _AdvisorResult {
   final double? priceMin;
   final double? priceMax;
   final List<_CropOption> alternatives;
+  final List<_CompetingCrop> competingCrops;
+  final _HarvestWindow? harvestWindow;
 
   const _AdvisorResult({
     required this.crop,
+    required this.municipality,
     required this.plantingDate,
     required this.season,
     required this.srs,
@@ -673,6 +951,28 @@ class _AdvisorResult {
     this.priceMin,
     this.priceMax,
     required this.alternatives,
+    required this.competingCrops,
+    this.harvestWindow,
+  });
+}
+
+class _CompetingCrop {
+  final String crop;
+  final double supplyMt;
+  final double srs;
+  const _CompetingCrop(this.crop, this.supplyMt, this.srs);
+}
+
+class _HarvestWindow {
+  final DateTime earliest;
+  final DateTime latest;
+  final int minDays;
+  final int maxDays;
+  const _HarvestWindow({
+    required this.earliest,
+    required this.latest,
+    required this.minDays,
+    required this.maxDays,
   });
 }
 
