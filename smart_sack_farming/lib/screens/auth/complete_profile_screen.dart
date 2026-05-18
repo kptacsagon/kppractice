@@ -128,7 +128,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       case UserRole.farmer:
         destination = const FarmerDashboardScreen();
         break;
-      case UserRole.admin:
+      case UserRole.mao:
+      case UserRole.baw:
         destination = const MaoAdminDashboard();
         break;
       case UserRole.buyer:
@@ -149,7 +150,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.role == UserRole.admin) {
+    if (widget.role == UserRole.mao) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _navigateToDashboard());
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }

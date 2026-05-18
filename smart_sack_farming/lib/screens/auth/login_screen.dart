@@ -8,7 +8,70 @@ import '../buyer/buyer_marketplace_screen.dart';
 import 'signup_screen.dart';
 import 'complete_profile_screen.dart';
 
-enum UserRole { farmer, admin, buyer }
+enum UserRole { farmer, mao, baw, buyer }
+
+// ── Login attempt lockout ─────────────────────────────────────────────────────
+class LoginAttemptTracker {
+  static const int _maxAttempts = 5;
+  static const Duration _lockoutDuration = Duration(minutes: 15);
+  static final Map<String, List<DateTime>> _attempts = {};
+
+  static void recordFailure(String email) {
+    _attempts.putIfAbsent(email, () => []);
+    _attempts[email]!.add(DateTime.now());
+  }
+
+  static Duration? lockoutRemaining(String email) {
+    final list = _attempts[email];
+    if (list == null || list.length < _maxAttempts) return null;
+    final recent = list.where((t) => DateTime.now().difference(t) < _lockoutDuration).toList();
+    if (recent.length < _maxAttempts) { _attempts[email] = recent; return null; }
+    final oldest = recent.reduce((a, b) => a.isBefore(b) ? a : b);
+    final remaining = _lockoutDuration - DateTime.now().difference(oldest);
+    return remaining.isNegative ? null : remaining;
+  }
+
+  static int attemptsRemaining(String email) {
+    final list = _attempts[email];
+    if (list == null) return _maxAttempts;
+    final recent = list.where((t) => DateTime.now().difference(t) < _lockoutDuration).length;
+    return (_maxAttempts - recent).clamp(0, _maxAttempts);
+  }
+
+  static void clear(String email) => _attempts.remove(email);
+}
+
+// ── Account status ────────────────────────────────────────────────────────────
+enum AccountStatus { active, pendingVerification, rejected, suspended, expiredPending }
+
+AccountStatus _accountStatusFromString(String? s) {
+  switch (s?.toLowerCase()) {
+    case 'pending_verification':
+    case 'pendingverification':
+      return AccountStatus.pendingVerification;
+    case 'rejected': return AccountStatus.rejected;
+    case 'suspended': return AccountStatus.suspended;
+    case 'expired_pending':
+    case 'expiredpending':
+      return AccountStatus.expiredPending;
+    default: return AccountStatus.active;
+  }
+}
+
+String? _accountStatusBlockMessage(AccountStatus status) {
+  switch (status) {
+    case AccountStatus.pendingVerification:
+      return 'Your account is pending verification by the MAO office. Please wait for approval.';
+    case AccountStatus.rejected:
+      return 'Your account registration has been rejected. Contact the MAO office for details.';
+    case AccountStatus.suspended:
+      return 'Your account has been suspended. Contact the MAO office for assistance.';
+    case AccountStatus.expiredPending:
+      return 'Your registration has expired. Please re-register or contact the MAO office.';
+    case AccountStatus.active:
+      return null;
+  }
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -124,15 +187,40 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  void _showBlockingSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Row(children: [
+        const Icon(Icons.block_rounded, color: Colors.white, size: 20),
+        const SizedBox(width: 10),
+        Expanded(child: Text(message, style: const TextStyle(fontWeight: FontWeight.w500))),
+      ]),
+      backgroundColor: Colors.red.shade700,
+      duration: const Duration(seconds: 6),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
+  }
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final email = _emailController.text.trim();
+
+    // ── Lockout pre-check ──────────────────────────────────────────────────
+    final lockout = LoginAttemptTracker.lockoutRemaining(email);
+    if (lockout != null) {
+      final mins = lockout.inMinutes;
+      final secs = lockout.inSeconds % 60;
+      _showBlockingSnack('Too many failed attempts. Try again in ${mins}m ${secs}s.');
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
       // Sign in with Supabase
       final response = await Supabase.instance.client.auth.signInWithPassword(
-        email: _emailController.text.trim(),
+        email: email,
         password: _passwordController.text,
       );
 
@@ -180,57 +268,61 @@ class _LoginScreenState extends State<LoginScreen>
           case UserRole.farmer:
             selectedRoleStr = 'farmer';
             break;
-          case UserRole.admin:
-            selectedRoleStr = 'admin';
+          case UserRole.mao:
+            selectedRoleStr = 'mao';
+            break;
+          case UserRole.baw:
+            selectedRoleStr = 'baw';
             break;
           case UserRole.buyer:
             selectedRoleStr = 'buyer';
             break;
         }
 
+        // Normalize legacy 'admin' → 'mao'
+        if (actualRole == 'admin') actualRole = 'mao';
+
         // Block login if role mismatch
         if (actualRole != selectedRoleStr) {
-          // Sign the user out immediately — they shouldn't stay authenticated
           await Supabase.instance.client.auth.signOut();
-
           if (!mounted) return;
           setState(() => _isLoading = false);
-
-          String roleLabel;
-          switch (actualRole) {
-            case 'admin':
-              roleLabel = 'Admin';
-              break;
-            case 'buyer':
-              roleLabel = 'Buyer';
-              break;
-            default:
-              roleLabel = 'Farmer';
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.block_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Access denied. This account is registered as $roleLabel. '
-                      'Please select the "$roleLabel" role to sign in.',
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.red.shade700,
-              duration: const Duration(seconds: 5),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
+          LoginAttemptTracker.recordFailure(email);
+          final remaining = LoginAttemptTracker.attemptsRemaining(email);
+          final roleLabel = {
+            'mao': 'MAO',
+            'baw': 'BAW',
+            'buyer': 'Buyer',
+          }[actualRole] ?? 'Farmer';
+          _showBlockingSnack(
+            'Access denied. This account is registered as $roleLabel. '
+            'Select "$roleLabel" to sign in. ($remaining attempt${remaining == 1 ? "" : "s"} remaining)',
           );
           return;
         }
+
+        // ── Account status check ───────────────────────────────────────────
+        try {
+          final profileStatus = await Supabase.instance.client
+              .from('profiles')
+              .select('account_status')
+              .eq('id', response.user!.id)
+              .maybeSingle();
+          final status = _accountStatusFromString(profileStatus?['account_status'] as String?);
+          final blockMsg = _accountStatusBlockMessage(status);
+          if (blockMsg != null) {
+            await Supabase.instance.client.auth.signOut();
+            if (!mounted) return;
+            setState(() => _isLoading = false);
+            _showBlockingSnack(blockMsg);
+            return;
+          }
+        } catch (_) {
+          // If account_status column missing, allow login
+        }
+        // ── End account status check ───────────────────────────────────────
+
+        LoginAttemptTracker.clear(email);
         // ── End role verification ──────────────────────────────────────
 
         await _syncProfileFromMetadata(
@@ -263,14 +355,15 @@ class _LoginScreenState extends State<LoginScreen>
         }
 
         Widget destination;
-        if (needsCompletion && _selectedRole != UserRole.admin) {
+        if (needsCompletion && _selectedRole != UserRole.mao && _selectedRole != UserRole.baw) {
           destination = CompleteProfileScreen(role: _selectedRole);
         } else {
           switch (_selectedRole) {
             case UserRole.farmer:
               destination = const FarmerDashboardScreen();
               break;
-            case UserRole.admin:
+            case UserRole.mao:
+            case UserRole.baw:
               destination = const MaoAdminDashboard();
               break;
             case UserRole.buyer:
@@ -293,11 +386,14 @@ class _LoginScreenState extends State<LoginScreen>
     } on AuthException catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
+      LoginAttemptTracker.recordFailure(email);
+      final remaining = LoginAttemptTracker.attemptsRemaining(email);
+      final lockoutNow = LoginAttemptTracker.lockoutRemaining(email);
+      final msg = lockoutNow != null
+          ? 'Account locked for ${lockoutNow.inMinutes}m ${lockoutNow.inSeconds % 60}s due to too many failed attempts.'
+          : 'Login failed: ${e.message}. $remaining attempt${remaining == 1 ? "" : "s"} remaining.';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Login failed: ${e.message}'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
       );
     } catch (e) {
       setState(() => _isLoading = false);
@@ -646,105 +742,70 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildRoleSelector() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildRoleCard(
-            role: UserRole.farmer,
-            icon: Icons.pin_drop_outlined, // Closer to image mock
-            label: 'Farmer',
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildRoleCard(
-            role: UserRole.buyer,
-            icon: Icons.shopping_bag_outlined,
-            label: 'Buyer',
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildRoleCard(
-            role: UserRole.admin,
-            icon: Icons.person_outline,
-            label: 'Admin',
-          ),
-        ),
-      ],
-    );
+    const roles = [
+      (UserRole.farmer, Icons.agriculture_rounded, 'Farmer', Color(0xFF7C3AED)),
+      (UserRole.mao, Icons.account_balance_rounded, 'MAO', Color(0xFF1F4E8C)),
+      (UserRole.baw, Icons.support_agent_rounded, 'BAW', Color(0xFF16A34A)),
+      (UserRole.buyer, Icons.storefront_rounded, 'Buyer', Color(0xFFEA8A1A)),
+    ];
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final width = constraints.maxWidth;
+      final crossCount = width >= 760 ? 4 : 2;
+      final itemWidth = (width - (crossCount - 1) * 10) / crossCount;
+
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: roles.map((r) {
+          final (role, icon, label, color) = r;
+          return SizedBox(width: itemWidth, child: _buildRoleCard(role: role, icon: icon, label: label, brandColor: color));
+        }).toList(),
+      );
+    });
   }
 
   Widget _buildRoleCard({
     required UserRole role,
     required IconData icon,
     required String label,
+    required Color brandColor,
   }) {
     final isSelected = _selectedRole == role;
-    final activeBg = const Color(0xFF264C34);
-    final activeFg = Colors.white;
-    final inactiveBg = Colors.white;
-    final inactiveBorder = const Color(0xFFE5E9E0);
-    final inactiveFg = const Color(0xFF2A5239); // Dark green icon for inactive
-    final inactiveLabel = const Color(0xFF5A7A66);
-
     return GestureDetector(
       onTap: () => setState(() => _selectedRole = role),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        height: 100,
+        height: 96,
         decoration: BoxDecoration(
-          color: isSelected ? activeBg : inactiveBg,
-          borderRadius: BorderRadius.circular(16),
-          border: isSelected ? null : Border.all(color: inactiveBorder),
+          color: isSelected ? brandColor : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: isSelected ? null : Border.all(color: const Color(0xFFE5E9E0)),
+          boxShadow: isSelected ? [BoxShadow(color: brandColor.withAlpha(60), blurRadius: 10, offset: const Offset(0, 4))] : [],
         ),
-        child: Stack(
-          children: [
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.white.withAlpha(20) : const Color(0xFFE9F0EC),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      icon,
-                      color: isSelected ? activeFg : inactiveFg,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: isSelected ? activeFg : inactiveLabel,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
+        child: Stack(children: [
+          Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white.withAlpha(30) : brandColor.withAlpha(20),
+                borderRadius: BorderRadius.circular(12),
               ),
+              child: Icon(icon, color: isSelected ? Colors.white : brandColor, size: 20),
             ),
-            if (isSelected)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF8DC099),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.check, size: 14, color: Colors.white),
-                ),
-              ),
-          ],
-        ),
+            const SizedBox(height: 8),
+            Text(label, style: TextStyle(
+              color: isSelected ? Colors.white : const Color(0xFF374151),
+              fontWeight: FontWeight.w600, fontSize: 13,
+            )),
+          ])),
+          if (isSelected)
+            Positioned(top: 8, right: 8, child: Container(
+              width: 18, height: 18,
+              decoration: BoxDecoration(color: Colors.white.withAlpha(80), shape: BoxShape.circle),
+              child: Icon(Icons.check, size: 12, color: brandColor),
+            )),
+        ]),
       ),
     );
   }
@@ -781,11 +842,12 @@ class _LoginScreenState extends State<LoginScreen>
                   children: [
                     Expanded(
                       child: Text(
-                        _selectedRole == UserRole.farmer
-                            ? 'Sign in as Farmer'
-                            : _selectedRole == UserRole.buyer
-                                ? 'Sign in as Buyer'
-                                : 'Sign in as Admin',
+                        switch (_selectedRole) {
+                          UserRole.farmer => 'Sign in as Farmer',
+                          UserRole.mao    => 'Sign in as MAO',
+                          UserRole.baw    => 'Sign in as BAW',
+                          UserRole.buyer  => 'Sign in as Buyer',
+                        },
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

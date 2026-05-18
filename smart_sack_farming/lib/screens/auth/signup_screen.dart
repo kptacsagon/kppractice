@@ -5,7 +5,7 @@ import '../../theme/app_theme.dart';
 import '../../config/supabase_config.dart';
 import 'login_screen.dart';
 
-enum UserRole { farmer, admin, buyer }
+enum UserRole { farmer, mao, baw, buyer }
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -23,6 +23,7 @@ class _SignUpScreenState extends State<SignUpScreen>
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _idController = TextEditingController();
 
   int _currentStep = 0; // 0 = Details, 1 = Role Selection, 2 = Password
   UserRole _selectedRole = UserRole.farmer;
@@ -65,6 +66,7 @@ class _SignUpScreenState extends State<SignUpScreen>
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _idController.dispose();
     super.dispose();
   }
 
@@ -145,13 +147,22 @@ class _SignUpScreenState extends State<SignUpScreen>
 
     try {
       final fullName = '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
+      final roleStr = _selectedRole.toString().split('.').last;
+      final idNumber = _idController.text.trim();
       final response = await Supabase.instance.client.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         data: {
           'full_name': fullName,
           'phone': _phoneController.text.trim(),
-          'role': _selectedRole.toString().split('.').last,
+          'role': roleStr,
+          if (idNumber.isNotEmpty) 'id_number': idNumber,
+          if (idNumber.isNotEmpty) 'id_type': switch (_selectedRole) {
+            UserRole.farmer => 'RSBSA',
+            UserRole.mao    => 'MAO_OFFICE_ID',
+            UserRole.baw    => 'BAW_EMPLOYEE_ID',
+            UserRole.buyer  => 'GOVERNMENT_ID',
+          },
         },
       );
 
@@ -165,7 +176,14 @@ class _SignUpScreenState extends State<SignUpScreen>
             'email': _emailController.text.trim(),
             'full_name': fullName,
             'phone': _phoneController.text.trim(),
-            'role': _selectedRole.toString().split('.').last,
+            'role': roleStr,
+            if (idNumber.isNotEmpty) 'id_number': idNumber,
+            if (idNumber.isNotEmpty) 'id_type': switch (_selectedRole) {
+              UserRole.farmer => 'RSBSA',
+              UserRole.mao    => 'MAO_OFFICE_ID',
+              UserRole.baw    => 'BAW_EMPLOYEE_ID',
+              UserRole.buyer  => 'GOVERNMENT_ID',
+            },
           });
         } catch (e) {
           print('Profile creation note: $e');
@@ -590,33 +608,60 @@ class _SignUpScreenState extends State<SignUpScreen>
     );
   }
 
+  String get _idLabel {
+    switch (_selectedRole) {
+      case UserRole.farmer: return 'RSBSA Number';
+      case UserRole.mao:    return 'MAO Office ID';
+      case UserRole.baw:    return 'BAW Employee ID';
+      case UserRole.buyer:  return 'Government-issued ID Number';
+    }
+  }
+
+  String get _idHint {
+    switch (_selectedRole) {
+      case UserRole.farmer: return 'e.g. 060-2024-000123';
+      case UserRole.mao:    return 'e.g. MAO-2024-001';
+      case UserRole.baw:    return 'e.g. BAW-EMP-2024-001';
+      case UserRole.buyer:  return 'e.g. PhilSys / Voter\'s ID number';
+    }
+  }
+
   Widget _buildRoleSelectionStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'Choose your role',
-          style: TextStyle(
-            color: Color(0xFF142B1B),
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Color(0xFF142B1B), fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         const Text(
           'Select how you want to use SmartSack Farm',
-          style: TextStyle(
-            color: Color(0xFF5D846D),
-            fontSize: 14,
-          ),
+          style: TextStyle(color: Color(0xFF5D846D), fontSize: 14),
         ),
         const SizedBox(height: 32),
-        // Role Selection Cards
         _buildRoleCard(
           role: UserRole.farmer,
           title: 'Farmer',
           description: 'Grow better crops with smart recommendations and market insights',
           icon: Icons.agriculture,
+          color: const Color(0xFF7C3AED),
+        ),
+        const SizedBox(height: 16),
+        _buildRoleCard(
+          role: UserRole.mao,
+          title: 'MAO (Municipal Agriculture Office)',
+          description: 'Manage and oversee agricultural operations and farmer data',
+          icon: Icons.account_balance_rounded,
+          color: const Color(0xFF1F4E8C),
+        ),
+        const SizedBox(height: 16),
+        _buildRoleCard(
+          role: UserRole.baw,
+          title: 'BAW (Barangay Agriculture Worker)',
+          description: 'Support farmers at the barangay level with field assistance',
+          icon: Icons.support_agent_rounded,
+          color: const Color(0xFF16A34A),
         ),
         const SizedBox(height: 16),
         _buildRoleCard(
@@ -624,13 +669,40 @@ class _SignUpScreenState extends State<SignUpScreen>
           title: 'Buyer',
           description: 'Connect with local farmers and manage your purchases',
           icon: Icons.shopping_cart,
+          color: const Color(0xFFEA8A1A),
         ),
-        const SizedBox(height: 16),
-        _buildRoleCard(
-          role: UserRole.admin,
-          title: 'Admin',
-          description: 'Manage the platform and oversee community operations',
-          icon: Icons.admin_panel_settings,
+        const SizedBox(height: 24),
+        // ID requirement field
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0F5FF),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFBFDBFE)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.badge_outlined, size: 16, color: Color(0xFF3B82F6)),
+              const SizedBox(width: 6),
+              Text('Required ID — $_idLabel',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF1E40AF))),
+            ]),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _idController,
+              decoration: InputDecoration(
+                hintText: _idHint,
+                hintStyle: const TextStyle(color: Color(0xFF8F9F94), fontSize: 13),
+                fillColor: Colors.white,
+                filled: true,
+                prefixIcon: const Icon(Icons.numbers_rounded, size: 20, color: Color(0xFF7E9786)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E9E0))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E9E0))),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF285437), width: 1.5)),
+                contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+              ),
+            ),
+          ]),
         ),
         const SizedBox(height: 40),
         // Next Button
@@ -672,10 +744,11 @@ class _SignUpScreenState extends State<SignUpScreen>
     required String title,
     required String description,
     required IconData icon,
+    Color color = const Color(0xFF285437),
   }) {
     final isSelected = _selectedRole == role;
     return GestureDetector(
-      onTap: () => setState(() => _selectedRole = role),
+      onTap: () => setState(() { _selectedRole = role; _idController.clear(); }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(20),
