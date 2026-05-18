@@ -3,11 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../auth/login_screen.dart';
 import '../farmer/farmer_profile_screen_v2.dart';
-import '../features/rentals_screen.dart';
-import '../features/reports_screen.dart';
 import '../features/agrisense_dss_screen.dart';
 import '../features/agri_financial_dss_screen.dart';
 import '../features/agri_financial_model_screen.dart';
+import '../farmer/agrisense_farmer_registration_screen.dart';
+import '../features/rentals_screen.dart';
+import '../features/reports_screen.dart';
 import '../saturation/saturation_meter_screen.dart';
 import '../saturation/saturation_heatmap_screen.dart';
 import '../farmer/agrisense_farm_registry_screen.dart';
@@ -242,18 +243,18 @@ class FarmerDashboardScreen extends StatelessWidget {
   }
 
   void _navigateToFeature(BuildContext context, String featureName) {
-    if (featureName == 'Saturation Meter') {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const SaturationMeterScreen()));
+    if (featureName == 'AgriSense Registration') {
+      Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const AgrisenseFarmerRegistrationScreen()));
+    } else if (featureName == 'Saturation Meter') {
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const SaturationMeterScreen()));
     } else if (featureName == 'Rentals') {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const RentalsScreen()));
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const RentalsScreen()));
     } else if (featureName == 'Reports') {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const ReportsScreen()));
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const ReportsScreen()));
     } else if (featureName == 'AgriSense Farm Registry') {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AgrisenseFarmRegistryScreen()));
     } else if (featureName == 'AgriSense Seasonal Crops') {

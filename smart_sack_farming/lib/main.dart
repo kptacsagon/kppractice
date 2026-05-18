@@ -61,6 +61,10 @@ class SmartSackApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
       home: const LoginScreen(),
+      onGenerateRoute: (settings) {
+        // Handle named routes if needed in the future
+        return null;
+      },
     );
   }
 }

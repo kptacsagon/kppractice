@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'crop_cycling_monitoring_dashboard.dart';
 
 class AgrisenseFarmerDashboardScreen extends StatelessWidget {
   const AgrisenseFarmerDashboardScreen({Key? key}) : super(key: key);
@@ -25,6 +26,17 @@ class AgrisenseFarmerDashboardScreen extends StatelessWidget {
             const SizedBox(height: 16),
             _buildSectionTitle('Smart Recommendations'),
             _buildCard('Plant Corn Next Season', 'High market demand matching your soil type.', Icons.trending_up, color: Colors.green.shade100),
+            
+            const SizedBox(height: 16),
+            _buildSectionTitle('Crop Monitoring'),
+            GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const CropCyclingMonitoringDashboard()),
+                );
+              },
+              child: _buildCard('Crop Cycling Monitoring', 'Track crop rotation, soil health, and risk assessment for your fields.', Icons.eco, color: Colors.teal.shade100),
+            ),
             
             const SizedBox(height: 16),
             _buildSectionTitle('Market Trends & Alerts'),
