@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../features/financial_forecast_screen.dart';
 import '../home/mao_admin_dashboard.dart';
+import 'agri_financial_mao_screen.dart';
 import 'alerts_notifications_screen.dart';
 import 'farmer_management_screen.dart';
 import 'intervention_management_screen.dart';
 import 'market_prices_screen.dart';
 import 'supply_map_screen.dart';
+import '../../services/agri_ure_service.dart';
 
 class ReportsAnalyticsScreen extends StatefulWidget {
   const ReportsAnalyticsScreen({super.key});
@@ -24,6 +26,26 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
   static const Color _sidebarGreen = Color(0xFF2E7D32);
 
   int _selectedNavIndex = 7;
+  final _ureSvc = AgriUreService();
+  List<UreEvent> _ureEvents = [];
+  bool _ureLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUre();
+  }
+
+  Future<void> _loadUre() async {
+    try {
+      final data = await _ureSvc.getAllUreEvents();
+      if (!mounted) return;
+      setState(() { _ureEvents = data; _ureLoading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _ureLoading = false);
+    }
+  }
 
   final List<_MetricCardData> _metrics = const [
     _MetricCardData(
@@ -438,6 +460,8 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
             const SizedBox(height: 16),
             _buildMetricStrip(isDesktop),
             const SizedBox(height: 16),
+            _buildUrePanel(),
+            const SizedBox(height: 16),
             _buildTemplatesPanel(isDesktop),
             const SizedBox(height: 16),
             _buildRecentReportsPanel(),
@@ -446,6 +470,85 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildUrePanel() {
+    final pending = _ureEvents.where((e) => e.status == 'pending').length;
+    return _panelWrap(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('URE Reports Inbox', style: TextStyle(color: _text, fontSize: 25, fontWeight: FontWeight.w700)),
+                SizedBox(height: 4),
+                Text('Farmer-submitted Uncontrolled Risk Event reports', style: TextStyle(color: _muted, fontSize: 14)),
+              ]),
+            ),
+            if (pending > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(8)),
+                child: Text('$pending pending', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF92400E))),
+              ),
+            const SizedBox(width: 10),
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AgriFinancialMaoScreen())),
+              icon: const Icon(Icons.open_in_new_rounded, size: 16),
+              label: const Text('Full Inbox'),
+              style: TextButton.styleFrom(foregroundColor: _sidebarGreen),
+            ),
+          ]),
+          const SizedBox(height: 14),
+          if (_ureLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (_ureEvents.isEmpty)
+            const Text('No URE reports submitted yet.', style: TextStyle(color: _muted))
+          else ...[
+            ..._ureEvents.take(3).map((e) => _ureRow(e)),
+            if (_ureEvents.length > 3)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text('+ ${_ureEvents.length - 3} more reports — open Full Inbox to view all.',
+                    style: const TextStyle(fontSize: 12, color: _muted)),
+              ),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _ureRow(UreEvent e) {
+    final statusColor = e.status == 'pending'
+        ? const Color(0xFFF59E0B)
+        : e.status == 'verified'
+            ? const Color(0xFF16A34A)
+            : e.status == 'endorsed'
+                ? const Color(0xFF2563EB)
+                : const Color(0xFFDC2626);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${e.eventType} — ${e.cropType}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
+          const SizedBox(height: 2),
+          Text(e.description, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: _muted)),
+        ])),
+        const SizedBox(width: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(color: statusColor.withAlpha(20), borderRadius: BorderRadius.circular(6)),
+          child: Text(e.status.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor)),
+        ),
+      ]),
     );
   }
 

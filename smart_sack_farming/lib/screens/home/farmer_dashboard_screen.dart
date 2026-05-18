@@ -14,6 +14,7 @@ import '../saturation/saturation_heatmap_screen.dart';
 import '../farmer/agrisense_farm_registry_screen.dart';
 import '../farmer/agrisense_seasonal_crop_submission_screen.dart';
 import '../farmer/my_market_screen.dart';
+import '../features/agri_ure_screen.dart';
 
 class FarmerDashboardScreen extends StatelessWidget {
   const FarmerDashboardScreen({super.key});
@@ -139,6 +140,14 @@ class FarmerDashboardScreen extends StatelessWidget {
                       description: 'View barangay-level crop saturation risk scores on a live map.',
                       buttonText: 'View Heat Map',
                       onTap: () => _navigateToFeature(context, 'SRS Heat Map'),
+                    ),
+                    _buildFeatureCard(
+                      icon: Icons.warning_amber_rounded,
+                      iconColor: const Color(0xFFDC2626),
+                      title: 'Report URE',
+                      description: 'Report uncontrolled risk events like pests, flooding, or market price crashes.',
+                      buttonText: 'Submit Report',
+                      onTap: () => _navigateToFeature(context, 'URE Report'),
                     ),
                     _buildFeatureCard(
                       icon: Icons.support_agent_rounded,
@@ -279,6 +288,10 @@ class FarmerDashboardScreen extends StatelessWidget {
     } else if (featureName == 'SRS Heat Map') {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const SaturationHeatmapScreen()),
+      );
+    } else if (featureName == 'URE Report') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const AgriUreScreen()),
       );
     } else if (featureName == 'My Market') {
       final user = Supabase.instance.client.auth.currentUser;
