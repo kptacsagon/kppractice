@@ -693,13 +693,13 @@ class _StatusGrid extends StatelessWidget {
     _ModuleMeta('Saturation', Icons.heat_pump_rounded, 'CSI'),
     _ModuleMeta('Planting', Icons.grass_rounded, 'PIAE'),
     _ModuleMeta('Weather', Icons.cloud_rounded, 'WCRA'),
+    _ModuleMeta('Planting Advisor', Icons.tips_and_updates_rounded, 'CPA'),
     _ModuleMeta('Pest Alert', Icons.bug_report_rounded, 'PDEW'),
     _ModuleMeta('Market', Icons.storefront_rounded, 'MPI'),
     _ModuleMeta('Financial Model', Icons.account_balance_rounded, 'FFP'),
     _ModuleMeta('Harvest', Icons.agriculture_rounded, 'PHML'),
     _ModuleMeta('Programs', Icons.verified_user_rounded, 'DPAC'),
     _ModuleMeta('Crop Cycling', Icons.loop_rounded, 'CCM'),
-    _ModuleMeta('Planting Advisor', Icons.tips_and_updates_rounded, 'CPA'),
     _ModuleMeta('Heatmap', Icons.map_rounded, 'HMP'),
   ];
 

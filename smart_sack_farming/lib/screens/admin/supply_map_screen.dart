@@ -24,49 +24,29 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
   static const Color _muted = Color(0xFF4B5563);
   static const Color _sidebarGreen = Color(0xFF2E7D32);
 
+  static const List<String> _crops = [
+    'Bitter Gourd', 'Eggplant', 'Tomato', 'Okra', 'String Beans',
+    'Ampalaya', 'Kangkong', 'Pechay', 'Squash',
+  ];
+
+  static const List<String> _barangays = [
+    'Abonan', 'Agcalaga', 'Agdao', 'Agdao Calinog', 'Aglalat', 'Agsuanu',
+    'Ajuy', 'Alegria', 'Alimendras', 'Amatuan', 'Amulong', 'Anilao',
+    'Aninihon', 'Añog', 'Arangaren', 'Arangel', 'Arao', 'Arapiles',
+    'Arimbay', 'Asilo', 'Asuga', 'Atipulo', 'Bacao', 'Bacoor',
+    'Bagacay', 'Bagacayan', 'Bagumbayan', 'Baguios', 'Balatong', 'Balilihan',
+    'Baliwag', 'Baloctoc', 'Baloran', 'Baluarte', 'Balyuan', 'Bamban',
+    'Banacoy', 'Banago', 'Banaoang', 'Bandera', 'Bangao', 'Bania',
+    'Banisilan', 'Banuang Daan', 'Banyaga', 'Barangay Uno', 'Barbaza',
+  ];
+
   bool _isLoading = true;
   String? _error;
   int _selectedNavIndex = 2;
-  String _selectedCrop = 'All Crops';
-  _BarangaySummary? _selectedBarangay;
+  String _filterBarangay = 'All Barangays';
+  _CropSummary? _selectedCrop;
 
-  List<_BarangaySummary> _barangays = const <_BarangaySummary>[
-    _BarangaySummary(
-      name: 'Poblacion',
-      productionTons: 42.5,
-      farmers: 2,
-      storageKg: 1700,
-      risk: _RiskLevel.high,
-    ),
-    _BarangaySummary(
-      name: 'San Isidro',
-      productionTons: 38.2,
-      farmers: 2,
-      storageKg: 1400,
-      risk: _RiskLevel.medium,
-    ),
-    _BarangaySummary(
-      name: 'Santa Cruz',
-      productionTons: 28.8,
-      farmers: 1,
-      storageKg: 300,
-      risk: _RiskLevel.low,
-    ),
-    _BarangaySummary(
-      name: 'San Miguel',
-      productionTons: 25.3,
-      farmers: 0,
-      storageKg: 0,
-      risk: _RiskLevel.low,
-    ),
-    _BarangaySummary(
-      name: 'San Rafael',
-      productionTons: 19.7,
-      farmers: 0,
-      storageKg: 0,
-      risk: _RiskLevel.low,
-    ),
-  ];
+  List<_CropSummary> _crops_ = <_CropSummary>[];
 
   @override
   void initState() {
@@ -87,90 +67,66 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
       try {
         productionRows = await client
             .from('production_reports')
-            .select('barangay, address_barangay, crop_type, yield_kg, created_at');
+            .select('*');
       } catch (_) {
         productionRows = const <dynamic>[];
       }
 
-      List<dynamic> farmerRows = const <dynamic>[];
-      try {
-        farmerRows = await client
-            .from('profiles')
-            .select('id, address')
-            .eq('role', 'farmer');
-      } catch (_) {
-        farmerRows = const <dynamic>[];
-      }
-
-      if (productionRows.isNotEmpty || farmerRows.isNotEmpty) {
-        final productionByBarangay = <String, double>{};
-        final cropsByBarangay = <String, Set<String>>{};
-        final farmersByBarangay = <String, int>{};
+      if (productionRows.isNotEmpty) {
+        final productionByCrop = <String, double>{};
+        final farmersByCrop = <String, int>{};
+        final barangaysByCrop = <String, Set<String>>{};
 
         for (final row in List<Map<String, dynamic>>.from(productionRows)) {
-          final barangay = _normalizeBarangay(
-            row['barangay'] ?? row['address_barangay'] ?? 'Unknown',
-          );
+          final barangay = _normalizeBarangay('Unknown');
           final crop = (row['crop_type'] ?? '').toString().trim();
-          final yieldTons = _toDouble(row['yield_kg']) / 1000;
+          final yieldTons = _toDouble(row['yield_kg'] ?? 0) / 1000;
 
-          if (yieldTons <= 0) continue;
+          if (yieldTons <= 0 || crop.isEmpty) continue;
 
-          productionByBarangay[barangay] =
-              (productionByBarangay[barangay] ?? 0) + yieldTons;
-          cropsByBarangay.putIfAbsent(barangay, () => <String>{});
-          if (crop.isNotEmpty) {
-            cropsByBarangay[barangay]!.add(crop);
-          }
+          productionByCrop[crop] = (productionByCrop[crop] ?? 0) + yieldTons;
+          barangaysByCrop.putIfAbsent(crop, () => <String>{});
+          barangaysByCrop[crop]!.add(barangay);
+          farmersByCrop[crop] = (farmersByCrop[crop] ?? 0) + 1;
         }
 
-        for (final row in List<Map<String, dynamic>>.from(farmerRows)) {
-          final barangay = _normalizeBarangay(row['address'] ?? 'Unknown');
-          farmersByBarangay[barangay] = (farmersByBarangay[barangay] ?? 0) + 1;
-        }
-
-        var items = productionByBarangay.entries
+        var items = productionByCrop.entries
             .map((entry) {
+              final crop = entry.key;
               final production = entry.value;
-              final farmers = farmersByBarangay[entry.key] ?? 0;
+              final farmers = farmersByCrop[crop] ?? 0;
               final surplus = (production - (production * 0.34)).clamp(0.0, 99.0);
               final risk = surplus >= 20
                   ? _RiskLevel.high
                   : (surplus >= 10 ? _RiskLevel.medium : _RiskLevel.low);
 
-              return _BarangaySummary(
-                name: entry.key,
-                productionTons: production,
+              return _CropSummary(
+                cropName: crop,
+                totalProductionTons: production,
                 farmers: farmers,
-                storageKg: risk == _RiskLevel.high
-                    ? 1700
-                    : (risk == _RiskLevel.medium ? 1400 : 300),
+                surplusTons: surplus,
                 risk: risk,
-                crops: cropsByBarangay[entry.key]?.toList() ?? const <String>[],
+                barangays: barangaysByCrop[crop]?.toList() ?? const <String>[],
               );
             })
             .toList()
-          ..sort((a, b) => b.productionTons.compareTo(a.productionTons));
+          ..sort((a, b) => b.totalProductionTons.compareTo(a.totalProductionTons));
 
-        if (_selectedCrop != 'All Crops') {
+        if (_filterBarangay != 'All Barangays') {
           items = items
-              .where(
-                (item) => item.crops.any(
-                  (crop) => crop.toLowerCase() == _selectedCrop.toLowerCase(),
-                ),
-              )
+              .where((item) => item.barangays.contains(_filterBarangay))
               .toList();
         }
 
         if (items.isNotEmpty) {
-          _barangays = items.take(5).toList();
+          _crops_ = items;
         }
       }
 
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _selectedBarangay ??= _barangays.isNotEmpty ? _barangays.first : null;
+          _selectedCrop ??= _crops_.isNotEmpty ? _crops_.first : null;
         });
       }
     } catch (e) {
@@ -197,6 +153,111 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
             ? word
             : '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}')
         .join(' ');
+  }
+
+  void _showSupplyDialog({_CropSummary? existing}) {
+    final cropController = TextEditingController();
+    final barangayController = TextEditingController();
+    final productionController = TextEditingController();
+    final storageController = TextEditingController();
+    final farmersController = TextEditingController();
+
+    String selectedCrop = existing?.cropName ?? _crops.first;
+    String selectedBarangay = existing?.barangays.firstOrNull ?? _barangays.first;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(existing == null ? 'Add Supply' : 'Update Supply'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButton<String>(
+                value: selectedCrop,
+                isExpanded: true,
+                items: _crops.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                onChanged: (v) => selectedCrop = v ?? selectedCrop,
+              ),
+              const SizedBox(height: 12),
+              DropdownButton<String>(
+                value: selectedBarangay,
+                isExpanded: true,
+                items: _barangays.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
+                onChanged: (v) => selectedBarangay = v ?? selectedBarangay,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: productionController,
+                decoration: const InputDecoration(labelText: 'Production (kg)', border: OutlineInputBorder()),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: storageController,
+                decoration: const InputDecoration(labelText: 'Storage (kg)', border: OutlineInputBorder()),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: farmersController,
+                decoration: const InputDecoration(labelText: 'Farmers Count', border: OutlineInputBorder()),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () async {
+              final production = _toDouble(productionController.text);
+              if (production <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Enter valid production amount')),
+                );
+                return;
+              }
+
+              try {
+                final user = Supabase.instance.client.auth.currentUser;
+                if (user == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('User not authenticated')),
+                  );
+                  return;
+                }
+
+                final now = DateTime.now();
+                await Supabase.instance.client.from('production_reports').insert({
+                  'farmer_id': user.id,
+                  'crop_type': selectedCrop,
+                  'yield_kg': production,
+                  'area_hectares': 0,
+                  'planting_date': now.subtract(const Duration(days: 120)).toIso8601String().split('T').first,
+                  'harvest_date': now.toIso8601String().split('T').first,
+                  'quality_rating': 3,
+                  'notes': 'Added via Supply Map',
+                });
+
+                if (mounted) {
+                  Navigator.pop(context);
+                  await _loadData();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Supply added successfully')),
+                  );
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -460,22 +521,42 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Supply Map',
-                style: TextStyle(
-                  color: _text,
-                  fontSize: 40,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Geographic distribution of production and supply risk',
-                style: TextStyle(
-                  color: _muted,
-                  fontSize: 34 / 2,
-                  fontWeight: FontWeight.w500,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Supply Map',
+                        style: TextStyle(
+                          color: _text,
+                          fontSize: 40,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Crop production and supply by barangay',
+                        style: TextStyle(
+                          color: _muted,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  FilledButton.icon(
+                    onPressed: () => _showSupplyDialog(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _sidebarGreen,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Supply'),
+                  ),
+                ],
               ),
               const SizedBox(height: 18),
               _buildTopFilterCard(),
@@ -531,18 +612,15 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
-                value: _selectedCrop,
+                value: _filterBarangay,
                 icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                items: const [
-                  DropdownMenuItem(value: 'All Crops', child: Text('All Crops')),
-                  DropdownMenuItem(value: 'Tomato', child: Text('Tomato')),
-                  DropdownMenuItem(value: 'Cabbage', child: Text('Cabbage')),
-                  DropdownMenuItem(value: 'Lettuce', child: Text('Lettuce')),
-                  DropdownMenuItem(value: 'Eggplant', child: Text('Eggplant')),
+                items: [
+                  const DropdownMenuItem(value: 'All Barangays', child: Text('All Barangays')),
+                  ..._barangays.map((b) => DropdownMenuItem(value: b, child: Text(b))),
                 ],
                 onChanged: (value) async {
                   if (value == null) return;
-                  setState(() => _selectedCrop = value);
+                  setState(() => _filterBarangay = value);
                   await _loadData();
                 },
               ),
@@ -588,10 +666,10 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Barangay Supply Overview',
+              'Crop Supply Overview',
               style: TextStyle(
                 color: _text,
-                fontSize: 40 / 2,
+                fontSize: 20,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -608,8 +686,8 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
                   Wrap(
                     spacing: 14,
                     runSpacing: 14,
-                    children: _barangays
-                        .map((item) => _buildBarangayCard(item))
+                    children: _crops_
+                        .map((item) => _buildCropCard(item))
                         .toList(growable: false),
                   ),
                   const SizedBox(height: 14),
@@ -632,10 +710,10 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
                       child: const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Municipality: San Juan',
+                          Text('Municipality: Tubungan',
                               style: TextStyle(fontSize: 16, color: _text)),
                           SizedBox(height: 8),
-                          Text('Click a barangay for details',
+                          Text('Click a crop for details',
                               style: TextStyle(fontSize: 16, color: Color(0xFF1E40AF))),
                         ],
                       ),
@@ -650,8 +728,8 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
     );
   }
 
-  Widget _buildBarangayCard(_BarangaySummary item) {
-    final selected = _selectedBarangay?.name == item.name;
+  Widget _buildCropCard(_CropSummary item) {
+    final selected = _selectedCrop?.cropName == item.cropName;
     final bg = switch (item.risk) {
       _RiskLevel.high => const Color(0xFFF8DDDD),
       _RiskLevel.medium => const Color(0xFFF3ECBE),
@@ -663,10 +741,8 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
       _RiskLevel.low => const Color(0xFF0CCB5A),
     };
 
-    final surplus = item.surplusTons;
-
     return InkWell(
-      onTap: () => setState(() => _selectedBarangay = item),
+      onTap: () => setState(() => _selectedCrop = item),
       borderRadius: BorderRadius.circular(14),
       child: Container(
         width: 155,
@@ -684,15 +760,15 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.location_on_outlined,
+                const Icon(Icons.local_florist_outlined,
                     size: 20, color: Color(0xFF047857)),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    item.name,
+                    item.cropName,
                     style: const TextStyle(
                       color: _text,
-                      fontSize: 18,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -706,19 +782,19 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Production:${item.productionTons.toStringAsFixed(1)}\n tons',
-              style: const TextStyle(color: Color(0xFF334155), fontSize: 16),
+              'Prod: ${item.totalProductionTons.toStringAsFixed(1)}t',
+              style: const TextStyle(color: Color(0xFF334155), fontSize: 13),
             ),
-            const SizedBox(height: 6),
-            Text('Farmers:      ${item.farmers}',
-                style: const TextStyle(color: Color(0xFF334155), fontSize: 16)),
+            const SizedBox(height: 4),
+            Text('Farmers: ${item.farmers}',
+                style: const TextStyle(color: Color(0xFF334155), fontSize: 13)),
             Text(
-              'Surplus:   ${surplus.toStringAsFixed(1)} tons',
+              'Surplus: ${item.surplusTons.toStringAsFixed(1)}t',
               style: TextStyle(
                 color: item.risk == _RiskLevel.high
                     ? const Color(0xFFDC2626)
                     : const Color(0xFF334155),
-                fontSize: 16,
+                fontSize: 13,
               ),
             ),
           ],
@@ -728,7 +804,7 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
   }
 
   Widget _buildDetailPanel() {
-    if (_selectedBarangay == null) {
+    if (_selectedCrop == null) {
       return _cardWrap(
         child: const SizedBox(
           height: 500,
@@ -736,10 +812,10 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.location_on_outlined, size: 70, color: Color(0xFFCBD5E1)),
+                Icon(Icons.local_florist_outlined, size: 70, color: Color(0xFFCBD5E1)),
                 SizedBox(height: 12),
                 Text(
-                  'Select a barangay to view\ndetails',
+                  'Select a crop to view\nbarangay breakdown',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Color(0xFF64748B), fontSize: 18, height: 1.4),
                 ),
@@ -750,7 +826,7 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
       );
     }
 
-    final item = _selectedBarangay!;
+    final item = _selectedCrop!;
     return _cardWrap(
       child: SizedBox(
         height: 500,
@@ -760,7 +836,7 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                item.name,
+                item.cropName,
                 style: const TextStyle(
                   color: _text,
                   fontSize: 28,
@@ -768,10 +844,9 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
                 ),
               ),
               const SizedBox(height: 14),
-              _detailRow('Production', '${item.productionTons.toStringAsFixed(1)} tons'),
+              _detailRow('Total Production', '${item.totalProductionTons.toStringAsFixed(1)} tons'),
               _detailRow('Farmers', '${item.farmers}'),
-              _detailRow('Surplus', '${item.surplusTons.toStringAsFixed(1)} tons'),
-              _detailRow('Storage', '${item.storageKg} kg'),
+              _detailRow('Total Surplus', '${item.surplusTons.toStringAsFixed(1)} tons'),
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -782,28 +857,32 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Crop Presence',
+                'Growing in Barangays',
                 style: TextStyle(color: _text, fontSize: 17, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: (item.crops.isEmpty ? ['Tomato', 'Cabbage'] : item.crops)
-                    .map(
-                      (crop) => Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE2E8F0),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(crop,
-                            style:
-                                const TextStyle(color: Color(0xFF334155), fontSize: 14)),
-                      ),
-                    )
-                    .toList(),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: item.barangays
+                        .map(
+                          (barangay) => Container(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(barangay,
+                                style:
+                                    const TextStyle(color: Color(0xFF334155), fontSize: 13)),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
               ),
             ],
           ),
@@ -822,7 +901,7 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
             child: Text(label,
                 style: const TextStyle(color: _muted, fontSize: 16, fontWeight: FontWeight.w500)),
           ),
-          Text(value, style: TextStyle(color: _text, fontSize: 16)),
+          Text(value, style: const TextStyle(color: _text, fontSize: 16)),
         ],
       ),
     );
@@ -836,8 +915,8 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
           const Padding(
             padding: EdgeInsets.fromLTRB(20, 18, 20, 14),
             child: Text(
-              'Barangay Summary',
-              style: TextStyle(color: _text, fontSize: 40 / 2, fontWeight: FontWeight.w700),
+              'Crop Supply Summary',
+              style: TextStyle(color: _text, fontSize: 20, fontWeight: FontWeight.w700),
             ),
           ),
           Container(height: 1, color: _border),
@@ -851,17 +930,17 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
                     padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                     child: Row(
                       children: [
-                        SizedBox(width: 190, child: _HeaderText('Barangay')),
+                        SizedBox(width: 190, child: _HeaderText('Crop')),
                         SizedBox(width: 200, child: _HeaderText('Production')),
                         SizedBox(width: 160, child: _HeaderText('Farmers')),
                         SizedBox(width: 170, child: _HeaderText('Surplus')),
-                        SizedBox(width: 155, child: _HeaderText('Storage')),
                         SizedBox(width: 130, child: _HeaderText('Risk Level')),
+                        SizedBox(width: 100, child: _HeaderText('Action')),
                       ],
                     ),
                   ),
                   Container(height: 1, color: _border),
-                  ..._barangays.map((item) {
+                  ..._crops_.map((item) {
                     return Container(
                       decoration: const BoxDecoration(
                         border: Border(bottom: BorderSide(color: _border)),
@@ -871,30 +950,32 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
                         children: [
                           SizedBox(
                             width: 190,
-                            child: Text(item.name,
-                                style: TextStyle(color: _text, fontSize: 33 / 2)),
+                            child: Text(item.cropName,
+                                style: const TextStyle(color: _text, fontSize: 16)),
                           ),
                           SizedBox(
                             width: 200,
-                            child: Text('${item.productionTons.toStringAsFixed(1)} tons',
-                                style: TextStyle(color: _text, fontSize: 33 / 2)),
+                            child: Text('${item.totalProductionTons.toStringAsFixed(1)} tons',
+                                style: const TextStyle(color: _text, fontSize: 16)),
                           ),
                           SizedBox(
                             width: 160,
                             child: Text('${item.farmers}',
-                                style: TextStyle(color: _text, fontSize: 33 / 2)),
+                                style: const TextStyle(color: _text, fontSize: 16)),
                           ),
                           SizedBox(
                             width: 170,
                             child: Text('${item.surplusTons.toStringAsFixed(1)} tons',
-                                style: TextStyle(color: _text, fontSize: 33 / 2)),
-                          ),
-                          SizedBox(
-                            width: 155,
-                            child: Text('${item.storageKg} kg',
-                                style: TextStyle(color: _text, fontSize: 33 / 2)),
+                                style: const TextStyle(color: _text, fontSize: 16)),
                           ),
                           SizedBox(width: 130, child: _riskChip(item.risk)),
+                          SizedBox(
+                            width: 100,
+                            child: IconButton(
+                              icon: const Icon(Icons.edit_rounded, color: Color(0xFF1E40AF)),
+                              onPressed: () => _showSupplyDialog(existing: item),
+                            ),
+                          ),
                         ],
                       ),
                     );
@@ -1009,22 +1090,20 @@ class _NavItem {
 
 enum _RiskLevel { low, medium, high }
 
-class _BarangaySummary {
-  final String name;
-  final double productionTons;
+class _CropSummary {
+  final String cropName;
+  final double totalProductionTons;
   final int farmers;
-  final int storageKg;
+  final double surplusTons;
   final _RiskLevel risk;
-  final List<String> crops;
+  final List<String> barangays;
 
-  const _BarangaySummary({
-    required this.name,
-    required this.productionTons,
+  const _CropSummary({
+    required this.cropName,
+    required this.totalProductionTons,
     required this.farmers,
-    required this.storageKg,
+    required this.surplusTons,
     required this.risk,
-    this.crops = const <String>[],
+    required this.barangays,
   });
-
-  double get surplusTons => (productionTons * 0.66).clamp(0, productionTons);
 }
