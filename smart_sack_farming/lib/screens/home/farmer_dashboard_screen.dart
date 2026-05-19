@@ -16,6 +16,8 @@ import '../farmer/agrisense_seasonal_crop_submission_screen.dart';
 import '../farmer/my_market_screen.dart';
 import '../features/agri_ure_screen.dart';
 import '../farmer/farmer_crop_declaration_screen.dart';
+import '../farmer/harvest_report_screen.dart';
+import '../farmer/agrisat_market_signals_screen.dart';
 
 class FarmerDashboardScreen extends StatelessWidget {
   const FarmerDashboardScreen({super.key});
@@ -133,6 +135,22 @@ class FarmerDashboardScreen extends StatelessWidget {
                       description: 'Submit HVC planting declaration to your AT/BAW for validation.',
                       buttonText: 'Declare Crop',
                       onTap: () => _navigateToFeature(context, 'Crop Declaration'),
+                    ),
+                    _buildFeatureCard(
+                      icon: Icons.bar_chart_rounded,
+                      iconColor: const Color(0xFF7C3AED),
+                      title: 'Market Signals',
+                      description: 'View MAR, PPI, and IUR indicators for your crops. Know your saturation risk.',
+                      buttonText: 'View Signals',
+                      onTap: () => _navigateToFeature(context, 'Market Signals'),
+                    ),
+                    _buildFeatureCard(
+                      icon: Icons.upload_rounded,
+                      iconColor: const Color(0xFF2563EB),
+                      title: 'Report Harvest',
+                      description: 'Submit actual yield, quantity sold, unsold stock, and price received.',
+                      buttonText: 'Report Harvest',
+                      onTap: () => _navigateToFeature(context, 'Harvest Report'),
                     ),
                     _buildFeatureCard(
                       icon: Icons.grass,
@@ -305,6 +323,14 @@ class FarmerDashboardScreen extends StatelessWidget {
     } else if (featureName == 'Crop Declaration') {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const FarmerCropDeclarationScreen()),
+      );
+    } else if (featureName == 'Market Signals') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const AgrisatMarketSignalsScreen()),
+      );
+    } else if (featureName == 'Harvest Report') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const HarvestReportScreen()),
       );
     } else if (featureName == 'My Market') {
       final user = Supabase.instance.client.auth.currentUser;
