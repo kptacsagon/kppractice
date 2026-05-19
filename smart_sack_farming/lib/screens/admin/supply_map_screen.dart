@@ -156,8 +156,6 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
   }
 
   void _showSupplyDialog({_CropSummary? existing}) {
-    final cropController = TextEditingController();
-    final barangayController = TextEditingController();
     final productionController = TextEditingController();
     final storageController = TextEditingController();
     final farmersController = TextEditingController();
@@ -167,95 +165,122 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(existing == null ? 'Add Supply' : 'Update Supply'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButton<String>(
-                value: selectedCrop,
-                isExpanded: true,
-                items: _crops.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                onChanged: (v) => selectedCrop = v ?? selectedCrop,
-              ),
-              const SizedBox(height: 12),
-              DropdownButton<String>(
-                value: selectedBarangay,
-                isExpanded: true,
-                items: _barangays.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
-                onChanged: (v) => selectedBarangay = v ?? selectedBarangay,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: productionController,
-                decoration: const InputDecoration(labelText: 'Production (kg)', border: OutlineInputBorder()),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: storageController,
-                decoration: const InputDecoration(labelText: 'Storage (kg)', border: OutlineInputBorder()),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: farmersController,
-                decoration: const InputDecoration(labelText: 'Farmers Count', border: OutlineInputBorder()),
-                keyboardType: TextInputType.number,
-              ),
-            ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(existing == null ? 'Add Supply' : 'Update Supply'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedCrop,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Crop', border: OutlineInputBorder()),
+                  items: _crops.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                  onChanged: (v) {
+                    if (v != null) {
+                      setDialogState(() {
+                        selectedCrop = v;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedBarangay,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Barangay', border: OutlineInputBorder()),
+                  items: _barangays.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
+                  onChanged: (v) {
+                    if (v != null) {
+                      setDialogState(() {
+                        selectedBarangay = v;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: productionController,
+                  decoration: const InputDecoration(labelText: 'Production (kg)', border: OutlineInputBorder()),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: storageController,
+                  decoration: const InputDecoration(labelText: 'Storage (kg)', border: OutlineInputBorder()),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: farmersController,
+                  decoration: const InputDecoration(labelText: 'Farmers Count', border: OutlineInputBorder()),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () async {
-              final production = _toDouble(productionController.text);
-              if (production <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Enter valid production amount')),
-                );
-                return;
-              }
-
-              try {
-                final user = Supabase.instance.client.auth.currentUser;
-                if (user == null) {
+          actions: [
+            TextButton(
+              onPressed: () {
+                productionController.dispose();
+                storageController.dispose();
+                farmersController.dispose();
+                Navigator.pop(context);
+              },
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final production = _toDouble(productionController.text);
+                if (production <= 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('User not authenticated')),
+                    const SnackBar(content: Text('Enter valid production amount')),
                   );
                   return;
                 }
 
-                final now = DateTime.now();
-                await Supabase.instance.client.from('production_reports').insert({
-                  'farmer_id': user.id,
-                  'crop_type': selectedCrop,
-                  'yield_kg': production,
-                  'area_hectares': 0,
-                  'planting_date': now.subtract(const Duration(days: 120)).toIso8601String().split('T').first,
-                  'harvest_date': now.toIso8601String().split('T').first,
-                  'quality_rating': 3,
-                  'notes': 'Added via Supply Map',
-                });
+                try {
+                  final user = Supabase.instance.client.auth.currentUser;
+                  if (user == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('User not authenticated')),
+                    );
+                    return;
+                  }
 
-                if (mounted) {
-                  Navigator.pop(context);
-                  await _loadData();
+                  final now = DateTime.now();
+                  await Supabase.instance.client.from('production_reports').insert({
+                    'farmer_id': user.id,
+                    'crop_type': selectedCrop,
+                    'yield_kg': production,
+                    'area_hectares': 0,
+                    'planting_date': now.subtract(const Duration(days: 120)).toIso8601String().split('T').first,
+                    'harvest_date': now.toIso8601String().split('T').first,
+                    'quality_rating': 3,
+                    'notes': 'Added via Supply Map',
+                  });
+
+                  if (mounted) {
+                    productionController.dispose();
+                    storageController.dispose();
+                    farmersController.dispose();
+                    Navigator.pop(context);
+                    await _loadData();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Supply added successfully')),
+                    );
+                  }
+                } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Supply added successfully')),
+                    SnackBar(content: Text('Error: $e')),
                   );
                 }
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
-                );
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
       ),
     );
   }
