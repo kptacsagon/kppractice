@@ -56,6 +56,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   }
 
   Future<void> _fetchFarmersAndCrops() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _error = null;
@@ -65,6 +66,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       final client = Supabase.instance.client;
       final user = client.auth.currentUser;
       if (user == null) {
+        if (!mounted) return;
         setState(() {
           _isLoading = false;
           _error = 'Not authenticated. Please log in as admin.';
@@ -142,6 +144,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
 
       _filterFarmers();
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _error = 'Failed to load farmer data: $e';
@@ -150,6 +153,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   }
 
   void _filterFarmers() {
+    if (!mounted) return;
     var results = List<Map<String, dynamic>>.from(_farmers);
 
     if (_selectedAddress != null) {

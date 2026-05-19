@@ -7,7 +7,14 @@
       "Bash(git commit -m ' *)",
       "Bash(flutter devices *)",
       "Bash(git add *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(if [ -f \"C:/Users/Asus/Documents/auth/supabase_authentication.lock\" ]; then rm -f \"C:/Users/Asus/Documents/auth/supabase_authentication.lock\" && echo \"Lock removed\"; else echo \"No lock file\"; fi)",
+      "Bash(tasklist)",
+      "Bash(taskkill /F /IM smart_sack_farming.exe /T)",
+      "Bash(taskkill /F /IM dartaotruntime.exe)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Asus\\Documents\\auth"
     ]
   }
 }
