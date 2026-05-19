@@ -57,7 +57,8 @@ class _AgrisenseFarmVerificationScreenState
 
       final all = List<Map<String, dynamic>>.from(rows as List);
       setState(() {
-        _pending = all.where((r) => r['verification_status'] == 'Pending Verification').toList();
+        // MAO sees farms forwarded by BAW ('BAW Reviewed') — 'Pending Verification' means still with BAW
+        _pending = all.where((r) => r['verification_status'] == 'BAW Reviewed').toList();
         _verified = all.where((r) => r['verification_status'] == 'Verified').toList();
         _needsCorrection = all.where((r) => r['verification_status'] == 'Needs Correction').toList();
         _rejected = all.where((r) => r['verification_status'] == 'Flagged' || r['verification_status'] == 'Rejected').toList();

@@ -18,6 +18,7 @@ import '../features/agri_ure_screen.dart';
 import '../farmer/farmer_crop_declaration_screen.dart';
 import '../farmer/harvest_report_screen.dart';
 import '../farmer/agrisat_market_signals_screen.dart';
+import '../features/buyer_demand_board_screen.dart';
 
 class FarmerDashboardScreen extends StatelessWidget {
   const FarmerDashboardScreen({super.key});
@@ -101,6 +102,14 @@ class FarmerDashboardScreen extends StatelessWidget {
                           'Analyze oversupply risk with OSI and crop alternatives',
                       buttonText: 'Open AgriSense',
                       onTap: () => _navigateToFeature(context, 'AgriSense DSS'),
+                    ),
+                    _buildFeatureCard(
+                      icon: Icons.shopping_bag_rounded,
+                      iconColor: const Color(0xFFEA8A1A),
+                      title: 'Buyer Demands',
+                      description: 'View institutional buyer requests from MAO — LGU canteens, cooperatives, processors.',
+                      buttonText: 'View Buyers',
+                      onTap: () => _navigateToFeature(context, 'Buyer Demands'),
                     ),
                     _buildFeatureCard(
                       icon: Icons.storefront_rounded,
@@ -331,6 +340,10 @@ class FarmerDashboardScreen extends StatelessWidget {
     } else if (featureName == 'Harvest Report') {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const HarvestReportScreen()),
+      );
+    } else if (featureName == 'Buyer Demands') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const BuyerDemandBoardScreen()),
       );
     } else if (featureName == 'My Market') {
       final user = Supabase.instance.client.auth.currentUser;

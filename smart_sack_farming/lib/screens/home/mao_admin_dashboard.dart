@@ -18,7 +18,9 @@ import '../admin/agrisense_farm_verification_screen.dart';
 import '../admin/agri_financial_mao_screen.dart';
 import '../saturation/saturation_heatmap_screen.dart';
 import '../../services/crop_declaration_service.dart';
+import '../../services/agrisat_market_service.dart';
 import '../../data/tubungan_barangays.dart';
+import '../features/buyer_demand_board_screen.dart';
 
 class MaoAdminDashboard extends StatefulWidget {
   const MaoAdminDashboard({super.key});
@@ -48,9 +50,11 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
   int _activeSubsidies = 0;
   double _totalPlantedAreaHa = 13.5;
 
-  // Crop declarations (PRD §3.4 — MAO sees validated declarations)
+  // Crop declarations (PRD §3.4)
   final _declSvc = CropDeclarationService();
+  final _mktSvc = AgrisatMarketService();
   List<CropDeclaration> _validatedDeclarations = [];
+  List<CropIndicators> _indicators = [];
   int _upcomingHarvests30d = 0;
   String? _declBarangayFilter;
 
@@ -164,12 +168,12 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       _pendingVerifications =
           calamities.where((c) => (c['status'] ?? 'reported') == 'reported').length;
 
-      // Count pending farm verifications from AgriSense Farm Registry
+      // Count farm registrations forwarded by BAW and ready for MAO review
       try {
         final pendingFarms = await client
             .from('agrisense_farms')
             .select('id')
-            .eq('verification_status', 'Pending Verification');
+            .eq('verification_status', 'BAW Reviewed');
         _pendingVerifications += (pendingFarms as List).length;
       } catch (_) {}
 
@@ -195,7 +199,7 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
 
       _buildVisualDataFromProduction(productions);
 
-      // Load validated crop declarations (PRD §3.4)
+      // Load validated crop declarations + market indicators
       try {
         final decls = await _declSvc.getValidatedDeclarations(barangay: _declBarangayFilter);
         _validatedDeclarations = decls;
@@ -203,7 +207,11 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
           final days = d.expectedHarvestDate.difference(DateTime.now()).inDays;
           return days >= 0 && days <= 30;
         }).length;
-      } catch (_) {}
+        final reports = await _mktSvc.getAllHarvestReports();
+        _indicators = reports.isEmpty ? _mktSvc.getMockIndicators() : _mktSvc.computeIndicators(reports);
+      } catch (_) {
+        _indicators = _mktSvc.getMockIndicators();
+      }
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -745,6 +753,10 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
               _buildFarmVerificationBanner(context),
               const SizedBox(height: 16),
               _buildCropDeclarationsPanel(),
+              const SizedBox(height: 14),
+              _buildIurPpiAlertPanel(),
+              const SizedBox(height: 14),
+              _buildBuyerDemandTile(),
               const SizedBox(height: 18),
               _responsiveRow(
                 isDesktop: isDesktop,
@@ -922,6 +934,89 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       ),
     );
   }
+
+  // PRD §6.3 — IUR Tracking Board + PPI Alert Panel
+  Widget _buildIurPpiAlertPanel() {
+    final danger = _indicators.where((i) => i.overall == SaturationLevel.danger).toList();
+    final caution = _indicators.where((i) => i.overall == SaturationLevel.caution).toList();
+    if (_indicators.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: _card, borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: danger.isNotEmpty ? const Color(0xFFFCA5A5) : _border),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(6), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.warning_amber_rounded, size: 18,
+            color: danger.isNotEmpty ? const Color(0xFFDC2626) : const Color(0xFFF59E0B)),
+          const SizedBox(width: 8),
+          const Expanded(child: Text('MAR / PPI / IUR Alert Panel',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _text))),
+          if (danger.isNotEmpty) Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(color: const Color(0xFFFEE2E2), borderRadius: BorderRadius.circular(6)),
+            child: Text('${danger.length} danger', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFB91C1C))),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        ..._indicators.map((ind) {
+          final color = ind.overall == SaturationLevel.danger
+            ? const Color(0xFFDC2626)
+            : ind.overall == SaturationLevel.caution
+              ? const Color(0xFFF59E0B)
+              : const Color(0xFF16A34A);
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withAlpha(10),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withAlpha(40)),
+            ),
+            child: Row(children: [
+              Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+              const SizedBox(width: 8),
+              Expanded(child: Text(ind.cropName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+              Text('MAR ${(ind.mar * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w700)),
+              const SizedBox(width: 8),
+              Text('PPI ${ind.ppi.toStringAsFixed(1)}%', style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w700)),
+              const SizedBox(width: 8),
+              Text('IUR ${(ind.iur * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w700)),
+            ]),
+          );
+        }),
+      ]),
+    );
+  }
+
+  Widget _buildBuyerDemandTile() => InkWell(
+    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BuyerDemandBoardScreen(maoMode: true))),
+    borderRadius: BorderRadius.circular(14),
+    child: Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _card, borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _border),
+      ),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(10)),
+          child: const Icon(Icons.storefront_rounded, color: Color(0xFFEA8A1A), size: 22),
+        ),
+        const SizedBox(width: 12),
+        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Buyer Demand Board', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _text)),
+          SizedBox(height: 2),
+          Text('Post & manage institutional buyer demand requests (LGU canteens, cooperatives, processors)',
+            style: TextStyle(fontSize: 11, color: _muted)),
+        ])),
+        const Icon(Icons.chevron_right_rounded, color: _muted),
+      ]),
+    ),
+  );
 
   // PRD §3.4 — MAO sees validated crop declarations from AT/BAW
   Widget _buildCropDeclarationsPanel() {

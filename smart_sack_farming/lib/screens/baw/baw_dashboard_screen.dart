@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/crop_declaration_service.dart';
 import '../auth/login_screen.dart';
+import '../features/buyer_demand_board_screen.dart';
 import 'baw_validation_queue_screen.dart';
 
 const _kGreen = Color(0xFF1B7737);
@@ -19,6 +20,7 @@ class _BawDashboardScreenState extends State<BawDashboardScreen> {
   int _pendingCount = 0;
   int _validatedCount = 0;
   int _upcomingHarvestCount = 0;
+  int _pendingFarmCount = 0;
 
   @override
   void initState() {
@@ -33,10 +35,19 @@ class _BawDashboardScreenState extends State<BawDashboardScreen> {
       final days = d.expectedHarvestDate.difference(DateTime.now()).inDays;
       return days >= 0 && days <= 30;
     }).length;
+    int farmCount = 0;
+    try {
+      final res = await Supabase.instance.client
+          .from('agrisense_farms')
+          .select('id')
+          .eq('verification_status', 'Pending Verification');
+      farmCount = (res as List).length;
+    } catch (_) {}
     if (mounted) setState(() {
       _pendingCount = pending.length;
       _validatedCount = validated.length;
       _upcomingHarvestCount = upcoming;
+      _pendingFarmCount = farmCount;
     });
   }
 
@@ -93,6 +104,17 @@ class _BawDashboardScreenState extends State<BawDashboardScreen> {
           ),
           const SizedBox(height: 10),
           _card(
+            icon: Icons.agriculture_rounded, color: const Color(0xFF7C3AED),
+            title: 'Farm Registry Review',
+            subtitle: '$_pendingFarmCount farm registration${_pendingFarmCount == 1 ? '' : 's'} pending BAW review',
+            badge: _pendingFarmCount > 0 ? '$_pendingFarmCount' : null,
+            onTap: () async {
+              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BawValidationQueueScreen()));
+              _loadCounts();
+            },
+          ),
+          const SizedBox(height: 10),
+          _card(
             icon: Icons.event_note_rounded, color: const Color(0xFF2563EB),
             title: 'Harvest Calendar',
             subtitle: 'Timeline of expected harvests in your barangay',
@@ -104,6 +126,13 @@ class _BawDashboardScreenState extends State<BawDashboardScreen> {
             title: 'Barangay Supply Report',
             subtitle: 'Compile and submit monthly supply report to MAO',
             onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Supply Report Composer — coming in Phase 2'))),
+          ),
+          const SizedBox(height: 10),
+          _card(
+            icon: Icons.shopping_bag_rounded, color: const Color(0xFFEA8A1A),
+            title: 'Buyer Demand Board',
+            subtitle: 'View institutional buyer requests from MAO',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BuyerDemandBoardScreen())),
           ),
           const SizedBox(height: 10),
           _card(
