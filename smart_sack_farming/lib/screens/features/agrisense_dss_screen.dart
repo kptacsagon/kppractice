@@ -138,7 +138,6 @@ class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
     final idx = _navItems.indexWhere((n) => n.label == module);
     if (idx >= 0) {
       setState(() => _selectedNavIndex = idx);
-      Navigator.maybePop(context); // close drawer if open
     }
   }
 
@@ -160,8 +159,9 @@ class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
   }
 
   Widget _embedModule(Widget child) {
-    return Navigator(
-      onGenerateRoute: (settings) => MaterialPageRoute(builder: (_) => child),
+    return WillPopScope(
+      onWillPop: () async => false, // Prevent back navigation from within module
+      child: child,
     );
   }
 
@@ -267,10 +267,7 @@ class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
                   final selected = index == _selectedNavIndex;
                   return InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: () {
-                      setState(() => _selectedNavIndex = index);
-                      Navigator.maybePop(context); // close drawer if open
-                    },
+                    onTap: () => setState(() => _selectedNavIndex = index),
                     child: Container(
                       height: 46,
                       padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -311,7 +308,7 @@ class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
                 border: Border(top: BorderSide(color: _border)),
               ),
               child: InkWell(
-                onTap: () => Navigator.maybePop(context),
+                onTap: () => Navigator.pop(context),
                 borderRadius: BorderRadius.circular(8),
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
