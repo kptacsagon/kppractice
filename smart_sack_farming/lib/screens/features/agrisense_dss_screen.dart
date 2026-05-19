@@ -11,7 +11,6 @@ import 'agri_financial_dss_screen.dart';
 import 'agrisense_cpa_screen.dart';
 import 'agrisense_csi_screen.dart';
 import 'agrisense_dpac_screen.dart';
-import 'agrisense_ffp_screen.dart';
 import 'agrisense_mpi_screen.dart';
 import 'agrisense_pdew_screen.dart';
 import 'agrisense_phml_screen.dart';
@@ -32,6 +31,26 @@ class AgriSenseDssScreen extends StatefulWidget {
 
 class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
   late final Future<_HubData> _hubFuture;
+  int _selectedNavIndex = 0;
+
+  static const _border = Color(0xFFD6DAE1);
+  static const _muted = Color(0xFF4B5563);
+  static const _text = Color(0xFF0F172A);
+
+  static const _navItems = <_DssNavItem>[
+    _DssNavItem('Dashboard', Icons.grid_view_rounded),
+    _DssNavItem('Saturation', Icons.heat_pump_rounded),
+    _DssNavItem('Planting', Icons.grass_rounded),
+    _DssNavItem('Weather', Icons.cloud_rounded),
+    _DssNavItem('Pest Alert', Icons.bug_report_rounded),
+    _DssNavItem('Market', Icons.storefront_rounded),
+    _DssNavItem('Financial Model', Icons.account_balance_rounded),
+    _DssNavItem('Harvest', Icons.agriculture_rounded),
+    _DssNavItem('Programs', Icons.verified_user_rounded),
+    _DssNavItem('Crop Cycling', Icons.loop_rounded),
+    _DssNavItem('Planting Advisor', Icons.tips_and_updates_rounded),
+    _DssNavItem('Heatmap', Icons.map_rounded),
+  ];
 
   @override
   void initState() {
@@ -116,96 +135,263 @@ class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
   );
 
   void _openModule(BuildContext context, String module) {
-    switch (module) {
-      case 'Saturation':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisenseCsiScreen()));
-      case 'Planting':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisensePiaeScreen()));
-      case 'Weather':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisenseWcraScreen()));
-      case 'Pest Alert':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisensePdewScreen()));
-      case 'Market':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisenseMpiScreen()));
-      case 'Financial Model':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgriFinancialDssScreen()));
-      case 'Harvest':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisensePhmlScreen()));
-      case 'Programs':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisenseDpacScreen()));
-      case 'Crop Cycling':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const CropCyclingMonitoringSimple()));
-      case 'Planting Advisor':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisenseCpaScreen()));
-      case 'Heatmap':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AgrisenseSaturationHeatmapScreen()));
+    final idx = _navItems.indexWhere((n) => n.label == module);
+    if (idx >= 0) {
+      setState(() => _selectedNavIndex = idx);
+      Navigator.maybePop(context); // close drawer if open
     }
+  }
+
+  Widget _moduleForIndex(int index) {
+    switch (_navItems[index].label) {
+      case 'Saturation': return const AgrisenseCsiScreen();
+      case 'Planting': return const AgrisensePiaeScreen();
+      case 'Weather': return const AgrisenseWcraScreen();
+      case 'Pest Alert': return const AgrisensePdewScreen();
+      case 'Market': return const AgrisenseMpiScreen();
+      case 'Financial Model': return const AgriFinancialDssScreen();
+      case 'Harvest': return const AgrisensePhmlScreen();
+      case 'Programs': return const AgrisenseDpacScreen();
+      case 'Crop Cycling': return const CropCyclingMonitoringSimple();
+      case 'Planting Advisor': return const AgrisenseCpaScreen();
+      case 'Heatmap': return const AgrisenseSaturationHeatmapScreen();
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _embedModule(Widget child) {
+    return Navigator(
+      onGenerateRoute: (settings) => MaterialPageRoute(builder: (_) => child),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _kBackground,
-      body: FutureBuilder<_HubData>(
-        future: _hubFuture,
-        builder: (context, snapshot) {
-          return Column(
-            children: [
-              _GreenHeader(
-                farmerName: snapshot.data?.profile.fullName ?? 'Farmer',
-                unreadCount: snapshot.data == null
-                    ? 0
-                    : snapshot.data!.alerts.where((a) => a.readAt == null).length,
-              ),
-              Expanded(
-                child: _buildBody(context, snapshot),
-              ),
-              _BottomNav(onModuleTap: (m) => _openModule(context, m)),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 1024;
+        if (!isDesktop) {
+          return Scaffold(
+            backgroundColor: _kBackground,
+            appBar: AppBar(
+              title: Text(_navItems[_selectedNavIndex].label),
+              backgroundColor: _kGreen,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            drawer: Drawer(child: _buildSidebar()),
+            body: _buildContent(),
           );
-        },
-      ),
-    );
-  }
-
-  Widget _buildBody(BuildContext context, AsyncSnapshot<_HubData> snapshot) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Center(child: CircularProgressIndicator(color: _kGreen));
-    }
-    if (snapshot.hasError) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'Unable to load AgriSense data.\n${snapshot.error}',
-            style: const TextStyle(color: Color(0xFF666666)),
-            textAlign: TextAlign.center,
+        }
+        return Scaffold(
+          backgroundColor: _kBackground,
+          body: Row(
+            children: [
+              SizedBox(width: 280, child: _buildSidebar()),
+              Expanded(child: _buildContent()),
+            ],
           ),
-        ),
-      );
+        );
+      },
+    );
+  }
+
+  Widget _buildContent() {
+    if (_selectedNavIndex == 0) {
+      return _buildDashboardHub();
     }
+    return _embedModule(_moduleForIndex(_selectedNavIndex));
+  }
 
-    final data = snapshot.data!;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _UrgentActionCard(alerts: data.alerts, onViewTap: () => _openModule(context, 'Weather')),
-          const SizedBox(height: 14),
-          _StatusGrid(alerts: data.alerts, onTap: (m) => _openModule(context, m)),
-          const SizedBox(height: 14),
-          _TopRecommendationCard(scores: data.scores),
-          const SizedBox(height: 14),
-          _MarketSnapshotCard(market: data.market),
-          const SizedBox(height: 14),
-          _NextMilestoneCard(programs: data.programs),
-          const SizedBox(height: 24),
-        ],
+  Widget _buildSidebar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFF5F6F8),
+        border: Border(right: BorderSide(color: _border)),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 22),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: _kGreen,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.insights_rounded, color: Color(0xFFECFDF3), size: 26),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AgriSense',
+                          style: TextStyle(
+                            color: Color(0xFF207538),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            height: 1.1,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Decision Support',
+                          style: TextStyle(
+                            color: _muted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w400,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                itemCount: _navItems.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemBuilder: (context, index) {
+                  final item = _navItems[index];
+                  final selected = index == _selectedNavIndex;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      setState(() => _selectedNavIndex = index);
+                      Navigator.maybePop(context); // close drawer if open
+                    },
+                    child: Container(
+                      height: 46,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: selected ? _kGreen : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            item.icon,
+                            size: 18,
+                            color: selected ? Colors.white : const Color(0xFF364152),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              item.label,
+                              style: TextStyle(
+                                color: selected ? Colors.white : const Color(0xFF1E293B),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: _border)),
+              ),
+              child: InkWell(
+                onTap: () => Navigator.maybePop(context),
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.arrow_back_rounded, size: 18, color: _muted),
+                      SizedBox(width: 10),
+                      Text(
+                        'Back to App',
+                        style: TextStyle(color: _text, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _buildDashboardHub() {
+    return FutureBuilder<_HubData>(
+      future: _hubFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: _kGreen));
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Unable to load AgriSense data.\n${snapshot.error}',
+                style: const TextStyle(color: Color(0xFF666666)),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+        final data = snapshot.data!;
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Welcome, ${data.profile.fullName}',
+                  style: const TextStyle(color: _text, fontSize: 22, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Smart Sack Farming Decision Support',
+                  style: TextStyle(color: _muted, fontSize: 13),
+                ),
+                const SizedBox(height: 20),
+                _UrgentActionCard(alerts: data.alerts, onViewTap: () => _openModule(context, 'Weather')),
+                const SizedBox(height: 14),
+                _StatusGrid(alerts: data.alerts, onTap: (m) => _openModule(context, m)),
+                const SizedBox(height: 14),
+                _TopRecommendationCard(scores: data.scores),
+                const SizedBox(height: 14),
+                _MarketSnapshotCard(market: data.market),
+                const SizedBox(height: 14),
+                _NextMilestoneCard(programs: data.programs),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DssNavItem {
+  final String label;
+  final IconData icon;
+  const _DssNavItem(this.label, this.icon);
 }
 
 // ─── Green Header ─────────────────────────────────────────────────────────────
