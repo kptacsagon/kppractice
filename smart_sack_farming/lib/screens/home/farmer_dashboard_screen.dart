@@ -15,6 +15,7 @@ import '../farmer/agrisense_farm_registry_screen.dart';
 import '../farmer/agrisense_seasonal_crop_submission_screen.dart';
 import '../farmer/my_market_screen.dart';
 import '../features/agri_ure_screen.dart';
+import '../farmer/farmer_crop_declaration_screen.dart';
 
 class FarmerDashboardScreen extends StatelessWidget {
   const FarmerDashboardScreen({super.key});
@@ -124,6 +125,14 @@ class FarmerDashboardScreen extends StatelessWidget {
                       description: 'Register your farm parcels and map farm boundaries. Complete your profile first.',
                       buttonText: 'Open Farm Registry',
                       onTap: () => _navigateToFeature(context, 'AgriSense Farm Registry'),
+                    ),
+                    _buildFeatureCard(
+                      icon: Icons.eco_rounded,
+                      iconColor: const Color(0xFF1B7737),
+                      title: 'Declare Crop',
+                      description: 'Submit HVC planting declaration to your AT/BAW for validation.',
+                      buttonText: 'Declare Crop',
+                      onTap: () => _navigateToFeature(context, 'Crop Declaration'),
                     ),
                     _buildFeatureCard(
                       icon: Icons.grass,
@@ -292,6 +301,10 @@ class FarmerDashboardScreen extends StatelessWidget {
     } else if (featureName == 'URE Report') {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const AgriUreScreen()),
+      );
+    } else if (featureName == 'Crop Declaration') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const FarmerCropDeclarationScreen()),
       );
     } else if (featureName == 'My Market') {
       final user = Supabase.instance.client.auth.currentUser;

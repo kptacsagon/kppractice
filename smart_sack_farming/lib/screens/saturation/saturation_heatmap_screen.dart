@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../data/tubungan_barangays.dart';
 
 // Tubungan, Iloilo — corrected center coordinates
 const _kCenterLat = 10.7654;
@@ -22,7 +23,7 @@ const _kBarangayCoords = <String, _Coord>{
   'Bato':               _Coord(10.7620, 122.2477),
   'Bikil':              _Coord(10.8120, 122.3307),
   'Boloc':              _Coord(10.7030, 122.3177),
-  'Bondoc (Sto. Niño)': _Coord(10.8000, 122.3477),
+  'Bondoc':             _Coord(10.8000, 122.3477),
   'Borong':             _Coord(10.7460, 122.3687),
   'Buenavista':         _Coord(10.7690, 122.3557),
   'Cadabdab':           _Coord(10.7320, 122.2767),
@@ -36,7 +37,7 @@ const _kBarangayCoords = <String, _Coord>{
   'Isauan':             _Coord(10.7080, 122.3297),
   'Jolason':            _Coord(10.8060, 122.2987),
   'Jona':               _Coord(10.7510, 122.2557),
-  'La-ag (San Vicente)':_Coord(10.7600, 122.3727),
+  'La-ag':              _Coord(10.7600, 122.3727),
   'Lanag Norte':        _Coord(10.6990, 122.3037),
   'Lanag Sur':          _Coord(10.6940, 122.3117),
   'Male':               _Coord(10.8140, 122.2887),
@@ -54,9 +55,9 @@ const _kBarangayCoords = <String, _Coord>{
   'Talento':            _Coord(10.7120, 122.3477),
   'Teniente Benito':    _Coord(10.8090, 122.2737),
   'Victoria':           _Coord(10.7600, 122.2277),
-  'Zone I':             _Coord(10.7640, 122.3137),
-  'Zone II':            _Coord(10.7654, 122.3181),
-  'Zone III':           _Coord(10.7670, 122.3227),
+  'Zone I (Poblacion)':  _Coord(10.7640, 122.3137),
+  'Zone II (Poblacion)': _Coord(10.7654, 122.3181),
+  'Zone III (Poblacion)':_Coord(10.7670, 122.3227),
 };
 
 // Mock SRS data per barangay — used when DB returns nothing
@@ -64,15 +65,15 @@ final _kMockSrs = <String, int>{
   'Adgao': 45,  'Ago': 72,  'Ambarihon': 88,  'Ayubo': 61,
   'Bacan': 55,  'Badiang': 78,  'Bagunanay': 95,  'Balicua': 42,
   'Bantayanan': 67,  'Batga': 83,  'Bato': 51,  'Bikil': 76,
-  'Boloc': 110, 'Bondoc (Sto. Niño)': 58,  'Borong': 89,  'Buenavista': 64,
+  'Boloc': 110, 'Bondoc': 58,  'Borong': 89,  'Buenavista': 64,
   'Cadabdab': 73,  'Daga-ay': 47,  'Desposorio': 91,  'Igdampog Norte': 62,
   'Igdampog Sur': 68,  'Igpaho': 85,  'Igtuble': 53,  'Ingay': 79,
-  'Isauan': 44,  'Jolason': 96,  'Jona': 57,  'La-ag (San Vicente)': 82,
+  'Isauan': 44,  'Jolason': 96,  'Jona': 57,  'La-ag': 82,
   'Lanag Norte': 48,  'Lanag Sur': 71,  'Male': 105, 'Mayang': 66,
   'Molina': 54,  'Morcillas': 87,  'Nagba': 93,  'Navillan': 43,
   'Pinamacalan': 75,  'San Jose': 69,  'Sibucauan': 98,  'Singon': 60,
   'Tabat': 84,  'Tagpu-an': 50,  'Talento': 77,  'Teniente Benito': 102,
-  'Victoria': 46,  'Zone I': 65,  'Zone II': 70,  'Zone III': 74,
+  'Victoria': 46,  'Zone I (Poblacion)': 65,  'Zone II (Poblacion)': 70,  'Zone III (Poblacion)': 74,
 };
 
 const _kCrops = ['All', 'Eggplant', 'Ampalaya (Bitter Gourd)', 'Okra', 'Sitaw (String Beans)', 'Squash'];
@@ -212,10 +213,32 @@ class _SaturationHeatmapScreenState extends State<SaturationHeatmapScreen> {
         Container(
           color: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(children: [
-            Expanded(child: _filterChips(_kCrops, _selectedCrop, (v) => setState(() { _selectedCrop = v; _focusedBarangay = null; }))),
-            const SizedBox(width: 8),
-            _seasonSelector(),
+          child: Column(children: [
+            Row(children: [
+              Expanded(child: _filterChips(_kCrops, _selectedCrop, (v) => setState(() { _selectedCrop = v; _focusedBarangay = null; }))),
+              const SizedBox(width: 8),
+              _seasonSelector(),
+            ]),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              value: _focusedBarangay,
+              decoration: const InputDecoration(
+                labelText: 'Jump to Barangay',
+                prefixIcon: Icon(Icons.location_on_rounded, size: 16, color: Color(0xFF1B7737)),
+                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              isExpanded: true,
+              items: [
+                const DropdownMenuItem(value: null, child: Text('All Barangays')),
+                ...kTubunganBarangays.map((b) => DropdownMenuItem(value: b, child: Text(b))),
+              ],
+              onChanged: (v) {
+                setState(() => _focusedBarangay = v);
+                if (v != null) _focusBarangay(v);
+              },
+            ),
           ]),
         ),
 

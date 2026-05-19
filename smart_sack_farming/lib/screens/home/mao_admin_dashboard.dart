@@ -17,6 +17,8 @@ import '../mao/agrisense_municipal_analytics_screen.dart';
 import '../admin/agrisense_farm_verification_screen.dart';
 import '../admin/agri_financial_mao_screen.dart';
 import '../saturation/saturation_heatmap_screen.dart';
+import '../../services/crop_declaration_service.dart';
+import '../../data/tubungan_barangays.dart';
 
 class MaoAdminDashboard extends StatefulWidget {
   const MaoAdminDashboard({super.key});
@@ -45,6 +47,12 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
   int _pendingVerifications = 0;
   int _activeSubsidies = 0;
   double _totalPlantedAreaHa = 13.5;
+
+  // Crop declarations (PRD §3.4 — MAO sees validated declarations)
+  final _declSvc = CropDeclarationService();
+  List<CropDeclaration> _validatedDeclarations = [];
+  int _upcomingHarvests30d = 0;
+  String? _declBarangayFilter;
 
   List<_TrendPoint> _supplyTrend = const [
     _TrendPoint('Jan', 40),
@@ -186,6 +194,16 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       }
 
       _buildVisualDataFromProduction(productions);
+
+      // Load validated crop declarations (PRD §3.4)
+      try {
+        final decls = await _declSvc.getValidatedDeclarations(barangay: _declBarangayFilter);
+        _validatedDeclarations = decls;
+        _upcomingHarvests30d = decls.where((d) {
+          final days = d.expectedHarvestDate.difference(DateTime.now()).inDays;
+          return days >= 0 && days <= 30;
+        }).length;
+      } catch (_) {}
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -725,6 +743,8 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
               ),
               const SizedBox(height: 14),
               _buildFarmVerificationBanner(context),
+              const SizedBox(height: 16),
+              _buildCropDeclarationsPanel(),
               const SizedBox(height: 18),
               _responsiveRow(
                 isDesktop: isDesktop,
@@ -901,6 +921,125 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
         ],
       ),
     );
+  }
+
+  // PRD §3.4 — MAO sees validated crop declarations from AT/BAW
+  Widget _buildCropDeclarationsPanel() {
+    if (_validatedDeclarations.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _card, borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _border),
+        ),
+        child: const Row(children: [
+          Icon(Icons.eco_rounded, color: Color(0xFF2E7D32), size: 20),
+          SizedBox(width: 10),
+          Text('No validated crop declarations yet. BAW/AT validation sends data here.',
+            style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
+        ]),
+      );
+    }
+
+    final upcoming = _validatedDeclarations.where((d) {
+      final days = d.expectedHarvestDate.difference(DateTime.now()).inDays;
+      return days >= 0 && days <= 30;
+    }).toList()..sort((a, b) => a.expectedHarvestDate.compareTo(b.expectedHarvestDate));
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      decoration: BoxDecoration(
+        color: _card, borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(6), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.eco_rounded, color: Color(0xFF2E7D32), size: 18),
+          const SizedBox(width: 8),
+          const Expanded(child: Text('Active Crop Declarations',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _text))),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: const Color(0xFFE7F1E8), borderRadius: BorderRadius.circular(8)),
+            child: Text('${_validatedDeclarations.length} validated',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF2E7D32))),
+          ),
+          if (_upcomingHarvests30d > 0) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(8)),
+              child: Text('$_upcomingHarvests30d harvest in 30d',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF92400E))),
+            ),
+          ],
+        ]),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          value: _declBarangayFilter,
+          decoration: InputDecoration(
+            labelText: 'Filter by Barangay',
+            prefixIcon: const Icon(Icons.location_on_rounded, size: 16, color: Color(0xFF2E7D32)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD1D5DB))),
+            isDense: true,
+          ),
+          isExpanded: true,
+          items: [
+            const DropdownMenuItem(value: null, child: Text('All Barangays')),
+            ...kTubunganBarangays.map((b) => DropdownMenuItem(value: b, child: Text(b))),
+          ],
+          onChanged: (v) { setState(() => _declBarangayFilter = v); _loadDashboardData(); },
+        ),
+        const SizedBox(height: 14),
+        // KPI strip
+        Row(children: [
+          _declKpi('Total Active', '${_validatedDeclarations.length}', const Color(0xFF2E7D32)),
+          _declKpi('Est. Volume', '${_validatedDeclarations.fold(0.0, (s, d) => s + d.estimatedVolumeKg).toStringAsFixed(0)} kg', const Color(0xFF1565C0)),
+          _declKpi('Harvest 30d', '$_upcomingHarvests30d', const Color(0xFFF59E0B)),
+          _declKpi('Crops', '${_validatedDeclarations.map((d) => d.cropId).toSet().length}', const Color(0xFF7C3AED)),
+        ]),
+        if (upcoming.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          const Text('Upcoming Harvests (next 30 days)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
+          const SizedBox(height: 8),
+          ...upcoming.take(5).map((d) {
+            final days = d.expectedHarvestDate.difference(DateTime.now()).inDays;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                Container(width: 4, height: 36, color: days <= 7 ? const Color(0xFFDC2626) : const Color(0xFFF59E0B)),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${d.cropName} — ${d.farmerName}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  Text('${d.estimatedVolumeKg.toStringAsFixed(0)} kg · ${d.barangay ?? "—"}',
+                    style: const TextStyle(fontSize: 11, color: _muted)),
+                ])),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text('${d.expectedHarvestDate.day}/${d.expectedHarvestDate.month}/${d.expectedHarvestDate.year}',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                  Text('in ${days}d', style: TextStyle(fontSize: 10,
+                    color: days <= 7 ? const Color(0xFFDC2626) : const Color(0xFF6B7280))),
+                ]),
+              ]),
+            );
+          }),
+          if (upcoming.length > 5)
+            Text('+ ${upcoming.length - 5} more upcoming harvests',
+              style: const TextStyle(fontSize: 12, color: _muted)),
+        ],
+      ]),
+    );
+  }
+
+  Widget _declKpi(String label, String value, Color color) {
+    return Expanded(child: Column(children: [
+      Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color)),
+      Text(label, style: const TextStyle(fontSize: 10, color: _muted)),
+    ]));
   }
 
   Widget _panel({required String title, required Widget child}) {

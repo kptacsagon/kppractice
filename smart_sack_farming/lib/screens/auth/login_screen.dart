@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../home/farmer_dashboard_screen.dart';
 import '../home/mao_admin_dashboard.dart';
+import '../baw/baw_dashboard_screen.dart';
 import '../buyer/buyer_marketplace_screen.dart';
 import 'signup_screen.dart';
 import 'complete_profile_screen.dart';
@@ -363,8 +364,10 @@ class _LoginScreenState extends State<LoginScreen>
               destination = const FarmerDashboardScreen();
               break;
             case UserRole.mao:
-            case UserRole.baw:
               destination = const MaoAdminDashboard();
+              break;
+            case UserRole.baw:
+              destination = const BawDashboardScreen();
               break;
             case UserRole.buyer:
               destination = const BuyerMarketplaceScreen();

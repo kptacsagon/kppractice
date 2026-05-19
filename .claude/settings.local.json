@@ -5,7 +5,9 @@
       "Bash(flutter run *)",
       "Bash(dart analyze *)",
       "Bash(git commit -m ' *)",
-      "Bash(flutter devices *)"
+      "Bash(flutter devices *)",
+      "Bash(git add *)",
+      "Bash(git push *)"
     ]
   }
 }
