@@ -353,34 +353,156 @@ class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
         final data = snapshot.data!;
         return SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Welcome, ${data.profile.fullName}',
-                  style: const TextStyle(color: _text, fontSize: 22, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Smart Sack Farming Decision Support',
-                  style: TextStyle(color: _muted, fontSize: 13),
-                ),
-                const SizedBox(height: 20),
+                _buildGreeting(data.profile.fullName),
+                const SizedBox(height: 24),
                 _UrgentActionCard(alerts: data.alerts, onViewTap: () => _openModule(context, 'Weather')),
-                const SizedBox(height: 14),
-                _StatusGrid(alerts: data.alerts, onTap: (m) => _openModule(context, m)),
-                const SizedBox(height: 14),
+                const SizedBox(height: 20),
+                _QuickStatsRow(alerts: data.alerts, scores: data.scores),
+                const SizedBox(height: 20),
                 _TopRecommendationCard(scores: data.scores),
-                const SizedBox(height: 14),
+                const SizedBox(height: 20),
                 _MarketSnapshotCard(market: data.market),
-                const SizedBox(height: 14),
+                const SizedBox(height: 20),
+                const Text('Module Status', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _text)),
+                const SizedBox(height: 12),
+                _StatusGrid(alerts: data.alerts, onTap: (m) => _openModule(context, m)),
+                const SizedBox(height: 20),
                 _NextMilestoneCard(programs: data.programs),
+                const SizedBox(height: 20),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildGreeting(String name) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_kGreen, _kGreenDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Welcome back, ${name.split(' ').first}! 👋',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Your AI-powered farming decision support',
+            style: TextStyle(color: Color(0xFFB2D9B8), fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Quick Stats Row ──────────────────────────────────────────────────────────
+
+class _QuickStatsRow extends StatelessWidget {
+  final List<AgrisenseAlert> alerts;
+  final List<AgrisenseSaturationScore> scores;
+
+  const _QuickStatsRow({required this.alerts, required this.scores});
+
+  @override
+  Widget build(BuildContext context) {
+    final criticalAlerts = alerts.where((a) => a.severity == 'critical' || a.severity == 'high').length;
+    final avgSaturation = scores.isEmpty ? 0 : (scores.fold<double>(0, (sum, score) => sum + score.srsScore) / scores.length).round();
+    final safeModules = 11 - (alerts.isEmpty ? 0 : 1);
+
+    return Row(
+      children: [
+        Expanded(
+          child: _StatCard(
+            label: 'Alerts',
+            value: '$criticalAlerts',
+            icon: Icons.warning_rounded,
+            color: criticalAlerts > 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatCard(
+            label: 'Avg Saturation',
+            value: '$avgSaturation%',
+            icon: Icons.heat_pump_rounded,
+            color: avgSaturation > 70 ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatCard(
+            label: 'Safe Modules',
+            value: '$safeModules',
+            icon: Icons.check_circle_rounded,
+            color: const Color(0xFF16A34A),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: color.withAlpha(25), borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, size: 16, color: color),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: color),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -584,12 +706,12 @@ class _StatusGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.count(
-      crossAxisCount: 4,
+      crossAxisCount: 3,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 1.05,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 0.9,
       children: _modules.map((m) {
         final moduleAlerts = alerts.where((a) => a.module == m.code).toList();
         final statusColor = _statusColor(moduleAlerts);
@@ -648,55 +770,58 @@ class _StatusCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: statusColor.withAlpha(50), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(8),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: statusColor.withAlpha(20),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    meta.name,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Container(
-                  width: 9,
-                  height: 9,
-                  margin: const EdgeInsets.only(top: 2),
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: statusColor.withAlpha(25),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(meta.icon, color: statusColor, size: 28),
             ),
-            const Spacer(),
+            const SizedBox(height: 10),
             Text(
-              statusLabel,
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey[500],
-                fontWeight: FontWeight.w500,
+              meta.name,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1A1A1A),
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: statusColor.withAlpha(20),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                statusLabel,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: statusColor,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -716,21 +841,35 @@ class _TopRecommendationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final topScore = scores.isEmpty ? null : scores.first;
+    final riskLevel = topScore == null ? 'Unknown' : topScore.srsScore >= 81 ? 'High Risk' : topScore.srsScore >= 50 ? 'Moderate' : 'Low Risk';
+    final riskColor = topScore == null
+        ? const Color(0xFF9CA3AF)
+        : topScore.srsScore >= 81
+            ? const Color(0xFFDC2626)
+            : topScore.srsScore >= 50
+                ? const Color(0xFFF59E0B)
+                : const Color(0xFF16A34A);
+
     final recommendation = topScore == null
         ? 'Recommendations will appear after your data syncs.'
         : topScore.srsScore >= 81
-            ? 'Consider switching to lower-risk crops — SRS ${topScore.srsScore.toStringAsFixed(0)}'
-            : 'Consider switching to Sweet Corn — Score 87/100';
+            ? 'Market saturation detected! Consider alternative crops or adjust planting timing.'
+            : 'Current crop choice shows good market potential. Monitor market trends.';
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: LinearGradient(
+          colors: [
+            riskColor.withAlpha(15),
+            riskColor.withAlpha(8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: riskColor.withAlpha(40)),
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 8, offset: const Offset(0, 2)),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -738,34 +877,59 @@ class _TopRecommendationCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
+                  color: riskColor.withAlpha(30),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.trending_up_rounded, color: _kGreen, size: 18),
+                child: Icon(Icons.trending_up_rounded, color: riskColor, size: 18),
               ),
-              const SizedBox(width: 10),
-              const Text(
-                "Today's Top Recommendation",
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Smart Recommendation",
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF666666)),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      riskLevel,
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: riskColor),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            child: Text(
-              recommendation,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF374151), height: 1.4),
-            ),
+          const SizedBox(height: 12),
+          Text(
+            recommendation,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF374151), height: 1.5),
           ),
+          if (topScore != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _MiniTile(
+                    label: 'SRS Score',
+                    value: '${topScore.srsScore.toStringAsFixed(0)}/100',
+                    valueColor: riskColor,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _MiniTile(
+                    label: 'Crop',
+                    value: topScore.cropType,
+                    valueColor: const Color(0xFF1A1A1A),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -809,33 +973,103 @@ class _MarketSnapshotCard extends StatelessWidget {
             : Icons.arrow_downward_rounded;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: LinearGradient(
+          colors: [Colors.white, const Color(0xFFFAFBFC)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
         borderRadius: BorderRadius.circular(14),
         boxShadow: [BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Market Snapshot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withAlpha(20),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.storefront_rounded, color: Color(0xFFF59E0B), size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Market Snapshot',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
-                child: _MiniTile(
-                  label: '${market!.crop} Farm Gate',
-                  value: '₱${market!.latestPrice.toStringAsFixed(2)}/kg',
-                  valueColor: const Color(0xFF1A1A1A),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        market!.crop,
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '₱${market!.latestPrice.toStringAsFixed(2)}/kg',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Farm Gate Price',
+                        style: TextStyle(fontSize: 10, color: Color(0xFF9CA3AF)),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: _MiniTile(
-                  label: '30-day Trend',
-                  value: trendLabel,
-                  valueColor: trendColor,
-                  trailing: Icon(trendIcon, size: 14, color: trendColor),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: trendColor.withAlpha(15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: trendColor.withAlpha(40)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '30-Day Trend',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(trendIcon, size: 18, color: trendColor),
+                          const SizedBox(width: 6),
+                          Text(
+                            trendLabel,
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: trendColor),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Price Change',
+                        style: TextStyle(fontSize: 10, color: Color(0xFF9CA3AF)),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
