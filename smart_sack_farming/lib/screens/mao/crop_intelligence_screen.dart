@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'dart:math' show min;
+import '../../data/agrisat_real_data.dart';
 
 // ─── Color System ─────────────────────────────────────────────────────────────
 const _kNavy = Color(0xFF0F2747);
@@ -82,32 +83,114 @@ class _CropIntelligenceScreenState extends State<CropIntelligenceScreen>
   String _selectedBarangay = 'All Barangays';
   int _selectedMonthIndex = 0;
 
-  static const _crops = [
-    _CropData('Tomato', 4820, 2500, 'oversupplied', _kRed),
-    _CropData('Pechay', 3200, 2000, 'oversupplied', _kRed),
-    _CropData('Cabbage', 2800, 2400, 'moderate', _kGold),
-    _CropData('Eggplant', 1500, 2800, 'high_demand', _kGreen),
-    _CropData('Ampalaya', 1200, 2200, 'high_demand', _kGreen),
-    _CropData('Onion', 800, 3500, 'high_demand', _kGreen),
-  ];
+  // ─── Real-data derived crop list (annual production vs per-crop demand ref) ──
+  static const Map<String, double> _demandRefMT = {
+    'squash': 50,
+    'stringBeans': 60,
+    'ampalaya': 70,
+    'eggplant': 120,
+    'okra': 50,
+  };
 
-  static const _recommendations = [
-    _Rec('Onion', 92, 'Low supply vs high demand. Strong market opportunity.', 120, 95.0, Icons.bubble_chart_rounded),
-    _Rec('Eggplant', 87, 'Consistent demand. Low competition in current season.', 75, 25.0, Icons.eco_rounded),
-    _Rec('Ampalaya', 81, 'High institutional buyer demand. Good price trend.', 65, 38.0, Icons.spa_rounded),
-    _Rec('Okra', 74, 'Fast-growing. Low input cost. Steady local market.', 55, 22.0, Icons.grass_rounded),
-  ];
+  static String _statusFromAlert(String alert) {
+    switch (alert) {
+      case 'SEVERE':
+      case 'SATURATION':
+        return 'oversupplied';
+      case 'CAUTION':
+        return 'moderate';
+      case 'HIGH_DEMAND':
+        return 'high_demand';
+      default:
+        return 'moderate';
+    }
+  }
 
-  static const _riskyCrops = [
-    _Risk('Tomato', 89, 'Declared supply is 93% above market demand. Price crash risk.'),
-    _Risk('Pechay', 60, 'Moderate oversupply. Consider reducing planting volume.'),
-  ];
+  static Color _colorFromAlert(String alert) {
+    switch (alert) {
+      case 'SEVERE':
+      case 'SATURATION':
+        return _kRed;
+      case 'HIGH_DEMAND':
+        return _kGreen;
+      case 'CAUTION':
+        return _kGold;
+      default:
+        return _kGold;
+    }
+  }
+
+  List<_CropData> get _crops => kAgriSatCropKeys.map((key) {
+    final totals = kAnnualTotals[key]!;
+    final ppi = kPpiResults[key]!;
+    return _CropData(
+      kCropDisplayNames[key]!,
+      totals.productionMT * 1000,
+      (_demandRefMT[key] ?? 50) * 1000,
+      _statusFromAlert(ppi.alert),
+      _colorFromAlert(ppi.alert),
+    );
+  }).toList();
+
+  // PPI-driven recommendations (HIGH_DEMAND crops, sorted by PPI desc)
+  List<_Rec> get _recommendations {
+    final entries = kPpiResults.entries
+        .where((e) => e.value.alert == 'HIGH_DEMAND')
+        .toList()
+      ..sort((a, b) => b.value.latestPPI.compareTo(a.value.latestPPI));
+    return entries.map((e) {
+      final key = e.key;
+      final ppi = e.value;
+      final score = (50 + ppi.latestPPI * 1.5).clamp(40, 99).toInt();
+      final insight = AgriSatData.getInsightForCrop(key);
+      final reason = insight?.message ??
+          'Price ${ppi.latestPPI.toStringAsFixed(1)}% above baseline. Strong demand signal.';
+      IconData icon;
+      switch (key) {
+        case 'eggplant': icon = Icons.eco_rounded; break;
+        case 'okra': icon = Icons.grass_rounded; break;
+        case 'ampalaya': icon = Icons.spa_rounded; break;
+        case 'stringBeans': icon = Icons.line_weight_rounded; break;
+        case 'squash': icon = Icons.bubble_chart_rounded; break;
+        default: icon = Icons.eco_rounded;
+      }
+      return _Rec(
+        kCropDisplayNames[key]!,
+        score,
+        reason,
+        65, // typical maturity days; not in dataset
+        ppi.latestPrice,
+        icon,
+      );
+    }).toList();
+  }
+
+  // SEVERE/SATURATION/CAUTION crops as risks (sorted worst-first)
+  List<_Risk> get _riskyCrops {
+    final entries = kPpiResults.entries
+        .where((e) =>
+            e.value.alert == 'SEVERE' ||
+            e.value.alert == 'SATURATION' ||
+            e.value.alert == 'CAUTION')
+        .toList()
+      ..sort((a, b) => a.value.latestPPI.compareTo(b.value.latestPPI));
+    return entries.map((e) {
+      final key = e.key;
+      final ppi = e.value;
+      final pct = ppi.worstPPI.abs().toInt();
+      final insight = AgriSatData.getInsightForCrop(key);
+      final reason = insight?.message ??
+          'Price ${ppi.latestPPI.toStringAsFixed(1)}% vs baseline. Worst drop ${ppi.worstPPI.toStringAsFixed(1)}%.';
+      return _Risk(kCropDisplayNames[key]!, pct, reason);
+    }).toList();
+  }
 
   static const _barangays = [
     'All Barangays', 'Agboy-o', 'Agta', 'Alibunan', 'Alegria', 'Alobo',
   ];
 
-  static const _months = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
+  // Months shown in harvest forecast (full year)
+  static const _months = kMonthAbbreviations;
 
   @override
   void initState() {
@@ -180,7 +263,7 @@ class _CropIntelligenceScreenState extends State<CropIntelligenceScreen>
                   height: 280,
                   child: BarChart(
                     BarChartData(
-                      maxY: 6,
+                      maxY: 130,
                       alignment: BarChartAlignment.spaceAround,
                       groupsSpace: 14,
                       borderData: FlBorderData(show: false),
@@ -196,7 +279,7 @@ class _CropIntelligenceScreenState extends State<CropIntelligenceScreen>
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 36,
-                            interval: 2,
+                            interval: 30,
                             getTitlesWidget: (v, _) => Text(
                               '${v.toInt()}T',
                               style: const TextStyle(fontSize: 10, color: _kMuted),
@@ -250,29 +333,41 @@ class _CropIntelligenceScreenState extends State<CropIntelligenceScreen>
           ),
           _sectionCard(
             title: 'Crop Supply Data Table',
+            subtitle: '2025 annual totals · Latest week prices · PPI vs baseline',
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
                 headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
-                columnSpacing: 16,
+                columnSpacing: 14,
                 columns: const [
                   DataColumn(label: Text('Crop', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
-                  DataColumn(label: Text('Declared (kg)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
-                  DataColumn(label: Text('Demand (kg)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
-                  DataColumn(label: Text('Gap (kg)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
+                  DataColumn(label: Text('Production (kg)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
+                  DataColumn(label: Text('Active Farmers', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
+                  DataColumn(label: Text('Latest Price', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
+                  DataColumn(label: Text('PPI', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
                   DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
                 ],
-                rows: _crops.map((c) {
-                  final gap = c.gapKg;
+                rows: kAgriSatCropKeys.map((key) {
+                  final totals = kAnnualTotals[key]!;
+                  final ppi = kPpiResults[key]!;
+                  final ppiColor = ppi.latestPPI >= 0 ? _kGreen : _kRed;
+                  final emoji = AgriSatData.getAlertEmoji(ppi.alert);
                   return DataRow(cells: [
-                    DataCell(Text(c.crop, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
-                    DataCell(Text(NumberFormat('#,###').format(c.declaredKg.toInt()), style: const TextStyle(fontSize: 12))),
-                    DataCell(Text(NumberFormat('#,###').format(c.demandKg.toInt()), style: const TextStyle(fontSize: 12))),
+                    DataCell(Text(kCropDisplayNames[key]!,
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
                     DataCell(Text(
-                      '${gap >= 0 ? '+' : ''}${NumberFormat('#,###').format(gap.toInt())}',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: gap >= 0 ? _kGreen : _kRed),
+                        NumberFormat('#,###').format((totals.productionMT * 1000).toInt()),
+                        style: const TextStyle(fontSize: 12))),
+                    DataCell(Text(NumberFormat('#,###').format(totals.totalFarmers),
+                        style: const TextStyle(fontSize: 12))),
+                    DataCell(Text('₱${ppi.latestPrice.toStringAsFixed(0)}/kg',
+                        style: const TextStyle(fontSize: 12))),
+                    DataCell(Text(
+                      '${ppi.latestPPI >= 0 ? '+' : ''}${ppi.latestPPI.toStringAsFixed(1)}%',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ppiColor),
                     )),
-                    DataCell(_statusBadge(c.statusLabel, c.statusColor)),
+                    DataCell(_statusBadge('$emoji ${ppi.alert}',
+                        AgriSatData.getAlertColor(ppi.alert))),
                   ]);
                 }).toList(),
               ),
@@ -527,21 +622,30 @@ class _CropIntelligenceScreenState extends State<CropIntelligenceScreen>
     );
   }
 
-  // ─── Tab 4: Harvest Forecast ────────────────────────────────────────────────
+  // ─── Tab 4: Harvest Forecast — real 12-month production (2025) ──────────────
   Widget _buildHarvestForecast() {
-    // harvest volume data per crop per month (tons)
-    final tomatoData = [2.1, 3.5, 5.8, 4.2, 2.8, 1.5];
-    final cabbageData = [1.8, 2.2, 3.1, 3.8, 2.5, 1.9];
-    final eggplantData = [0.8, 1.2, 1.5, 1.8, 2.1, 1.6];
+    // Crop color mapping (file local color constants)
+    final cropColors = <String, Color>{
+      'ampalaya': _kGold,
+      'stringBeans': _kOrange,
+      'eggplant': _kGreen,
+      'okra': _kBlue,
+      'squash': _kRed,
+    };
 
-    // September (index 3) has all 3 crops at high volume — congestion risk
-    final congestionMonths = {3}; // Sep
+    // Congestion = months with 2+ crops at saturation risk
+    final congestionMonths = <int>{};
+    for (int m = 0; m < 12; m++) {
+      if (AgriSatData.getCropsAtRiskThisMonth(m).length >= 2) {
+        congestionMonths.add(m);
+      }
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Month selector
+          // Month selector (full 12 months)
           _sectionCard(
             title: 'Select Month',
             child: SingleChildScrollView(
@@ -583,18 +687,15 @@ class _CropIntelligenceScreenState extends State<CropIntelligenceScreen>
             ),
           ),
 
-          // Line chart
+          // Line chart — full year, all 5 crops
           _sectionCard(
-            title: 'Harvest Volume Forecast (tons)',
-            subtitle: 'Jun–Nov 2026 · All barangays',
+            title: 'Harvest Volume Forecast (MT)',
+            subtitle: 'Jan–Dec 2025 · 5 high-value crops',
             child: Column(
               children: [
-                Row(children: [
-                  _legendDot(_kRed, 'Tomato'),
-                  const SizedBox(width: 12),
-                  _legendDot(_kGold, 'Cabbage'),
-                  const SizedBox(width: 12),
-                  _legendDot(_kGreen, 'Eggplant'),
+                Wrap(spacing: 12, runSpacing: 6, children: [
+                  for (final key in kAgriSatCropKeys)
+                    _legendDot(cropColors[key]!, kCropDisplayNames[key]!),
                 ]),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -602,7 +703,7 @@ class _CropIntelligenceScreenState extends State<CropIntelligenceScreen>
                   child: LineChart(
                     LineChartData(
                       minY: 0,
-                      maxY: 7,
+                      maxY: 20,
                       borderData: FlBorderData(show: false),
                       gridData: FlGridData(
                         show: true,
@@ -616,8 +717,8 @@ class _CropIntelligenceScreenState extends State<CropIntelligenceScreen>
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 28,
-                            interval: 2,
-                            getTitlesWidget: (v, _) => Text('${v.toInt()}T', style: const TextStyle(fontSize: 9, color: _kMuted)),
+                            interval: 5,
+                            getTitlesWidget: (v, _) => Text('${v.toInt()}', style: const TextStyle(fontSize: 9, color: _kMuted)),
                           ),
                         ),
                         bottomTitles: AxisTitles(
@@ -632,12 +733,17 @@ class _CropIntelligenceScreenState extends State<CropIntelligenceScreen>
                           ),
                         ),
                       ),
-                      lineBarsData: [
-                        _lineBar(_kRed, tomatoData),
-                        _lineBar(_kGold, cabbageData),
-                        _lineBar(_kGreen, eggplantData),
-                      ],
-                      // highlight selected month with a vertical line
+                      lineBarsData: kAgriSatCropKeys.map((key) {
+                        final prod = kHarvestData[key]!.production;
+                        return LineChartBarData(
+                          spots: List.generate(12, (i) => FlSpot(i.toDouble(), prod[i])),
+                          isCurved: true,
+                          color: cropColors[key],
+                          barWidth: 2,
+                          belowBarData: BarAreaData(show: false),
+                          dotData: const FlDotData(show: false),
+                        );
+                      }).toList(),
                       extraLinesData: ExtraLinesData(
                         verticalLines: [
                           VerticalLine(
@@ -655,9 +761,9 @@ class _CropIntelligenceScreenState extends State<CropIntelligenceScreen>
             ),
           ),
 
-          // Harvest schedule table for selected month
+          // Harvest schedule table for selected month (all 5 crops)
           _sectionCard(
-            title: 'Harvest Schedule — ${_months[_selectedMonthIndex]} 2026',
+            title: 'Harvest Schedule — ${_months[_selectedMonthIndex]} 2025',
             child: Column(
               children: [
                 if (congestionMonths.contains(_selectedMonthIndex))
@@ -675,18 +781,68 @@ class _CropIntelligenceScreenState extends State<CropIntelligenceScreen>
                         SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'HIGH CONGESTION RISK: Multiple crops peak simultaneously this month.',
+                            'HIGH SATURATION RISK: Multiple crops peak simultaneously this month.',
                             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _kOrange),
                           ),
                         ),
                       ],
                     ),
                   ),
-                _scheduleRow('Tomato', tomatoData[_selectedMonthIndex], 'Agboy-o, Agta',
-                    _selectedMonthIndex == 2 ? 'HIGH' : 'MODERATE'),
-                _scheduleRow('Cabbage', cabbageData[_selectedMonthIndex], 'Agta, Alibunan',
-                    congestionMonths.contains(_selectedMonthIndex) ? 'HIGH' : 'LOW'),
-                _scheduleRow('Eggplant', eggplantData[_selectedMonthIndex], 'Alegria, Alobo', 'LOW'),
+                for (final key in kAgriSatCropKeys)
+                  _scheduleRow(
+                    kCropDisplayNames[key]!,
+                    kHarvestData[key]!.production[_selectedMonthIndex],
+                    AgriSatData.getCurrentStage(key, _selectedMonthIndex).toUpperCase(),
+                    AgriSatData.isSaturationRiskMonth(key, _selectedMonthIndex)
+                        ? 'HIGH'
+                        : (kHarvestData[key]!.production[_selectedMonthIndex] > 5 ? 'MODERATE' : 'LOW'),
+                  ),
+              ],
+            ),
+          ),
+
+          // Saturation Risk Calendar
+          _sectionCard(
+            title: 'Saturation Risk Calendar (Jul–Dec)',
+            subtitle: 'Crops at oversupply risk per month',
+            child: Column(
+              children: [
+                for (int m = 6; m < 12; m++)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AgriSatData.getCropsAtRiskThisMonth(m).isEmpty
+                          ? _kBg
+                          : _kOrange.withAlpha(15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AgriSatData.getCropsAtRiskThisMonth(m).isEmpty
+                            ? _kBorder
+                            : _kOrange.withAlpha(60),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 40,
+                          child: Text(_months[m],
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _kText)),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            AgriSatData.getCropsAtRiskThisMonth(m).isEmpty
+                                ? 'No crops at risk'
+                                : AgriSatData.getCropsAtRiskThisMonth(m)
+                                    .map((k) => kCropDisplayNames[k]!)
+                                    .join(', '),
+                            style: const TextStyle(fontSize: 11.5, color: _kText),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -720,17 +876,6 @@ class _CropIntelligenceScreenState extends State<CropIntelligenceScreen>
           _statusBadge(risk, riskColor),
         ],
       ),
-    );
-  }
-
-  LineChartBarData _lineBar(Color color, List<double> data) {
-    return LineChartBarData(
-      spots: List.generate(data.length, (i) => FlSpot(i.toDouble(), data[i])),
-      isCurved: true,
-      color: color,
-      barWidth: 2.5,
-      dotData: const FlDotData(show: false),
-      belowBarData: BarAreaData(show: true, color: color.withAlpha(15)),
     );
   }
 

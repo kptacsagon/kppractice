@@ -356,10 +356,8 @@ class _LoginScreenState extends State<LoginScreen>
         }
 
         Widget destination;
-        if (needsCompletion && _selectedRole != UserRole.mao && _selectedRole != UserRole.baw) {
-          destination = CompleteProfileScreen(role: _selectedRole);
-        } else {
-          switch (_selectedRole) {
+        // Profile completion screen removed — users go directly to their dashboard.
+        switch (_selectedRole) {
             case UserRole.farmer:
               destination = const FarmerDashboardScreen();
               break;
@@ -373,7 +371,6 @@ class _LoginScreenState extends State<LoginScreen>
               destination = const BuyerMarketplaceScreen();
               break;
           }
-        }
 
         if (!mounted) return;
         Navigator.of(context).pushReplacement(

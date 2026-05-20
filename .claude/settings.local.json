@@ -11,7 +11,9 @@
       "Bash(if [ -f \"C:/Users/Asus/Documents/auth/supabase_authentication.lock\" ]; then rm -f \"C:/Users/Asus/Documents/auth/supabase_authentication.lock\" && echo \"Lock removed\"; else echo \"No lock file\"; fi)",
       "Bash(tasklist)",
       "Bash(taskkill /F /IM smart_sack_farming.exe /T)",
-      "Bash(taskkill /F /IM dartaotruntime.exe)"
+      "Bash(taskkill /F /IM dartaotruntime.exe)",
+      "Bash(head -712 \"c:\\\\Users\\\\kingp\\\\OneDrive\\\\Documents\\\\GitHub\\\\kppractice\\\\smart_sack_farming\\\\lib\\\\screens\\\\admin\\\\agri_financial_mao_screen.dart\")",
+      "Read(//tmp/**)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Asus\\Documents\\auth"

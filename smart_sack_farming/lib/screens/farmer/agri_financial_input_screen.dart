@@ -130,6 +130,59 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
     final meta = user?.userMetadata ?? {};
     _barangay = meta['barangay'] as String?;
     _cycleId = '${user?.id ?? 'anon'}_${DateTime.now().millisecondsSinceEpoch}';
+    // Pre-fill land area from metadata if available
+    final landStr = meta['land_size_ha'] as String?;
+    if (landStr != null && landStr.isNotEmpty) {
+      _areaCtl.text = landStr;
+    }
+    _prefillFromProfile();
+  }
+
+  Future<void> _prefillFromProfile() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    // Already got barangay from metadata — only run DB fallback if needed
+    final needsBarangay = _barangay == null;
+    final needsArea = _areaCtl.text.trim().isEmpty;
+    if (!needsBarangay && !needsArea) return;
+
+    // Try agrisense_farmer_profiles
+    try {
+      final res = await Supabase.instance.client
+          .from('agrisense_farmer_profiles')
+          .select('barangay')
+          .eq('user_id', user.id)
+          .maybeSingle();
+      if (mounted && res != null) {
+        if (needsBarangay && (res['barangay'] as String?)?.isNotEmpty == true) {
+          setState(() => _barangay = res['barangay'] as String);
+        }
+      }
+    } catch (_) {}
+
+    // Try profiles table for address (barangay) + land area
+    if (_barangay == null || _areaCtl.text.trim().isEmpty) {
+      try {
+        final res = await Supabase.instance.client
+            .from('profiles')
+            .select('address, land_size_ha')
+            .eq('id', user.id)
+            .maybeSingle();
+        if (mounted && res != null) {
+          // Extract barangay from "Barangay, Tubungan, Iloilo" format
+          if (_barangay == null) {
+            final addr = (res['address'] as String?) ?? '';
+            final parts = addr.split(',');
+            if (parts.isNotEmpty && parts[0].trim().isNotEmpty) {
+              setState(() => _barangay = parts[0].trim());
+            }
+          }
+          if (_areaCtl.text.trim().isEmpty && res['land_size_ha'] != null) {
+            setState(() => _areaCtl.text = res['land_size_ha'].toString());
+          }
+        }
+      } catch (_) {}
+    }
   }
 
   @override
@@ -503,10 +556,26 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
         ]),
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: _field('Area Planted (ha) *', _areaCtl,
-              required: true, type: TextInputType.number, hint: 'e.g. 1.25')),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _field('Area Planted (ha) *', _areaCtl,
+                required: true, type: TextInputType.number, hint: 'e.g. 1.25'),
+            if (_areaCtl.text.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 3, left: 2),
+                child: Text('Pre-filled from your profile · edit if different',
+                    style: TextStyle(fontSize: 9.5, color: Color(0xFF1B7737))),
+              ),
+          ])),
           const SizedBox(width: 10),
-          Expanded(child: _barangayDropdown()),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _barangayDropdown(),
+            if (_barangay != null)
+              const Padding(
+                padding: EdgeInsets.only(top: 3, left: 2),
+                child: Text('Pre-filled from your profile',
+                    style: TextStyle(fontSize: 9.5, color: Color(0xFF1B7737))),
+              ),
+          ])),
         ]),
         const SizedBox(height: 10),
         Row(children: [

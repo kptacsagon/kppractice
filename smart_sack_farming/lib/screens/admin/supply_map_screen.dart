@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../data/agrisat_real_data.dart';
 import 'alerts_notifications_screen.dart';
 import 'reports_analytics_screen.dart';
 import '../features/financial_forecast_screen.dart';
@@ -24,10 +25,7 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
   static const Color _muted = Color(0xFF4B5563);
   static const Color _sidebarGreen = Color(0xFF2E7D32);
 
-  static const List<String> _crops = [
-    'Ampalaya', 'Talong', 'Kamatis', 'Okra',
-    'Sitaw', 'Kangkong', 'Pechay', 'Kalabasa',
-  ];
+  static final List<String> _crops = kOfficialCropNames;
 
   static const List<String> _barangays = [
     'Abonan', 'Agcalaga', 'Agdao', 'Agdao Calinog', 'Aglalat', 'Agsuanu',
@@ -121,6 +119,82 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
         if (items.isNotEmpty) {
           _crops_ = items;
         }
+      }
+
+      // Also try loading from validated crop declarations
+      List<dynamic> declarationRows = const <dynamic>[];
+      try {
+        declarationRows = await client
+            .from('crop_declarations')
+            .select('crop_name, estimated_volume_kg, area_planted_ha, barangay, farmer_name, expected_harvest_date, status')
+            .in_('status', ['validated', 'harvested', 'approved', 'verified']);
+      } catch (_) {
+        declarationRows = const <dynamic>[];
+      }
+
+      // Merge declaration rows into _crops_ if production_reports was empty
+      if (_crops_.isEmpty && declarationRows.isNotEmpty) {
+        final productionByCrop = <String, double>{};
+        final farmersByCrop = <String, int>{};
+        final barangaysByCrop = <String, Set<String>>{};
+
+        for (final row in List<Map<String, dynamic>>.from(declarationRows)) {
+          var cropRaw = (row['crop_name'] ?? '').toString().trim();
+          final cropKey = AgriSatData.cropKeyFromName(cropRaw);
+          final crop = cropKey != null ? (kCropDisplayNames[cropKey] ?? cropRaw) : cropRaw;
+
+          if (!kOfficialCropNames.contains(crop)) continue;
+
+          final yieldTons = _toDouble(row['estimated_volume_kg'] ?? 0) / 1000;
+          final barangay = _normalizeBarangay(row['barangay']);
+
+          productionByCrop[crop] = (productionByCrop[crop] ?? 0) + yieldTons;
+          barangaysByCrop.putIfAbsent(crop, () => <String>{});
+          barangaysByCrop[crop]!.add(barangay);
+          farmersByCrop[crop] = (farmersByCrop[crop] ?? 0) + 1;
+        }
+
+        var items = productionByCrop.entries.map((entry) {
+          final crop = entry.key;
+          final production = entry.value;
+          final farmers = farmersByCrop[crop] ?? 0;
+          final cropKey = kCropNameToKey[crop];
+          final ppi = cropKey != null ? kPpiResults[cropKey]?.latestPPI ?? 0 : 0.0;
+          final surplus = (production * (ppi < -15 ? 1.5 : ppi > 10 ? 0.3 : 0.8)).clamp(0.0, 99.0);
+          final risk = ppi <= -25 ? _RiskLevel.high : ppi <= -10 ? _RiskLevel.medium : _RiskLevel.low;
+          return _CropSummary(
+            cropName: crop,
+            totalProductionTons: production,
+            farmers: farmers,
+            surplusTons: surplus,
+            risk: risk,
+            barangays: barangaysByCrop[crop]?.toList() ?? const <String>[],
+          );
+        }).toList()..sort((a, b) => b.totalProductionTons.compareTo(a.totalProductionTons));
+
+        _crops_ = items;
+      }
+
+      // Demo fallback: use real AgriSat 2025 data when both tables are empty
+      if (_crops_.isEmpty) {
+        _crops_ = kAgriSatCropKeys.map((key) {
+          final totals = kAnnualTotals[key]!;
+          final ppi = kPpiResults[key]!;
+          final risk = ppi.alert == 'SEVERE' ? _RiskLevel.high
+              : ppi.alert == 'CAUTION' ? _RiskLevel.medium : _RiskLevel.low;
+          final surplus = ppi.latestPPI < -15
+              ? totals.productionMT * 0.5
+              : totals.productionMT * 0.1;
+          return _CropSummary(
+            cropName: kCropDisplayNames[key]!,
+            totalProductionTons: totals.productionMT,
+            farmers: totals.totalFarmers ~/ 12,
+            surplusTons: surplus.clamp(0, 99),
+            risk: risk,
+            barangays: const ['Agboy-o', 'Agta', 'Alibunan', 'Alegria', 'Alobo'],
+          );
+        }).toList()
+          ..sort((a, b) => b.totalProductionTons.compareTo(a.totalProductionTons));
       }
 
       if (mounted) {

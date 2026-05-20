@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/tubungan_barangays.dart';
+import '../../data/agrisat_real_data.dart';
 
 // ─── Color System ─────────────────────────────────────────────────────────────
 const _kNavy = Color(0xFF0F2747);
@@ -72,82 +73,78 @@ class _SmartCropAdvisorScreenState extends State<SmartCropAdvisorScreen> {
     'Large (>1 ha)',
   ];
 
-  static const _cropRisks = [
-    _CropRisk('Tomato', 89,
-        'Declared 4,820 kg vs 2,500 kg demand', 'CRITICAL'),
-    _CropRisk('Pechay', 60,
-        'Declared 3,200 kg vs 2,000 kg demand', 'WARNING'),
-    _CropRisk('Cabbage', 17,
-        'Declared 2,800 kg vs 2,400 kg demand', 'CAUTION'),
-  ];
+  // ─── Real-data driven risk + recommendation getters ────────────────────────
+  IconData _iconForCrop(String key) {
+    switch (key) {
+      case 'eggplant':    return Icons.eco_rounded;
+      case 'okra':        return Icons.grass_rounded;
+      case 'ampalaya':    return Icons.spa_rounded;
+      case 'stringBeans': return Icons.line_weight_rounded;
+      case 'squash':      return Icons.bubble_chart_rounded;
+      default:            return Icons.eco_rounded;
+    }
+  }
 
-  static const _recommendations = [
-    _CropRec(
-      crop: 'Onion',
-      score: 92,
-      riskLevel: 'Low',
-      pricePerKg: 95.0,
-      daysToMaturity: 120,
-      reasons: [
-        'Only 23% of local demand covered',
-        'Strong institutional buyer demand',
-        'Good farmgate price trend (+8.5%)',
-      ],
-      icon: Icons.bubble_chart_rounded,
-    ),
-    _CropRec(
-      crop: 'Eggplant',
-      score: 87,
-      riskLevel: 'Low',
-      pricePerKg: 25.0,
-      daysToMaturity: 75,
-      reasons: [
-        'Consistent year-round demand',
-        'Low current planting competition',
-        'Suitable for Tubungan soil conditions',
-      ],
-      icon: Icons.eco_rounded,
-    ),
-    _CropRec(
-      crop: 'Ampalaya',
-      score: 81,
-      riskLevel: 'Low',
-      pricePerKg: 38.0,
-      daysToMaturity: 65,
-      reasons: [
-        'High institutional demand (school feeding)',
-        'MAO buyer linkage available',
-        'Fast-growing, low input cost',
-      ],
-      icon: Icons.spa_rounded,
-    ),
-    _CropRec(
-      crop: 'Okra',
-      score: 74,
-      riskLevel: 'Low',
-      pricePerKg: 22.0,
-      daysToMaturity: 55,
-      reasons: [
-        'Drought-tolerant crop',
-        'Low competition in current season',
-        'Good for small farms',
-      ],
-      icon: Icons.grass_rounded,
-    ),
-    _CropRec(
-      crop: 'Sweet Corn',
-      score: 68,
-      riskLevel: 'Medium',
-      pricePerKg: 15.0,
-      daysToMaturity: 90,
-      reasons: [
-        'Growing demand from food processors',
-        'Moderate competition',
-        'Good as intercrop',
-      ],
-      icon: Icons.grain_rounded,
-    ),
-  ];
+  String _severityLabel(String alert) {
+    switch (alert) {
+      case 'SEVERE':      return 'CRITICAL';
+      case 'SATURATION':  return 'WARNING';
+      case 'CAUTION':     return 'CAUTION';
+      default:            return 'CAUTION';
+    }
+  }
+
+  List<_CropRisk> get _cropRisks {
+    final entries = kPpiResults.entries
+        .where((e) =>
+            e.value.alert == 'SEVERE' ||
+            e.value.alert == 'SATURATION' ||
+            e.value.alert == 'CAUTION')
+        .toList()
+      ..sort((a, b) => a.value.latestPPI.compareTo(b.value.latestPPI));
+    return entries.map((e) {
+      final key = e.key;
+      final ppi = e.value;
+      final pct = ppi.worstPPI.abs().toInt();
+      final insight = AgriSatData.getInsightForCrop(key);
+      final detail = insight?.message ??
+          'Price ${ppi.latestPPI.toStringAsFixed(1)}% vs baseline ₱${ppi.baseline.toStringAsFixed(0)}. Worst drop ${ppi.worstPPI.toStringAsFixed(1)}%.';
+      return _CropRisk(
+        kCropDisplayNames[key]!,
+        pct,
+        detail,
+        _severityLabel(ppi.alert),
+      );
+    }).toList();
+  }
+
+  List<_CropRec> get _recommendations {
+    final entries = kPpiResults.entries
+        .where((e) => e.value.alert == 'HIGH_DEMAND')
+        .toList()
+      ..sort((a, b) => b.value.latestPPI.compareTo(a.value.latestPPI));
+    return entries.map((e) {
+      final key = e.key;
+      final ppi = e.value;
+      final score = (50 + ppi.latestPPI * 1.5).clamp(40, 99).toInt();
+      final farmers = AgriSatData.getLatestFarmerCount(key);
+      final insight = AgriSatData.getInsightForCrop(key);
+      final reasons = <String>[
+        'Latest price ₱${ppi.latestPrice.toStringAsFixed(0)}/kg — ${ppi.latestPPI.toStringAsFixed(1)}% above baseline ₱${ppi.baseline.toStringAsFixed(0)}',
+        if (insight != null) insight.message,
+        '$farmers active farmers reporting this crop',
+      ];
+      return _CropRec(
+        crop: kCropDisplayNames[key]!,
+        score: score,
+        riskLevel: 'Low',
+        pricePerKg: ppi.latestPrice,
+        daysToMaturity: 65,
+        reasons: reasons,
+        icon: _iconForCrop(key),
+      );
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -174,6 +171,8 @@ class _SmartCropAdvisorScreenState extends State<SmartCropAdvisorScreen> {
             _buildRiskCard(),
             const SizedBox(height: 4),
             _buildRecommendationsCard(),
+            const SizedBox(height: 4),
+            _buildCropCalendarCard(),
             const SizedBox(height: 4),
             _buildAdvisoryNote(),
             const SizedBox(height: 24),
@@ -439,6 +438,53 @@ class _SmartCropAdvisorScreenState extends State<SmartCropAdvisorScreen> {
                       );
                     },
                   ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ─── Section 3b: Current Crop Calendar (current month stage per crop) ──────
+  Widget _buildCropCalendarCard() {
+    final now = DateTime.now();
+    final monthIdx = now.month - 1;
+    return _card(
+      title: '📅 Current Crop Calendar (${kMonthNames[monthIdx]} ${now.year})',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: kAgriSatCropKeys.map((key) {
+          final stage = AgriSatData.getCurrentStage(key, monthIdx);
+          Color color;
+          IconData stageIcon;
+          switch (stage) {
+            case 'plant':
+              color = _kBlue; stageIcon = Icons.eco_outlined; break;
+            case 'grow':
+              color = _kGold; stageIcon = Icons.spa_outlined; break;
+            case 'harvest':
+              color = _kGreen; stageIcon = Icons.agriculture_outlined; break;
+            default:
+              color = _kMuted; stageIcon = Icons.pause_circle_outline; break;
+          }
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: color.withAlpha(15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withAlpha(70)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(stageIcon, size: 14, color: color),
+                const SizedBox(width: 5),
+                Text(
+                  '${kCropDisplayNames[key]} · ${stage.toUpperCase()}',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
                 ),
               ],
             ),

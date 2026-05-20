@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../data/hvc_master_list.dart';
 import '../../data/tubungan_barangays.dart';
+import '../../data/agrisat_real_data.dart';
 import '../../services/crop_declaration_service.dart';
 
 const _kGreen = Color(0xFF1B7737);
@@ -11,19 +12,24 @@ const _kGreenLight = Color(0xFFE7F1E8);
 // ── Crop Intelligence data model ──────────────────────────────────────────────
 
 class _CropInsight {
-  final String status;      // 'oversupplied' | 'moderate' | 'high_demand'
-  final int supplyPct;      // % of demand that is covered by current declarations
+  final String status;       // 'oversupplied' | 'moderate' | 'high_demand'
+  final int supplyPct;       // % of demand that is covered by current declarations
   final int farmersCount;
   final int declaredKg;
   final double forecastPrice;
-  final String priceDir;    // 'up' | 'down' | 'stable'
-  final List<String> alts;  // recommended alternative crops
-  final String? congestion; // harvest congestion warning (null = no warning)
+  final String priceDir;     // 'up' | 'down' | 'stable'
+  final List<String> alts;   // recommended alternative crops
+  final String? congestion;  // harvest congestion warning (null = no warning)
+  // Real-data fields (AgriSat verified 2025 dataset)
+  final bool isReal;         // true = verified field data; false = demo placeholder
+  final double? ppi;         // Price Performance Index (Jul–Dec 2025 baseline)
+  final String? alertLabel;  // 'SEVERE' | 'SATURATION' | 'CAUTION' | 'STABLE' | 'HIGH_DEMAND'
   const _CropInsight({
     required this.status, required this.supplyPct,
     required this.farmersCount, required this.declaredKg,
     required this.forecastPrice, required this.priceDir,
     this.alts = const [], this.congestion,
+    this.isReal = false, this.ppi, this.alertLabel,
   });
   Color get color {
     if (status == 'oversupplied') return const Color(0xFFDC2626);
@@ -47,7 +53,57 @@ class _CropInsight {
   }
 }
 
+// 🟢 = Verified 2025 field data (annual production, weekly retail prices, PPI computed from baselines)
+// ⚪ = Demo data for crops not in the AgriSat real dataset
+
 const _kCropInsightData = <String, _CropInsight>{
+  // ── VERIFIED FIELD DATA: 5 pakbet crops from AgriSat 2025 monitoring ──────
+  // Source: lib/data/agrisat_real_data.dart (kAnnualTotals, kPpiResults, kHarvestData)
+
+  // Squash: SEVERE. PPI -34%, price ₱33/kg (vs ₱50 baseline). 97.30 MT/yr. 1,585 farmers.
+  // Aug-Dec saturation window confirmed. 64% price collapse.
+  'Squash': _CropInsight(
+    status: 'oversupplied', supplyPct: 95, farmersCount: 1585,
+    declaredKg: 97300, forecastPrice: 33.0, priceDir: 'down', isReal: true,
+    ppi: -34.0, alertLabel: 'SEVERE',
+    alts: ['Eggplant', 'Okra', 'Ampalaya'],
+    congestion: 'CRITICAL — Aug–Dec saturation confirmed. Production sustained 17.50 MT/month while prices dropped 64% (₱70→₱25/kg).',
+  ),
+
+  // String Beans: WARNING. PPI +7.8% currently but 11x production spike in Aug.
+  // 49.58 MT/yr. 1,255 farmers.
+  'String Beans': _CropInsight(
+    status: 'moderate', supplyPct: 72, farmersCount: 1255,
+    declaredKg: 49580, forecastPrice: 110.0, priceDir: 'down', isReal: true,
+    ppi: 7.8, alertLabel: 'STABLE',
+    alts: ['Eggplant', 'Okra'],
+    congestion: 'WARNING — August production spikes 11x (1.25→13.75 MT). Stagger planting to avoid Aug–Nov harvest pileup.',
+  ),
+
+  // Ampalaya: CAUTION. PPI +6.4% but volatile (worst week -46.8%). 52.50 MT/yr.
+  'Ampalaya': _CropInsight(
+    status: 'moderate', supplyPct: 58, farmersCount: 1425,
+    declaredKg: 52500, forecastPrice: 100.0, priceDir: 'stable', isReal: true,
+    ppi: 6.4, alertLabel: 'CAUTION',
+    alts: ['Eggplant', 'Okra'],
+    congestion: 'November peak: 9.00 MT. Single-week ₱50/kg dip (−46.8% PPI) shows market vulnerability.',
+  ),
+
+  // Eggplant: OPPORTUNITY. PPI +27.9%, price ₱110/kg. 86.93 MT/yr. 1,725 farmers.
+  'Eggplant': _CropInsight(
+    status: 'high_demand', supplyPct: 35, farmersCount: 1725,
+    declaredKg: 86930, forecastPrice: 110.0, priceDir: 'up', isReal: true,
+    ppi: 27.9, alertLabel: 'HIGH_DEMAND',
+  ),
+
+  // Okra: OPPORTUNITY. PPI +28.3%, price ₱145/kg. 29.90 MT/yr. 1,350 farmers.
+  'Okra': _CropInsight(
+    status: 'high_demand', supplyPct: 28, farmersCount: 1350,
+    declaredKg: 29900, forecastPrice: 145.0, priceDir: 'up', isReal: true,
+    ppi: 28.3, alertLabel: 'HIGH_DEMAND',
+  ),
+
+  // ── DEMO DATA: other crops (estimates, pending field collection) ──────────
   'Tomato': _CropInsight(
     status: 'oversupplied', supplyPct: 92, farmersCount: 58,
     declaredKg: 42000, forecastPrice: 15.0, priceDir: 'down',
@@ -65,26 +121,9 @@ const _kCropInsightData = <String, _CropInsight>{
     alts: ['Ampalaya', 'Squash', 'Pepper'],
     congestion: 'August 2026 — moderate harvest overlap expected in Agboy-o area.',
   ),
-  'Eggplant': _CropInsight(
-    status: 'high_demand', supplyPct: 32, farmersCount: 18,
-    declaredKg: 9000, forecastPrice: 28.0, priceDir: 'up',
-  ),
-  'Ampalaya': _CropInsight(
-    status: 'high_demand', supplyPct: 35, farmersCount: 22,
-    declaredKg: 11000, forecastPrice: 38.0, priceDir: 'up',
-  ),
   'Onion': _CropInsight(
     status: 'high_demand', supplyPct: 23, farmersCount: 8,
     declaredKg: 3500, forecastPrice: 95.0, priceDir: 'up',
-  ),
-  'Okra': _CropInsight(
-    status: 'high_demand', supplyPct: 28, farmersCount: 14,
-    declaredKg: 6000, forecastPrice: 22.0, priceDir: 'up',
-  ),
-  'Squash': _CropInsight(
-    status: 'moderate', supplyPct: 52, farmersCount: 24,
-    declaredKg: 18000, forecastPrice: 20.0, priceDir: 'stable',
-    alts: ['Eggplant', 'Okra'],
   ),
   'Pepper': _CropInsight(
     status: 'moderate', supplyPct: 48, farmersCount: 19,
@@ -141,6 +180,47 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
   void initState() {
     super.initState();
     _loadMyDeclarations();
+    _prefillFromProfile();
+  }
+
+  Future<void> _prefillFromProfile() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    // 1. Try user metadata (fastest — set when profile is saved)
+    final meta = user.userMetadata ?? {};
+    final brgyFromMeta = meta['barangay'] as String?;
+    if (brgyFromMeta != null && brgyFromMeta.isNotEmpty) {
+      if (mounted) setState(() => _selectedBarangay = brgyFromMeta);
+      return;
+    }
+    // 2. Fall back to agrisense_farmer_profiles table
+    try {
+      final res = await Supabase.instance.client
+          .from('agrisense_farmer_profiles')
+          .select('barangay')
+          .eq('user_id', user.id)
+          .maybeSingle();
+      if (mounted && res != null && (res['barangay'] as String?)?.isNotEmpty == true) {
+        setState(() => _selectedBarangay = res['barangay'] as String);
+        return;
+      }
+    } catch (_) {}
+    // 3. Fall back to profiles.address (barangay is stored there as "Brgy, Tubungan, Iloilo")
+    try {
+      final res = await Supabase.instance.client
+          .from('profiles')
+          .select('address')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (mounted && res != null) {
+        final addr = (res['address'] as String?) ?? '';
+        // Extract barangay from "Barangay, Tubungan, Iloilo" format
+        final parts = addr.split(',');
+        if (parts.isNotEmpty && parts[0].trim().isNotEmpty) {
+          setState(() => _selectedBarangay = parts[0].trim());
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -822,6 +902,16 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
         Row(children: [
           Text('${insight.emoji} ${insight.label}',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: insight.color)),
+          if (insight.isReal) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(color: const Color(0xFF1B7737),
+                  borderRadius: BorderRadius.circular(3)),
+              child: const Text('VERIFIED',
+                  style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+            ),
+          ],
           const Spacer(),
           Text(
             '₱${insight.forecastPrice.toStringAsFixed(0)}/kg '
@@ -833,6 +923,20 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
                   : const Color(0xFF6B7280)),
           ),
         ]),
+        if (insight.ppi != null) ...[
+          const SizedBox(height: 4),
+          Row(children: [
+            const Text('PPI', style: TextStyle(fontSize: 9.5, color: Color(0xFF6B7280), fontWeight: FontWeight.w700)),
+            const SizedBox(width: 4),
+            Text(
+              '${insight.ppi! >= 0 ? '+' : ''}${insight.ppi!.toStringAsFixed(1)}%',
+              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: insight.color),
+            ),
+            const SizedBox(width: 6),
+            Text('vs ₱${kPriceBaselines[AgriSatData.cropKeyFromName(cropName) ?? ''] ?? 0}/kg baseline',
+                style: const TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8))),
+          ]),
+        ],
         const SizedBox(height: 6),
         Row(children: [
           Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(4),

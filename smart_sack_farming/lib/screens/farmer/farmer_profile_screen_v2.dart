@@ -67,6 +67,7 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
   final _ageCtrl = TextEditingController();
   final _landCtrl = TextEditingController();
   String? _selectedSex = 'Prefer not to say';
+  String? _selectedPersonalBarangay; // barangay dropdown for personal tab
   DateTime? _dob;
   Map<String, dynamic> _profileData = {};
   String? _photoUrl;
@@ -158,6 +159,10 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
     if (_profileData['date_of_birth'] != null) {
       try { _dob = DateTime.parse(_profileData['date_of_birth'].toString()); } catch (_) {}
     }
+    // Barangay — extract from address field ("Barangay, Tubungan, Iloilo" format)
+    final addr = (_profileData['address'] as String?) ?? '';
+    final firstPart = addr.split(',').first.trim();
+    _selectedPersonalBarangay = _kBarangays.contains(firstPart) ? firstPart : null;
   }
 
   void _populateAgriControllers(AgrisenseFarmerProfile p) {
@@ -177,24 +182,40 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
 
   Future<void> _savePersonal() async {
     if (!_personalForm.currentState!.validate()) return;
+    if (_selectedPersonalBarangay == null) {
+      _snack('Please select your barangay.');
+      return;
+    }
     setState(() => _isSavingPersonal = true);
     try {
       final user = Supabase.instance.client.auth.currentUser!;
+      final landSizeHa = _landCtrl.text.trim().isNotEmpty ? double.tryParse(_landCtrl.text.trim()) : null;
       final data = {
         'full_name': _nameCtrl.text.trim(),
         'phone': _phoneCtrl.text.trim(),
-        'address': _addressCtrl.text.trim(),
+        // Store barangay in the address field (profiles table has no dedicated barangay column)
+        'address': '$_selectedPersonalBarangay, Tubungan, Iloilo',
         'sex': _selectedSex,
         'age': _ageCtrl.text.trim().isNotEmpty ? int.tryParse(_ageCtrl.text.trim()) : null,
         'date_of_birth': _dob?.toIso8601String().split('T')[0],
-        'land_size_ha': _landCtrl.text.trim().isNotEmpty ? double.tryParse(_landCtrl.text.trim()) : null,
+        'land_size_ha': landSizeHa,
         'profile_complete': true,
         'updated_at': DateTime.now().toIso8601String(),
       };
       await Supabase.instance.client.from('profiles').update(data).eq('id', user.id);
+      // Also push barangay + land area to user metadata so all feature screens can read
+      // without a separate DB query
+      try {
+        await Supabase.instance.client.auth.updateUser(UserAttributes(data: {
+          'barangay': _selectedPersonalBarangay,
+          'land_size_ha': landSizeHa?.toString(),
+          'full_name': _nameCtrl.text.trim(),
+          'phone': _phoneCtrl.text.trim(),
+        }));
+      } catch (_) {} // metadata update is best-effort
       _profileData.addAll(data);
       setState(() { _isSavingPersonal = false; _isEditing = false; });
-      _snack('Personal profile updated.', ok: true);
+      _snack('Personal profile updated. Barangay and land area saved.', ok: true);
     } catch (e) {
       setState(() => _isSavingPersonal = false);
       _snack('Failed to save: $e');
@@ -328,7 +349,10 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F0),
       body: NestedScrollView(
-        headerSliverBuilder: (_, __) => [SliverToBoxAdapter(child: _buildHeader())],
+        floatHeaderSlivers: true,
+        headerSliverBuilder: (_, __) => [
+          SliverToBoxAdapter(child: _buildHeader()),
+        ],
         body: Column(
           children: [
             _buildTabBar(),
@@ -451,12 +475,41 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
   }
 
   Widget _buildPersonalViewMode() {
+    // Barangay: use in-memory selection or extract from saved address field
+    String brgy = _selectedPersonalBarangay ?? '';
+    if (brgy.isEmpty) {
+      final addr = (_profileData['address'] as String?) ?? '';
+      brgy = addr.split(',').first.trim();
+    }
     return Column(children: [
+      // Barangay + land area summary banner (pre-fill reference for other features)
+      if (brgy.isNotEmpty || _profileData['land_size_ha'] != null)
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FDF4), borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFF86EFAC))),
+          child: Row(children: [
+            const Icon(Icons.check_circle_rounded, color: _kGreen, size: 18),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Profile data auto-fills your declarations',
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF166534))),
+              const SizedBox(height: 2),
+              Text(
+                '${brgy.isNotEmpty ? '📍 $brgy' : '📍 Barangay not set'}'
+                '${_profileData['land_size_ha'] != null ? ' · 🌾 ${_profileData['land_size_ha']} ha' : ' · 🌾 Land area not set'}',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF166534))),
+            ])),
+          ]),
+        ),
       _infoCard('PERSONAL INFORMATION', [
         _infoRow('FULL NAME', _profileData['full_name'] ?? 'Not set'),
         _infoRow('SEX', _profileData['sex'] ?? 'Not set'),
         _infoRow('DATE OF BIRTH', _dob != null ? DateFormat('MMM d, yyyy').format(_dob!) : 'Not set'),
-        _infoRow('BARANGAY / MUNICIPALITY', _profileData['address'] ?? 'Not set'),
+        _infoRow('BARANGAY', brgy.isNotEmpty ? brgy : 'Not set'),
+        _infoRow('MUNICIPALITY / PROVINCE', 'Tubungan, Iloilo'),
       ]),
       const SizedBox(height: 16),
       _infoCard('CONTACT', [
@@ -489,7 +542,20 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
           const SizedBox(height: 12),
           _dateField('Date of Birth', _dob),
           const SizedBox(height: 12),
-          _formField('Barangay / Municipality', _addressCtrl, icon: Icons.location_on_outlined),
+          DropdownButtonFormField<String>(
+            value: _kBarangays.contains(_selectedPersonalBarangay) ? _selectedPersonalBarangay : null,
+            decoration: _dec('Barangay *').copyWith(prefixIcon: const Icon(Icons.location_on_outlined, size: 18, color: _kGreen)),
+            isExpanded: true,
+            hint: const Text('Select your barangay', style: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF))),
+            items: _kBarangays.map((b) => DropdownMenuItem(value: b, child: Text(b, style: const TextStyle(fontSize: 13)))).toList(),
+            onChanged: (v) => setState(() => _selectedPersonalBarangay = v),
+            validator: (v) => v == null ? 'Please select your barangay' : null,
+          ),
+          const SizedBox(height: 6),
+          const Padding(
+            padding: EdgeInsets.only(left: 4),
+            child: Text('Municipality: Tubungan · Province: Iloilo', style: TextStyle(fontSize: 10.5, color: Color(0xFF6B7280))),
+          ),
         ]),
         const SizedBox(height: 16),
         _formCard('CONTACT', [

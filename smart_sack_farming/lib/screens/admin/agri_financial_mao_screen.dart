@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/agri_dss_models.dart';
 import '../../services/agri_dss_service.dart';
 import '../../services/agri_ure_service.dart';
+import '../../services/agri_financial_input_service.dart';
 
 const _kGreen = Color(0xFF1B7737);
 final _php = NumberFormat('#,##0', 'en_PH');
@@ -17,11 +19,14 @@ class _AgriFinancialMaoScreenState extends State<AgriFinancialMaoScreen>
     with SingleTickerProviderStateMixin {
   final _svc = AgriDssService();
   final _ureSvc = AgriUreService();
+  final _finSvc = AgriFinancialInputService();
 
   List<MaoAggregationRow> _rows = [];
   List<UreEvent> _ureEvents = [];
+  List<FinancialInputRecord> _pendingApprovals = [];
   bool _loading = true;
   bool _ureLoading = true;
+  bool _approvalLoading = true;
   String _sortBy = 'alerts';
   String _ureFilter = 'all';
   late TabController _tabs;
@@ -29,9 +34,10 @@ class _AgriFinancialMaoScreenState extends State<AgriFinancialMaoScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
     _load();
     _loadUre();
+    _loadApprovals();
   }
 
   @override
@@ -81,6 +87,109 @@ class _AgriFinancialMaoScreenState extends State<AgriFinancialMaoScreen>
   }
 
   int get _pendingCount => _ureEvents.where((e) => e.status == 'pending').length;
+  int get _approvalCount => _pendingApprovals.length;
+
+  Future<void> _loadApprovals() async {
+    setState(() => _approvalLoading = true);
+    try {
+      final data = await _finSvc.getVerifiedForMao();
+      if (!mounted) return;
+      setState(() { _pendingApprovals = data; _approvalLoading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _approvalLoading = false);
+    }
+  }
+
+  Future<void> _approveRecord(FinancialInputRecord r) async {
+    final notesCtl = TextEditingController();
+    final confirmed = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: const Row(children: [
+        Icon(Icons.verified_rounded, color: Color(0xFF1B7737), size: 20),
+        SizedBox(width: 8),
+        Text('Approve Record', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+      ]),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: const Color(0xFFF0FDF4), borderRadius: BorderRadius.circular(8)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${r.farmerName} · ${r.cropType}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            Text('${r.barangay} · ${r.areaPlantedHa.toStringAsFixed(2)} ha', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: notesCtl, maxLines: 2,
+          decoration: const InputDecoration(
+            labelText: 'MAO Notes (optional)',
+            hintText: 'Any remarks for this approval?',
+            border: OutlineInputBorder(), isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+        ),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        ElevatedButton.icon(
+          onPressed: () => Navigator.pop(context, true),
+          icon: const Icon(Icons.check_rounded, size: 14),
+          label: const Text('Approve', style: TextStyle(fontWeight: FontWeight.w700)),
+          style: ElevatedButton.styleFrom(backgroundColor: _kGreen, foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
+      ],
+    ));
+    if (confirmed != true) return;
+    await _finSvc.maoApprove(r.id, notes: notesCtl.text.trim().isEmpty ? null : notesCtl.text.trim());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('✓ Approved: ${r.farmerName} · ${r.cropType}'),
+      backgroundColor: _kGreen));
+    _loadApprovals();
+  }
+
+  Future<void> _returnRecord(FinancialInputRecord r) async {
+    final notesCtl = TextEditingController();
+    final confirmed = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: const Row(children: [
+        Icon(Icons.reply_rounded, color: Color(0xFFDC2626), size: 20),
+        SizedBox(width: 8),
+        Text('Return to BAW', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+      ]),
+      content: TextField(
+        controller: notesCtl, maxLines: 3,
+        decoration: const InputDecoration(
+          labelText: 'Reason for return *',
+          hintText: 'What needs correction?',
+          border: OutlineInputBorder(), isDense: true),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        ElevatedButton.icon(
+          onPressed: () {
+            if (notesCtl.text.trim().isEmpty) return;
+            Navigator.pop(context, true);
+          },
+          icon: const Icon(Icons.reply_rounded, size: 14),
+          label: const Text('Return'),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
+      ],
+    ));
+    if (confirmed != true || notesCtl.text.trim().isEmpty) return;
+    try {
+      await Supabase.instance.client.from('agri_financial_inputs').update({
+        'status': 'mao_returned',
+        'mao_notes': notesCtl.text.trim(),
+      }).eq('id', r.id);
+    } catch (_) {}
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Returned: ${r.farmerName} — ${r.cropType}'),
+      backgroundColor: const Color(0xFFDC2626)));
+    _loadApprovals();
+  }
 
   Future<void> _updateUreStatus(String id, String status, {String? notes}) async {
     await _ureSvc.updateVerificationStatus(eventId: id, status: status, notes: notes);
@@ -154,6 +263,19 @@ class _AgriFinancialMaoScreenState extends State<AgriFinancialMaoScreen>
                     ],
                   ]),
                 ),
+                Tab(
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('Crop Journal', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    if (_approvalCount > 0) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: const Color(0xFFF59E0B), borderRadius: BorderRadius.circular(10)),
+                        child: Text('$_approvalCount', style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                  ]),
+                ),
               ],
             ),
           ]),
@@ -165,6 +287,7 @@ class _AgriFinancialMaoScreenState extends State<AgriFinancialMaoScreen>
             children: [
               _buildRiskTab(),
               _buildUreTab(),
+              _buildApprovalTab(),
             ],
           ),
         ),
@@ -273,6 +396,156 @@ class _AgriFinancialMaoScreenState extends State<AgriFinancialMaoScreen>
   ]);
 
   Widget _divider() => Container(width: 1, height: 36, color: Colors.white.withAlpha(40));
+
+  // ── Tab 3: Crop Cycle Journal Approvals ──────────────────────────────────────
+
+  Widget _buildApprovalTab() {
+    if (_approvalLoading) return const Center(child: CircularProgressIndicator(color: _kGreen));
+    if (_pendingApprovals.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _loadApprovals, color: _kGreen,
+        child: ListView(children: const [
+          SizedBox(height: 80),
+          Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.check_circle_outline_rounded, size: 56, color: Color(0xFFD1D5DB)),
+            SizedBox(height: 14),
+            Text('No records pending MAO approval',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF6B7280))),
+            SizedBox(height: 6),
+            Text('BAW-verified crop cycle journals will appear here.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)), textAlign: TextAlign.center),
+          ])),
+        ]),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _loadApprovals, color: _kGreen,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(14),
+        itemCount: _pendingApprovals.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (_, i) => _approvalCard(_pendingApprovals[i]),
+      ),
+    );
+  }
+
+  Widget _approvalCard(FinancialInputRecord r) {
+    final nfi = r.netFarmIncome;
+    final fmt = NumberFormat('#,##0', 'en_PH');
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white, borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFF59E0B).withAlpha(120)),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(6), blurRadius: 6, offset: const Offset(0, 2))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12))),
+          child: Row(children: [
+            const Icon(Icons.menu_book_rounded, color: Color(0xFFF59E0B), size: 16),
+            const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${r.farmerName}  ·  ${r.cropType}${r.cropVariety.isEmpty ? '' : ' (${r.cropVariety})'}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
+              Text('${r.barangay}  ·  ${r.areaPlantedHa.toStringAsFixed(2)} ha  ·  planted ${_fmtDateAppr(r.plantingDate)}',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+              if (r.rsbsaNumber.isNotEmpty)
+                Text('RSBSA: ${r.rsbsaNumber}',
+                    style: const TextStyle(fontSize: 10.5, color: Color(0xFF9CA3AF))),
+            ])),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(6)),
+              child: const Text('BAW VERIFIED',
+                  style: TextStyle(fontSize: 9, color: Color(0xFF92400E), fontWeight: FontWeight.w800)),
+            ),
+          ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+          child: Row(children: [
+            _approvalKpi('Net Farm Income', 'PHP ${fmt.format(nfi)}', nfi >= 0 ? _kGreen : const Color(0xFFDC2626)),
+            const SizedBox(width: 8),
+            _approvalKpi('Loss Rate', '${r.lossRatePct.toStringAsFixed(1)}%',
+                r.lossRatePct > 15 ? const Color(0xFFDC2626) : const Color(0xFF6B7280)),
+            const SizedBox(width: 8),
+            _approvalKpi('Yield/ha', '${r.yieldPerHa.toStringAsFixed(0)} kg', const Color(0xFF2563EB)),
+          ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+          child: Wrap(spacing: 6, runSpacing: 4, children: [
+            if (r.seedCostPhp > 0)     _stageTag('Pre-Planting', const Color(0xFF1B7737)),
+            if (r.laborPlantingPhp > 0 || r.fertBasalPhp > 0) _stageTag('Planting', const Color(0xFF0891B2)),
+            if (r.sprayingCostPhp > 0 || r.laborWeedingPhp > 0) _stageTag('Maintenance', const Color(0xFF7C3AED)),
+            if (r.grossHarvestKg > 0)  _stageTag('Harvest', const Color(0xFFEA580C)),
+            if (r.unsoldKg > 0 || r.storageLossKg > 0) _stageTag('Post-Harvest', const Color(0xFFF59E0B)),
+            if (r.quantitySoldKg > 0)  _stageTag('Sales', const Color(0xFF1B7737)),
+          ]),
+        ),
+        if (r.bawNotes != null && r.bawNotes!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: const Color(0xFFF0FDF4), borderRadius: BorderRadius.circular(6)),
+              child: Row(children: [
+                const Icon(Icons.fact_check_rounded, size: 13, color: _kGreen),
+                const SizedBox(width: 6),
+                Expanded(child: Text('BAW: ${r.bawNotes}',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF166534)))),
+              ]),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            Expanded(child: ElevatedButton.icon(
+              onPressed: () => _approveRecord(r),
+              icon: const Icon(Icons.verified_rounded, size: 15),
+              label: const Text('Approve', style: TextStyle(fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kGreen, foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            )),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: () => _returnRecord(r),
+              icon: const Icon(Icons.reply_rounded, size: 14, color: Color(0xFFDC2626)),
+              label: const Text('Return', style: TextStyle(fontSize: 12, color: Color(0xFFDC2626), fontWeight: FontWeight.w600)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFDC2626)),
+                padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _approvalKpi(String label, String value, Color color) => Expanded(child: Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    decoration: BoxDecoration(color: color.withAlpha(12), borderRadius: BorderRadius.circular(6)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+      Text(label, style: const TextStyle(fontSize: 9.5, color: Color(0xFF9CA3AF))),
+    ]),
+  ));
+
+  Widget _stageTag(String label, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(color: color.withAlpha(18), borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withAlpha(60))),
+    child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+  );
+
+  String _fmtDateAppr(DateTime d) =>
+    '${d.year}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
 }
 
 // ─── Barangay Card ────────────────────────────────────────────────────────────
@@ -435,4 +708,5 @@ class _UreCard extends StatelessWidget {
       ),
     );
   }
+
 }

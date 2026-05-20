@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../../services/crop_declaration_service.dart';
+import '../../data/agrisat_real_data.dart';
 import 'crop_intelligence_screen.dart';
 import 'smart_crop_advisor_screen.dart';
 import '../admin/agrisense_farm_verification_screen.dart';
@@ -82,29 +83,68 @@ class _AgriCommandCenterState extends State<AgriCommandCenter> {
   int _oversuppledCount = 3;
   int _highDemandCount = 3;
 
-  static const _cropIntel = [
-    _CropIntel('Tomato', 4820, 2500, 'oversupplied', _kRed),
-    _CropIntel('Pechay', 3200, 2000, 'oversupplied', _kRed),
-    _CropIntel('Cabbage', 2800, 2400, 'moderate', _kGold),
-    _CropIntel('Eggplant', 1500, 2800, 'high_demand', _kGreen),
-    _CropIntel('Ampalaya', 1200, 2200, 'high_demand', _kGreen),
-    _CropIntel('Onion', 800, 3500, 'high_demand', _kGreen),
-  ];
+  // Real-data backed crop intel — Annual production MT (×1000 = kg) vs per-crop demand reference
+  List<_CropIntel> get _cropIntel {
+    final out = <_CropIntel>[];
+    for (final key in kAgriSatCropKeys) {
+      final totals = kAnnualTotals[key]!;
+      final ppi = kPpiResults[key]!;
+      String status;
+      Color color;
+      switch (ppi.alert) {
+        case 'SEVERE':
+        case 'SATURATION':
+          status = 'oversupplied'; color = _kRed; break;
+        case 'CAUTION':
+          status = 'moderate'; color = _kGold; break;
+        case 'HIGH_DEMAND':
+          status = 'high_demand'; color = _kGreen; break;
+        default:
+          status = 'moderate'; color = _kGold;
+      }
+      final declaredMT = totals.productionMT;
+      double demandMT;
+      if (key == 'squash') {
+        demandMT = 50;
+      } else if (key == 'stringBeans') {
+        demandMT = 60;
+      } else if (key == 'ampalaya') {
+        demandMT = 70;
+      } else if (key == 'eggplant') {
+        demandMT = 120;
+      } else if (key == 'okra') {
+        demandMT = 50;
+      } else {
+        demandMT = 50;
+      }
+      out.add(_CropIntel(
+        kCropDisplayNames[key]!,
+        declaredMT * 1000,
+        demandMT * 1000,
+        status,
+        color,
+      ));
+    }
+    return out;
+  }
 
-  static const _alerts = [
-    _AlertModel('CRITICAL',
-      'Tomato oversupply in Agboy-o & Agta — 12 farmers declared same crop, 89% above demand capacity.',
-      Icons.warning_rounded, _kRed),
-    _AlertModel('WARNING',
-      'Cabbage harvest congestion — September 2026. 8 farms expected to harvest simultaneously.',
-      Icons.event_busy_rounded, _kOrange),
-    _AlertModel('INFO',
-      'Onion shortage projected Oct 2026. Only 800 kg declared vs 3,500 kg demand.',
-      Icons.trending_up_rounded, _kBlue),
-    _AlertModel('WARNING',
-      'Tomato market price dropped 15% to ₱18/kg. Farmers at income risk.',
-      Icons.price_change_rounded, _kOrange),
-  ];
+  // Real-data backed alerts from MAO system insights
+  List<_AlertModel> get _alerts => kSystemInsights.map((insight) {
+    final crop = kCropDisplayNames[insight.crop] ?? insight.crop;
+    IconData icon;
+    Color color;
+    switch (insight.severity) {
+      case 'CRITICAL':
+        icon = Icons.warning_rounded; color = _kRed; break;
+      case 'WARNING':
+        icon = Icons.event_busy_rounded; color = _kOrange; break;
+      case 'OPPORTUNITY':
+        icon = Icons.trending_up_rounded; color = _kGreen; break;
+      default:
+        icon = Icons.info_rounded; color = _kBlue;
+    }
+    return _AlertModel(insight.severity, '$crop — ${insight.message}', icon, color);
+  }).toList();
 
   static const _rankings = [
     _BarangayRank('Agboy-o', 45, 12.5, 'Tomato, Pechay'),
@@ -114,14 +154,13 @@ class _AgriCommandCenterState extends State<AgriCommandCenter> {
     _BarangayRank('Alobo', 24, 6.3, 'Corn, Pechay'),
   ];
 
-  static const _prices = [
-    _PriceItem('Tomato', 18.0, -15.2, 'down'),
-    _PriceItem('Onion', 95.0, 8.5, 'up'),
-    _PriceItem('Eggplant', 25.0, 2.1, 'stable'),
-    _PriceItem('Cabbage', 22.0, -4.8, 'down'),
-    _PriceItem('Ampalaya', 38.0, 12.3, 'up'),
-    _PriceItem('Pechay', 15.0, -8.6, 'down'),
-  ];
+  // Real-data backed market prices (latest week prices from kWeeklyPrices)
+  List<_PriceItem> get _prices => kAgriSatCropKeys.map((key) {
+    final price = AgriSatData.getLatestPrice(key);
+    final dir = AgriSatData.getPriceDirection(key);
+    final change = AgriSatData.getWeekOverWeekChange(key);
+    return _PriceItem(kCropDisplayNames[key]!, price, change, dir);
+  }).toList();
 
   @override
   void initState() {
@@ -155,7 +194,16 @@ class _AgriCommandCenterState extends State<AgriCommandCenter> {
         _harvestThisMonth = 23;
       });
     } finally {
-      setState(() => _loading = false);
+      // Compute real-data KPI counts from PPI results
+      setState(() {
+        _oversuppledCount = kPpiResults.values
+            .where((p) => p.alert == 'SEVERE' || p.alert == 'SATURATION')
+            .length;
+        _highDemandCount = kPpiResults.values
+            .where((p) => p.alert == 'HIGH_DEMAND')
+            .length;
+        _loading = false;
+      });
     }
   }
 
@@ -395,7 +443,7 @@ class _AgriCommandCenterState extends State<AgriCommandCenter> {
                 height: 220,
                 child: BarChart(
                   BarChartData(
-                    maxY: 6,
+                    maxY: 120,
                     alignment: BarChartAlignment.spaceAround,
                     groupsSpace: 12,
                     borderData: FlBorderData(show: false),
@@ -414,7 +462,7 @@ class _AgriCommandCenterState extends State<AgriCommandCenter> {
                         sideTitles: SideTitles(
                           showTitles: true,
                           reservedSize: 32,
-                          interval: 2,
+                          interval: 30,
                           getTitlesWidget: (v, _) => Text(
                             '${v.toInt()}T',
                             style: const TextStyle(fontSize: 9, color: _kMuted),
@@ -468,18 +516,18 @@ class _AgriCommandCenterState extends State<AgriCommandCenter> {
           ),
         ),
 
-        // Harvest Volume Forecast Line Chart
+        // Harvest Volume Forecast Line Chart — real Jul–Dec 2025 production data
         _card(
           title: 'Harvest Volume Forecast',
-          subtitle: 'Projected harvest volumes — next 6 months (tons)',
+          subtitle: 'Squash (red) · Eggplant (green) · String Beans (gold) — Jul–Dec 2025 (MT)',
           child: Column(
             children: [
               Row(children: [
-                _legendDot(_kRed, 'Tomato'),
-                const SizedBox(width: 12),
-                _legendDot(_kGold, 'Cabbage'),
+                _legendDot(_kRed, 'Squash'),
                 const SizedBox(width: 12),
                 _legendDot(_kGreen, 'Eggplant'),
+                const SizedBox(width: 12),
+                _legendDot(_kGold, 'String Beans'),
               ]),
               const SizedBox(height: 12),
               SizedBox(
@@ -487,7 +535,7 @@ class _AgriCommandCenterState extends State<AgriCommandCenter> {
                 child: LineChart(
                   LineChartData(
                     minY: 0,
-                    maxY: 7,
+                    maxY: 20,
                     borderData: FlBorderData(show: false),
                     gridData: FlGridData(
                       show: true,
@@ -504,7 +552,7 @@ class _AgriCommandCenterState extends State<AgriCommandCenter> {
                         sideTitles: SideTitles(
                           showTitles: true,
                           reservedSize: 24,
-                          interval: 2,
+                          interval: 5,
                           getTitlesWidget: (v, _) => Text(
                             v.toInt().toString(),
                             style: const TextStyle(fontSize: 9, color: _kMuted),
@@ -516,26 +564,45 @@ class _AgriCommandCenterState extends State<AgriCommandCenter> {
                           showTitles: true,
                           reservedSize: 20,
                           getTitlesWidget: (v, _) {
-                            const months = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
                             final i = v.toInt();
-                            if (i < 0 || i >= months.length) return const SizedBox.shrink();
-                            return Text(months[i], style: const TextStyle(fontSize: 9, color: _kMuted));
+                            // Months 6..11 → Jul..Dec
+                            final monthIdx = i + 6;
+                            if (monthIdx < 0 || monthIdx >= kMonthAbbreviations.length) {
+                              return const SizedBox.shrink();
+                            }
+                            return Text(kMonthAbbreviations[monthIdx],
+                                style: const TextStyle(fontSize: 9, color: _kMuted));
                           },
                         ),
                       ),
                     ),
                     lineBarsData: [
-                      _forecastLine(
+                      LineChartBarData(
+                        spots: List.generate(6,
+                            (i) => FlSpot(i.toDouble(), kHarvestData['squash']!.production[i + 6])),
+                        isCurved: true,
                         color: _kRed,
-                        spots: [FlSpot(0,2.1), FlSpot(1,3.5), FlSpot(2,5.8), FlSpot(3,4.2), FlSpot(4,2.8), FlSpot(5,1.5)],
+                        barWidth: 2,
+                        belowBarData: BarAreaData(show: true, color: _kRed.withAlpha(15)),
+                        dotData: const FlDotData(show: false),
                       ),
-                      _forecastLine(
-                        color: _kGold,
-                        spots: [FlSpot(0,1.8), FlSpot(1,2.2), FlSpot(2,3.1), FlSpot(3,3.8), FlSpot(4,2.5), FlSpot(5,1.9)],
-                      ),
-                      _forecastLine(
+                      LineChartBarData(
+                        spots: List.generate(6,
+                            (i) => FlSpot(i.toDouble(), kHarvestData['eggplant']!.production[i + 6])),
+                        isCurved: true,
                         color: _kGreen,
-                        spots: [FlSpot(0,0.8), FlSpot(1,1.2), FlSpot(2,1.5), FlSpot(3,1.8), FlSpot(4,2.1), FlSpot(5,1.6)],
+                        barWidth: 2,
+                        belowBarData: BarAreaData(show: true, color: _kGreen.withAlpha(15)),
+                        dotData: const FlDotData(show: false),
+                      ),
+                      LineChartBarData(
+                        spots: List.generate(6,
+                            (i) => FlSpot(i.toDouble(), kHarvestData['stringBeans']!.production[i + 6])),
+                        isCurved: true,
+                        color: _kGold,
+                        barWidth: 2,
+                        belowBarData: BarAreaData(show: true, color: _kGold.withAlpha(15)),
+                        dotData: const FlDotData(show: false),
                       ),
                     ],
                   ),
@@ -545,20 +612,6 @@ class _AgriCommandCenterState extends State<AgriCommandCenter> {
           ),
         ),
       ],
-    );
-  }
-
-  LineChartBarData _forecastLine({required Color color, required List<FlSpot> spots}) {
-    return LineChartBarData(
-      spots: spots,
-      isCurved: true,
-      color: color,
-      barWidth: 2,
-      dotData: const FlDotData(show: false),
-      belowBarData: BarAreaData(
-        show: true,
-        color: color.withAlpha(15),
-      ),
     );
   }
 

@@ -20,6 +20,7 @@ import '../features/agri_econ_frds_screen.dart';
 import '../saturation/saturation_heatmap_screen.dart';
 import '../../services/crop_declaration_service.dart';
 import '../../services/agrisat_market_service.dart';
+import '../../data/agrisat_real_data.dart';
 import '../../data/tubungan_barangays.dart';
 import '../features/buyer_demand_board_screen.dart';
 import '../mao/agri_command_center.dart';
@@ -216,6 +217,32 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       } catch (_) {
         _indicators = _mktSvc.getMockIndicators();
       }
+
+      // Recompute risk rows from real PPI data (replaces mock riskRows)
+      final ppiRiskRows = kAgriSatCropKeys.map((key) {
+        final ppi = kPpiResults[key]!;
+        final totals = kAnnualTotals[key]!;
+        final supply = totals.productionMT;
+        final demand = ppi.latestPPI < -10
+            ? supply * 0.7
+            : supply * 0.95;
+        final risk = (1.0 - (100 + ppi.latestPPI).clamp(0, 100) / 100).clamp(0.0, 1.0);
+        return _RiskRow(kCropDisplayNames[key]!, risk, supply, demand);
+      }).toList()
+        ..sort((a, b) => b.risk.compareTo(a.risk));
+      _riskRows = ppiRiskRows;
+
+      // Update alerts from real system insights
+      _recentAlerts = kSystemInsights.map((insight) {
+        final crop = kCropDisplayNames[insight.crop] ?? insight.crop;
+        return _AlertItem(
+          title: '$crop — ${insight.severity}',
+          detail: insight.message,
+          dateLabel: 'AgriSat 2025 Data',
+          tone: insight.severity == 'CRITICAL' || insight.severity == 'WARNING'
+              ? _AlertTone.warning : _AlertTone.info,
+        );
+      }).toList();
 
       if (mounted) {
         setState(() => _isLoading = false);

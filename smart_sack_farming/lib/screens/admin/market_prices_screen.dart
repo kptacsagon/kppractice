@@ -2,6 +2,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../data/agrisat_real_data.dart';
+
 import '../features/financial_forecast_screen.dart';
 import 'alerts_notifications_screen.dart';
 import 'intervention_management_screen.dart';
@@ -33,16 +35,13 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
 
   List<Map<String, dynamic>> _prices = [];
 
-  final List<_PriceRow> _fallbackPrices = const [
-    _PriceRow('Ampalaya',  35, 63,  'Stable',  'Medium'),
-    _PriceRow('Talong',    30, 54,  'Rising',  'High'),
-    _PriceRow('Kamatis',   40, 72,  'Falling', 'Medium'),
-    _PriceRow('Okra',      32, 58,  'Rising',  'High'),
-    _PriceRow('Sitaw',     45, 81,  'Stable',  'Medium'),
-    _PriceRow('Kangkong',  20, 36,  'Stable',  'Low'),
-    _PriceRow('Pechay',    25, 45,  'Falling', 'Low'),
-    _PriceRow('Kalabasa',  22, 40,  'Rising',  'Medium'),
-  ];
+  List<_PriceRow> get _fallbackPrices => kAgriSatCropKeys.map((key) {
+    final ppi = kPpiResults[key]!;
+    final trend = ppi.latestPPI > 5 ? 'Rising' : ppi.latestPPI < -5 ? 'Falling' : 'Stable';
+    final demand = ppi.alert == 'HIGH_DEMAND' ? 'High' : ppi.alert == 'SEVERE' ? 'Low' : 'Medium';
+    final farmgate = (ppi.latestPrice * 0.62).roundToDouble();
+    return _PriceRow(kCropDisplayNames[key]!, farmgate, ppi.latestPrice, trend, demand);
+  }).toList();
 
   final List<_DemandPartner> _partners = const [
     _DemandPartner('School Feeding Programs', 25, 'Active'),
@@ -52,53 +51,40 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
     _DemandPartner('Institutional Buyers', 12, 'Negotiating'),
   ];
 
-  final List<_InfoBlock> _opportunities = const [
-    _InfoBlock(
-      title: 'High Demand: Eggplant & Pepper',
-      detail: 'Market price rising. Consider promoting these crops for next season.',
-      bg: Color(0xFFD9EEE1),
-      border: Color(0xFFB5DFC5),
-      text: Color(0xFF047857),
-    ),
-    _InfoBlock(
-      title: 'New Buyer: Supermarket Chain',
-      detail: 'Potential contract for 18 tons/week. Quality standards required.',
-      bg: Color(0xFFDDE6F2),
-      border: Color(0xFFB7CCE8),
-      text: Color(0xFF1D4ED8),
-    ),
-    _InfoBlock(
-      title: 'Export Opportunity',
-      detail: 'Regional buyer interested in cabbage. Need volume certification.',
-      bg: Color(0xFFF9F3D9),
-      border: Color(0xFFEAD98F),
-      text: Color(0xFFB45309),
-    ),
-  ];
+  List<_InfoBlock> get _opportunities => kSystemInsights.map((insight) {
+    final crop = kCropDisplayNames[insight.crop] ?? insight.crop;
+    Color bg, border, text;
+    switch (insight.severity) {
+      case 'OPPORTUNITY':
+        bg = const Color(0xFFD9EEE1); border = const Color(0xFFB5DFC5); text = const Color(0xFF047857); break;
+      case 'WARNING':
+        bg = const Color(0xFFFEF3C7); border = const Color(0xFFFCD34D); text = const Color(0xFF92400E); break;
+      case 'CRITICAL':
+        bg = const Color(0xFFFEE2E2); border = const Color(0xFFFCA5A5); text = const Color(0xFFB91C1C); break;
+      default:
+        bg = const Color(0xFFF0FDF4); border = const Color(0xFFBBF7D0); text = const Color(0xFF166534);
+    }
+    return _InfoBlock(
+      title: '$crop — ${insight.severity}',
+      detail: insight.message,
+      bg: bg, border: border, text: text,
+    );
+  }).toList();
 
-  final List<_InfoBlock> _alerts = const [
-    _InfoBlock(
-      title: 'Cabbage Price Declining',
-      detail: '-15% in 3 days. Oversupply impact. Intervention recommended.',
-      bg: Color(0xFFFBEAEA),
-      border: Color(0xFFF2B8B8),
-      text: Color(0xFFDC2626),
-    ),
-    _InfoBlock(
-      title: 'Tomato Margin Compression',
-      detail: 'Margin down to 78%. Traders reducing purchase volume.',
-      bg: Color(0xFFFBEAEA),
-      border: Color(0xFFF2B8B8),
-      text: Color(0xFFB91C1C),
-    ),
-    _InfoBlock(
-      title: 'Lettuce Stable',
-      detail: 'Price holding steady. Good demand-supply balance maintained.',
-      bg: Color(0xFFD9EEE1),
-      border: Color(0xFFB5DFC5),
-      text: Color(0xFF047857),
-    ),
-  ];
+  List<_InfoBlock> get _alerts => kSystemInsights
+      .where((i) => i.severity == 'CRITICAL' || i.severity == 'WARNING')
+      .map((insight) {
+    final crop = kCropDisplayNames[insight.crop] ?? insight.crop;
+    return _InfoBlock(
+      title: '$crop — ${insight.severity}',
+      detail: insight.message,
+      bg: const Color(0xFFFBEAEA),
+      border: const Color(0xFFF2B8B8),
+      text: insight.severity == 'CRITICAL'
+          ? const Color(0xFFB91C1C)
+          : const Color(0xFFDC2626),
+    );
+  }).toList();
 
   @override
   void initState() {
