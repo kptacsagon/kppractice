@@ -6,6 +6,8 @@ import '../auth/login_screen.dart';
 import '../features/buyer_demand_board_screen.dart';
 import '../farmer/agri_financial_input_screen.dart';
 import '../farmer/farmer_crop_declaration_screen.dart';
+import '../mao/crop_intelligence_screen.dart';
+import '../mao/smart_crop_advisor_screen.dart';
 import 'baw_validation_queue_screen.dart';
 
 const _kGreen = Color(0xFF1B7737);
@@ -247,6 +249,36 @@ class _BawDashboardScreenState extends State<BawDashboardScreen> {
             title: 'Farmer Directory',
             subtitle: 'Manage farmers in your assigned barangay',
             onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Farmer Directory — coming in Phase 2'))),
+          ),
+          const SizedBox(height: 22),
+
+          // ── Intelligence Tools section ────────────────────────────────────
+          const Row(children: [
+            Icon(Icons.analytics_rounded, size: 14, color: Color(0xFF6B7280)),
+            SizedBox(width: 6),
+            Text('Intelligence Tools',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                    color: Color(0xFF6B7280), letterSpacing: 0.4)),
+          ]),
+          const SizedBox(height: 4),
+          const Text(
+            'Crop supply analysis and smart planting recommendations for your barangay.',
+            style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+          const SizedBox(height: 10),
+          _card(
+            icon: Icons.analytics_outlined, color: const Color(0xFF7C3AED),
+            title: 'Crop Intelligence',
+            subtitle: 'Supply vs demand analysis, saturation levels, harvest forecast',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const CropIntelligenceScreen())),
+          ),
+          const SizedBox(height: 10),
+          _card(
+            icon: Icons.tips_and_updates_rounded, color: const Color(0xFF7C3AED),
+            title: 'Smart Crop Advisor',
+            subtitle: 'Crop recommendations and oversupply risk analysis by barangay',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const SmartCropAdvisorScreen())),
           ),
           const SizedBox(height: 22),
 

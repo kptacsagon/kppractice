@@ -1,11 +1,109 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 import '../../data/hvc_master_list.dart';
 import '../../data/tubungan_barangays.dart';
 import '../../services/crop_declaration_service.dart';
 
 const _kGreen = Color(0xFF1B7737);
 const _kGreenLight = Color(0xFFE7F1E8);
+
+// ── Crop Intelligence data model ──────────────────────────────────────────────
+
+class _CropInsight {
+  final String status;      // 'oversupplied' | 'moderate' | 'high_demand'
+  final int supplyPct;      // % of demand that is covered by current declarations
+  final int farmersCount;
+  final int declaredKg;
+  final double forecastPrice;
+  final String priceDir;    // 'up' | 'down' | 'stable'
+  final List<String> alts;  // recommended alternative crops
+  final String? congestion; // harvest congestion warning (null = no warning)
+  const _CropInsight({
+    required this.status, required this.supplyPct,
+    required this.farmersCount, required this.declaredKg,
+    required this.forecastPrice, required this.priceDir,
+    this.alts = const [], this.congestion,
+  });
+  Color get color {
+    if (status == 'oversupplied') return const Color(0xFFDC2626);
+    if (status == 'moderate') return const Color(0xFFF59E0B);
+    return const Color(0xFF1B7737);
+  }
+  Color get bgColor {
+    if (status == 'oversupplied') return const Color(0xFFFEF2F2);
+    if (status == 'moderate') return const Color(0xFFFFFBEB);
+    return const Color(0xFFF0FDF4);
+  }
+  String get emoji {
+    if (status == 'oversupplied') return '🔴';
+    if (status == 'moderate') return '🟡';
+    return '🟢';
+  }
+  String get label {
+    if (status == 'oversupplied') return 'Oversupply Risk';
+    if (status == 'moderate') return 'Moderate Supply';
+    return 'High Demand';
+  }
+}
+
+const _kCropInsightData = <String, _CropInsight>{
+  'Tomato': _CropInsight(
+    status: 'oversupplied', supplyPct: 92, farmersCount: 58,
+    declaredKg: 42000, forecastPrice: 15.0, priceDir: 'down',
+    alts: ['Onion', 'Eggplant', 'Ampalaya'],
+    congestion: 'September 2026 — excess tomato harvest expected. High price crash risk.',
+  ),
+  'Pechay': _CropInsight(
+    status: 'oversupplied', supplyPct: 78, farmersCount: 42,
+    declaredKg: 28000, forecastPrice: 12.0, priceDir: 'down',
+    alts: ['Eggplant', 'Okra', 'Ampalaya'],
+  ),
+  'Cabbage': _CropInsight(
+    status: 'moderate', supplyPct: 58, farmersCount: 35,
+    declaredKg: 21000, forecastPrice: 22.0, priceDir: 'stable',
+    alts: ['Ampalaya', 'Squash', 'Pepper'],
+    congestion: 'August 2026 — moderate harvest overlap expected in Agboy-o area.',
+  ),
+  'Eggplant': _CropInsight(
+    status: 'high_demand', supplyPct: 32, farmersCount: 18,
+    declaredKg: 9000, forecastPrice: 28.0, priceDir: 'up',
+  ),
+  'Ampalaya': _CropInsight(
+    status: 'high_demand', supplyPct: 35, farmersCount: 22,
+    declaredKg: 11000, forecastPrice: 38.0, priceDir: 'up',
+  ),
+  'Onion': _CropInsight(
+    status: 'high_demand', supplyPct: 23, farmersCount: 8,
+    declaredKg: 3500, forecastPrice: 95.0, priceDir: 'up',
+  ),
+  'Okra': _CropInsight(
+    status: 'high_demand', supplyPct: 28, farmersCount: 14,
+    declaredKg: 6000, forecastPrice: 22.0, priceDir: 'up',
+  ),
+  'Squash': _CropInsight(
+    status: 'moderate', supplyPct: 52, farmersCount: 24,
+    declaredKg: 18000, forecastPrice: 20.0, priceDir: 'stable',
+    alts: ['Eggplant', 'Okra'],
+  ),
+  'Pepper': _CropInsight(
+    status: 'moderate', supplyPct: 48, farmersCount: 19,
+    declaredKg: 14000, forecastPrice: 45.0, priceDir: 'up',
+  ),
+  'Corn': _CropInsight(
+    status: 'high_demand', supplyPct: 40, farmersCount: 12,
+    declaredKg: 8000, forecastPrice: 18.0, priceDir: 'up',
+  ),
+  'Banana': _CropInsight(
+    status: 'moderate', supplyPct: 55, farmersCount: 28,
+    declaredKg: 32000, forecastPrice: 25.0, priceDir: 'stable',
+    alts: ['Papaya', 'Ginger'],
+  ),
+  'Mango': _CropInsight(
+    status: 'high_demand', supplyPct: 30, farmersCount: 16,
+    declaredKg: 12000, forecastPrice: 55.0, priceDir: 'up',
+  ),
+};
 
 class FarmerCropDeclarationScreen extends StatefulWidget {
   /// When set, the screen is in BAW-assisted mode — recording on behalf of a farmer.
@@ -33,6 +131,7 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
   String _farmingMethod = 'Organic';
   double _volumeKg = 500;
   bool _submitting = false;
+  bool _insightsExpanded = false;
   int _tab = 0;
   List<CropDeclaration> _myDeclarations = [];
 
@@ -254,6 +353,20 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
   }
 
   Widget _buildForm() {
+    return LayoutBuilder(builder: (ctx, box) {
+      final wide = box.maxWidth >= 800;
+      if (wide) {
+        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(flex: 7, child: _buildFormScrollable()),
+          Container(width: 1, color: const Color(0xFFE5E7EB)),
+          Expanded(flex: 3, child: _buildInsightsSidebar()),
+        ]);
+      }
+      return _buildFormScrollable(showAccordion: true);
+    });
+  }
+
+  Widget _buildFormScrollable({bool showAccordion = false}) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -337,9 +450,15 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
                 ),
               ]),
             ),
+            const SizedBox(height: 8),
+            _buildInlineCropStatus(_selectedCrop!.nameEnglish),
           ],
         ]),
         const SizedBox(height: 12),
+        if (showAccordion && _selectedCrop != null) ...[
+          _buildMobileInsightsAccordion(),
+          const SizedBox(height: 12),
+        ],
 
         // ── Farm Details ──
         _sectionCard(icon: Icons.location_on_rounded, title: 'Farm Details', subtitle: 'Location and area information', children: [
@@ -490,6 +609,270 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
         const SizedBox(height: 8),
       ]),
     );
+  }
+
+  // ── Smart Crop Insights panel (wide: sidebar | mobile: accordion) ─────────
+
+  Widget _buildInsightsSidebar() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Row(children: [
+          Icon(Icons.tips_and_updates_rounded, color: Color(0xFF2563EB), size: 16),
+          SizedBox(width: 6),
+          Text('Smart Crop Insights',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+        ]),
+        const SizedBox(height: 3),
+        const Text('Live market intelligence for your selection',
+            style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+        const SizedBox(height: 14),
+        _selectedCrop == null
+            ? _buildInsightsPlaceholder()
+            : _buildInsightsContent(_selectedCrop!.nameEnglish),
+      ]),
+    );
+  }
+
+  Widget _buildInsightsPlaceholder() => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
+    child: const Column(children: [
+      Icon(Icons.search_rounded, color: Color(0xFFCBD5E1), size: 40),
+      SizedBox(height: 12),
+      Text('Select a crop to see market intelligence',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
+      SizedBox(height: 6),
+      Text('Supply levels, price forecasts, and recommendations will appear here.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 10.5, color: Color(0xFFB0BEC5), height: 1.4)),
+    ]),
+  );
+
+  Widget _buildInsightsContent(String cropName) {
+    final insight = _kCropInsightData[cropName];
+    if (insight == null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8)),
+        child: const Text('No market data available for this crop yet.',
+            style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+      );
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Status + supply meter card
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: insight.bgColor, borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: insight.color.withAlpha(80))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${insight.emoji} ${insight.label}',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: insight.color)),
+          const SizedBox(height: 8),
+          Row(children: [
+            const Text('Supply Level', style: TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+            const Spacer(),
+            Text('${insight.supplyPct}% of demand',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: insight.color)),
+          ]),
+          const SizedBox(height: 4),
+          ClipRRect(borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(value: insight.supplyPct / 100,
+                  backgroundColor: const Color(0xFFE5E7EB),
+                  valueColor: AlwaysStoppedAnimation<Color>(insight.color), minHeight: 8)),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: _statTile(Icons.people_rounded, '${insight.farmersCount}', 'Farmers')),
+            const SizedBox(width: 6),
+            Expanded(child: _statTile(Icons.inventory_2_rounded,
+                NumberFormat('#,##0', 'en_PH').format(insight.declaredKg), 'kg declared')),
+          ]),
+        ]),
+      ),
+      const SizedBox(height: 10),
+      // Price forecast
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFE5E7EB))),
+        child: Row(children: [
+          const Icon(Icons.price_change_rounded, color: Color(0xFF64748B), size: 16),
+          const SizedBox(width: 8),
+          const Text('Forecast Price', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+          const Spacer(),
+          Text('₱${insight.forecastPrice.toStringAsFixed(0)}/kg',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+          const SizedBox(width: 4),
+          Icon(
+            insight.priceDir == 'up' ? Icons.arrow_upward_rounded
+                : insight.priceDir == 'down' ? Icons.arrow_downward_rounded
+                : Icons.remove_rounded,
+            size: 14,
+            color: insight.priceDir == 'up' ? const Color(0xFF1B7737)
+                : insight.priceDir == 'down' ? const Color(0xFFDC2626)
+                : const Color(0xFF6B7280),
+          ),
+        ]),
+      ),
+      const SizedBox(height: 10),
+      // Harvest congestion warning (only when risk exists)
+      if (insight.congestion != null) ...[
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFFCD34D))),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 16),
+            const SizedBox(width: 6),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Harvest Congestion Expected',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF92400E))),
+              const SizedBox(height: 2),
+              Text(insight.congestion!,
+                  style: const TextStyle(fontSize: 10.5, color: Color(0xFF92400E), height: 1.4)),
+            ])),
+          ]),
+        ),
+        const SizedBox(height: 10),
+      ],
+      // Clickable alternative crops
+      if (insight.alts.isNotEmpty) ...[
+        const Text('Recommended Alternatives',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF374151))),
+        const SizedBox(height: 3),
+        const Text('Tap to auto-select',
+            style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+        const SizedBox(height: 8),
+        Wrap(spacing: 6, runSpacing: 6, children: insight.alts.map((alt) {
+          final altInsight = _kCropInsightData[alt];
+          final altColor = altInsight?.color ?? const Color(0xFF1B7737);
+          return InkWell(
+            onTap: () => _selectAlternative(alt),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(color: altColor.withAlpha(15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: altColor.withAlpha(60))),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(altInsight?.emoji ?? '🟢', style: const TextStyle(fontSize: 11)),
+                const SizedBox(width: 4),
+                Text(alt, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: altColor)),
+              ]),
+            ),
+          );
+        }).toList()),
+      ],
+    ]);
+  }
+
+  Widget _statTile(IconData icon, String value, String label) => Container(
+    padding: const EdgeInsets.all(8),
+    decoration: BoxDecoration(color: Colors.white.withAlpha(150), borderRadius: BorderRadius.circular(6)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 12, color: const Color(0xFF6B7280)),
+      const SizedBox(height: 2),
+      Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+      Text(label, style: const TextStyle(fontSize: 9.5, color: Color(0xFF6B7280))),
+    ]),
+  );
+
+  Widget _buildMobileInsightsAccordion() => Container(
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0))),
+    child: Column(children: [
+      InkWell(
+        onTap: () => setState(() => _insightsExpanded = !_insightsExpanded),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+                color: const Color(0xFF2563EB).withAlpha(20),
+                borderRadius: BorderRadius.circular(6)),
+            child: const Icon(Icons.tips_and_updates_rounded, color: Color(0xFF2563EB), size: 15)),
+          const SizedBox(width: 10),
+          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Smart Crop Insights',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+            Text('Tap to see market intelligence',
+                style: TextStyle(fontSize: 10.5, color: Color(0xFF6B7280))),
+          ])),
+          Icon(_insightsExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+              color: const Color(0xFF6B7280), size: 20),
+        ])),
+      ),
+      if (_insightsExpanded) Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: _buildInsightsContent(_selectedCrop?.nameEnglish ?? ''),
+      ),
+    ]),
+  );
+
+  Widget _buildInlineCropStatus(String cropName) {
+    final insight = _kCropInsightData[cropName];
+    if (insight == null) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: insight.bgColor, borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: insight.color.withAlpha(60))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text('${insight.emoji} ${insight.label}',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: insight.color)),
+          const Spacer(),
+          Text(
+            '₱${insight.forecastPrice.toStringAsFixed(0)}/kg '
+            '${insight.priceDir == 'up' ? '↑' : insight.priceDir == 'down' ? '↓' : '→'}',
+            style: TextStyle(
+              fontSize: 11, fontWeight: FontWeight.w700,
+              color: insight.priceDir == 'up' ? const Color(0xFF1B7737)
+                  : insight.priceDir == 'down' ? const Color(0xFFDC2626)
+                  : const Color(0xFF6B7280)),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        Row(children: [
+          Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(value: insight.supplyPct / 100,
+                backgroundColor: const Color(0xFFE5E7EB),
+                valueColor: AlwaysStoppedAnimation<Color>(insight.color), minHeight: 6))),
+          const SizedBox(width: 8),
+          Text('${insight.supplyPct}%',
+              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: insight.color)),
+        ]),
+        const SizedBox(height: 6),
+        Wrap(spacing: 6, children: [
+          _infoChip('👨‍🌾 ${insight.farmersCount} Farmers'),
+          _infoChip('📦 ${NumberFormat('#,##0', 'en_PH').format(insight.declaredKg)} kg declared'),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _infoChip(String label) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: const Color(0xFFE5E7EB))),
+    child: Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+  );
+
+  void _selectAlternative(String cropName) {
+    HvcCrop? found;
+    try {
+      found = kHvcMasterList.firstWhere(
+          (c) => c.nameEnglish.toLowerCase() == cropName.toLowerCase());
+    } catch (_) {}
+    if (found != null) {
+      setState(() => _selectedCrop = found);
+      _recalcHarvestDate();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Switched to $cropName — recommended for this season'),
+        backgroundColor: const Color(0xFF1B7737),
+        duration: const Duration(seconds: 2)));
+    }
   }
 
   Widget _buildMyDeclarations() {
