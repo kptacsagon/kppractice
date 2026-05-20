@@ -19,6 +19,7 @@ import '../farmer/farmer_crop_declaration_screen.dart';
 import '../farmer/harvest_report_screen.dart';
 import '../farmer/agrisat_market_signals_screen.dart';
 import '../features/buyer_demand_board_screen.dart';
+import '../farmer/agri_financial_input_screen.dart';
 
 class FarmerDashboardScreen extends StatelessWidget {
   const FarmerDashboardScreen({super.key});
@@ -94,6 +95,15 @@ class FarmerDashboardScreen extends StatelessWidget {
                   mainAxisSpacing: 16,
                   childAspectRatio: 0.75,
                   children: [
+                    _buildFeatureCard(
+                      icon: Icons.menu_book_rounded,
+                      iconColor: const Color(0xFF1B7737),
+                      title: 'Crop Cycle Journal',
+                      description:
+                          'Record your full crop cycle: pre-planting, planting, maintenance, harvest, post-harvest, sales. Submitted to BAW.',
+                      buttonText: 'Open Journal',
+                      onTap: () => _navigateToFeature(context, 'Financial Model Input'),
+                    ),
                     _buildFeatureCard(
                       icon: Icons.insights_rounded,
                       iconColor: const Color(0xFF00897B),
@@ -312,6 +322,10 @@ class FarmerDashboardScreen extends StatelessWidget {
     } else if (featureName == 'AgriFinancial Model') {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const AgriFinancialModelScreen()),
+      );
+    } else if (featureName == 'Financial Model Input') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const AgriFinancialInputScreen()),
       );
     } else if (featureName == 'My Profile') {
       Navigator.of(

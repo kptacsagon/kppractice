@@ -16,6 +16,7 @@ import '../mao/agrisense_municipal_dashboard.dart';
 import '../mao/agrisense_municipal_analytics_screen.dart';
 import '../admin/agrisense_farm_verification_screen.dart';
 import '../admin/agri_financial_mao_screen.dart';
+import '../features/agri_econ_frds_screen.dart';
 import '../saturation/saturation_heatmap_screen.dart';
 import '../../services/crop_declaration_service.dart';
 import '../../services/agrisat_market_service.dart';
@@ -392,6 +393,7 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       const _NavItem('Farm Verification', Icons.fact_check_rounded),
       const _NavItem('SRS Heat Map', Icons.map_rounded),
       const _NavItem('Financial Risk', Icons.account_balance_rounded),
+      const _NavItem('AgriEcon-FRDS', Icons.account_tree_rounded),
     ];
 
     return Container(
@@ -622,6 +624,13 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
         await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const AgriFinancialMaoScreen()),
+        );
+        setState(() => _selectedNavIndex = 0);
+        break;
+      case 13:
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AgriEconFrdsScreen()),
         );
         setState(() => _selectedNavIndex = 0);
         break;

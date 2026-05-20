@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/crop_declaration_service.dart';
+import '../../services/agri_financial_input_service.dart';
 import '../auth/login_screen.dart';
 import '../features/buyer_demand_board_screen.dart';
 import 'baw_validation_queue_screen.dart';
@@ -21,6 +22,8 @@ class _BawDashboardScreenState extends State<BawDashboardScreen> {
   int _validatedCount = 0;
   int _upcomingHarvestCount = 0;
   int _pendingFarmCount = 0;
+  int _pendingFinInputCount = 0;
+  final _finSvc = AgriFinancialInputService();
 
   @override
   void initState() {
@@ -43,11 +46,17 @@ class _BawDashboardScreenState extends State<BawDashboardScreen> {
           .eq('verification_status', 'Pending Verification');
       farmCount = (res as List).length;
     } catch (_) {}
+    int finInputCount = 0;
+    try {
+      final finInputs = await _finSvc.getPendingForBaw();
+      finInputCount = finInputs.length;
+    } catch (_) {}
     if (mounted) setState(() {
       _pendingCount = pending.length;
       _validatedCount = validated.length;
       _upcomingHarvestCount = upcoming;
       _pendingFarmCount = farmCount;
+      _pendingFinInputCount = finInputCount;
     });
   }
 
@@ -108,6 +117,17 @@ class _BawDashboardScreenState extends State<BawDashboardScreen> {
             title: 'Farm Registry Review',
             subtitle: '$_pendingFarmCount farm registration${_pendingFarmCount == 1 ? '' : 's'} pending BAW review',
             badge: _pendingFarmCount > 0 ? '$_pendingFarmCount' : null,
+            onTap: () async {
+              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BawValidationQueueScreen()));
+              _loadCounts();
+            },
+          ),
+          const SizedBox(height: 10),
+          _card(
+            icon: Icons.calculate_rounded, color: const Color(0xFF2563EB),
+            title: 'Financial Model Inputs',
+            subtitle: '$_pendingFinInputCount farmer financial input${_pendingFinInputCount == 1 ? '' : 's'} pending verification',
+            badge: _pendingFinInputCount > 0 ? '$_pendingFinInputCount' : null,
             onTap: () async {
               await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BawValidationQueueScreen()));
               _loadCounts();
