@@ -22,6 +22,9 @@ import '../../services/crop_declaration_service.dart';
 import '../../services/agrisat_market_service.dart';
 import '../../data/tubungan_barangays.dart';
 import '../features/buyer_demand_board_screen.dart';
+import '../mao/agri_command_center.dart';
+import '../mao/crop_intelligence_screen.dart';
+import '../mao/smart_crop_advisor_screen.dart';
 
 class MaoAdminDashboard extends StatefulWidget {
   const MaoAdminDashboard({super.key});
@@ -394,6 +397,9 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       const _NavItem('SRS Heat Map', Icons.map_rounded),
       const _NavItem('Financial Risk', Icons.account_balance_rounded),
       const _NavItem('AgriEcon-FRDS', Icons.account_tree_rounded),
+      const _NavItem('AgriDSS Command Center', Icons.dashboard_customize_rounded),
+      const _NavItem('Crop Intelligence', Icons.analytics_outlined),
+      const _NavItem('Smart Crop Advisor', Icons.tips_and_updates_rounded),
     ];
 
     return Container(
@@ -631,6 +637,27 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
         await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const AgriEconFrdsScreen()),
+        );
+        setState(() => _selectedNavIndex = 0);
+        break;
+      case 14:
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AgriCommandCenter()),
+        );
+        setState(() => _selectedNavIndex = 0);
+        break;
+      case 15:
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CropIntelligenceScreen()),
+        );
+        setState(() => _selectedNavIndex = 0);
+        break;
+      case 16:
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SmartCropAdvisorScreen()),
         );
         setState(() => _selectedNavIndex = 0);
         break;
