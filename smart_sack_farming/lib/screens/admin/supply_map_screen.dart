@@ -25,8 +25,8 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
   static const Color _sidebarGreen = Color(0xFF2E7D32);
 
   static const List<String> _crops = [
-    'Bitter Gourd', 'Eggplant', 'Tomato', 'Okra', 'String Beans',
-    'Ampalaya', 'Kangkong', 'Pechay', 'Squash',
+    'Ampalaya', 'Talong', 'Kamatis', 'Okra',
+    'Sitaw', 'Kangkong', 'Pechay', 'Kalabasa',
   ];
 
   static const List<String> _barangays = [
