@@ -34,13 +34,14 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
   List<Map<String, dynamic>> _prices = [];
 
   final List<_PriceRow> _fallbackPrices = const [
-    _PriceRow('Tomato', 45, 80, 'Falling', 'Medium'),
-    _PriceRow('Cabbage', 30, 55, 'Falling', 'Low'),
-    _PriceRow('Lettuce', 50, 90, 'Stable', 'Medium'),
-    _PriceRow('Eggplant', 40, 70, 'Rising', 'High'),
-    _PriceRow('Pepper', 60, 110, 'Rising', 'High'),
-    _PriceRow('Carrot', 35, 65, 'Stable', 'Medium'),
-    _PriceRow('Cucumber', 38, 68, 'Stable', 'Medium'),
+    _PriceRow('Ampalaya',  35, 63,  'Stable',  'Medium'),
+    _PriceRow('Talong',    30, 54,  'Rising',  'High'),
+    _PriceRow('Kamatis',   40, 72,  'Falling', 'Medium'),
+    _PriceRow('Okra',      32, 58,  'Rising',  'High'),
+    _PriceRow('Sitaw',     45, 81,  'Stable',  'Medium'),
+    _PriceRow('Kangkong',  20, 36,  'Stable',  'Low'),
+    _PriceRow('Pechay',    25, 45,  'Falling', 'Low'),
+    _PriceRow('Kalabasa',  22, 40,  'Rising',  'Medium'),
   ];
 
   final List<_DemandPartner> _partners = const [
@@ -407,23 +408,45 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Market & Price Intelligence',
-              style: TextStyle(
-                color: _text,
-                fontSize: 44 / 2,
-                fontWeight: FontWeight.w700,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Market & Price Intelligence',
+                      style: TextStyle(
+                        color: _text,
+                        fontSize: 44 / 2,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Real-time market prices and buyer demand tracking',
+                      style: TextStyle(
+                        color: _muted,
+                        fontSize: 34 / 2,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                if (isDesktop)
+                  FilledButton.icon(
+                    onPressed: () => _showPriceDialog(null),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _sidebarGreen,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Price'),
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Real-time market prices and buyer demand tracking',
-              style: TextStyle(
-                color: _muted,
-                fontSize: 34 / 2,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
             if (_error != null) ...[
               const SizedBox(height: 12),
               Container(

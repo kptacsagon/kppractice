@@ -119,7 +119,7 @@ class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
         alerts: alerts.isNotEmpty ? alerts : AgrisenseMockData.alerts,
         scores: scores.isNotEmpty ? scores : AgrisenseMockData.saturationScores,
         programs: programs,
-        market: market ?? _MarketSnapshot(crop: 'Sweet Corn', latestPrice: 18.50, trendPercent: 6.5),
+        market: market ?? _MarketSnapshot(crop: 'Ampalaya', latestPrice: 35.00, trendPercent: 6.5),
       );
     } catch (_) {
       return _mockHubData();
@@ -131,7 +131,7 @@ class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
     alerts: AgrisenseMockData.alerts,
     scores: AgrisenseMockData.saturationScores,
     programs: AgrisenseMockData.programEnrollments,
-    market: _MarketSnapshot(crop: 'Sweet Corn', latestPrice: 18.50, trendPercent: 6.5),
+    market: _MarketSnapshot(crop: 'Ampalaya', latestPrice: 35.00, trendPercent: 6.5),
   );
 
   void _openModule(BuildContext context, String module) {
@@ -332,52 +332,62 @@ class _AgriSenseDssScreenState extends State<AgriSenseDssScreen> {
   }
 
   Widget _buildDashboardHub() {
-    return FutureBuilder<_HubData>(
-      future: _hubFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: _kGreen));
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'Unable to load AgriSense data.\n${snapshot.error}',
-                style: const TextStyle(color: Color(0xFF666666)),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          );
-        }
-        final data = snapshot.data!;
-        return SafeArea(
-          child: SingleChildScrollView(
+    // Use mock data immediately for fast render; swap live when future completes
+    final mock = _mockHubData();
+    return SafeArea(
+      child: FutureBuilder<_HubData>(
+        future: _hubFuture,
+        builder: (context, snapshot) {
+          final data = snapshot.data ?? mock;
+          return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildGreeting(data.profile.fullName),
-                const SizedBox(height: 24),
-                _UrgentActionCard(alerts: data.alerts, onViewTap: () => _openModule(context, 'Weather')),
                 const SizedBox(height: 20),
-                _QuickStatsRow(alerts: data.alerts, scores: data.scores),
-                const SizedBox(height: 20),
-                _TopRecommendationCard(scores: data.scores),
-                const SizedBox(height: 20),
-                _MarketSnapshotCard(market: data.market),
-                const SizedBox(height: 20),
-                const Text('Module Status', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _text)),
-                const SizedBox(height: 12),
+                _SectionTitle('Alerts'),
+                const SizedBox(height: 10),
+                _AlertSection(alerts: data.alerts, onTap: (m) => _openModule(context, m)),
+                const SizedBox(height: 22),
+                _SectionTitle('Key Metrics'),
+                const SizedBox(height: 10),
+                _KeyMetricsRow(scores: data.scores, market: data.market),
+                const SizedBox(height: 22),
+                _SectionTitle('Smart Recommendation'),
+                const SizedBox(height: 10),
+                _SmartRecommendationCard(
+                  scores: data.scores,
+                  market: data.market,
+                  onSimulate: () => _openModule(context, 'Planting Advisor'),
+                  onCompare: () => _openModule(context, 'Saturation'),
+                ),
+                const SizedBox(height: 22),
+                _SectionTitle('Scenario Comparison'),
+                const SizedBox(height: 10),
+                _ScenarioComparison(scores: data.scores, market: data.market),
+                const SizedBox(height: 22),
+                _SectionTitle('Market Intelligence'),
+                const SizedBox(height: 10),
+                _MarketIntelligencePanel(
+                  scores: data.scores,
+                  market: data.market,
+                  onViewBuyers: () => _openModule(context, 'Market'),
+                ),
+                const SizedBox(height: 22),
+                _SectionTitle('Financial Forecast (Next 4 Months)'),
+                const SizedBox(height: 10),
+                _FinancialForecastTable(scores: data.scores, market: data.market),
+                const SizedBox(height: 22),
+                _SectionTitle('Module Status'),
+                const SizedBox(height: 10),
                 _StatusGrid(alerts: data.alerts, onTap: (m) => _openModule(context, m)),
-                const SizedBox(height: 20),
-                _NextMilestoneCard(programs: data.programs),
                 const SizedBox(height: 20),
               ],
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -511,6 +521,834 @@ class _DssNavItem {
   final String label;
   final IconData icon;
   const _DssNavItem(this.label, this.icon);
+}
+
+// ─── Section Title ────────────────────────────────────────────────────────────
+
+class _SectionTitle extends StatelessWidget {
+  final String text;
+  const _SectionTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Color(0xFF0F172A),
+        fontSize: 17,
+        fontWeight: FontWeight.w800,
+      ),
+    );
+  }
+}
+
+// ─── Alert Section ────────────────────────────────────────────────────────────
+
+class _AlertSection extends StatelessWidget {
+  final List<AgrisenseAlert> alerts;
+  final void Function(String module) onTap;
+
+  const _AlertSection({required this.alerts, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <_AlertItem>[];
+
+    if (alerts.isNotEmpty) {
+      for (final a in alerts.take(3)) {
+        final severity = a.severity.toLowerCase();
+        items.add(_AlertItem(
+          icon: _iconFor(a.module),
+          title: a.title,
+          subtitle: a.message,
+          color: severity == 'critical' || severity == 'high'
+              ? const Color(0xFFDC2626)
+              : severity == 'warning' || severity == 'medium'
+                  ? const Color(0xFFF59E0B)
+                  : const Color(0xFF1E40AF),
+          bg: severity == 'critical' || severity == 'high'
+              ? const Color(0xFFFEE2E2)
+              : severity == 'warning' || severity == 'medium'
+                  ? const Color(0xFFFEF3C7)
+                  : const Color(0xFFDBEAFE),
+          ctaLabel: a.ctaLabel ?? 'View Details',
+          module: _moduleFor(a.module),
+        ));
+      }
+    } else {
+      items.addAll(const [
+        _AlertItem(
+          icon: Icons.cloud_rounded,
+          title: 'Weather Update',
+          subtitle: 'No severe weather warnings for your area today.',
+          color: Color(0xFF1E40AF),
+          bg: Color(0xFFDBEAFE),
+          ctaLabel: 'View Weather',
+          module: 'Weather',
+        ),
+        _AlertItem(
+          icon: Icons.storefront_rounded,
+          title: 'New Buyer Available',
+          subtitle: 'Processor X now accepts cabbage at ₱18/kg.',
+          color: Color(0xFF047857),
+          bg: Color(0xFFD1FAE5),
+          ctaLabel: 'View Buyers',
+          module: 'Market',
+        ),
+      ]);
+    }
+
+    return Column(
+      children: items.map((item) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: item.bg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: item.color.withAlpha(60)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: item.color.withAlpha(30),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(item.icon, color: item.color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: TextStyle(color: item.color, fontSize: 13, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      item.subtitle,
+                      style: TextStyle(color: item.color.withAlpha(220), fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => onTap(item.module),
+                style: TextButton.styleFrom(
+                  foregroundColor: item.color,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                ),
+                child: Text(item.ctaLabel, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+        ),
+      )).toList(),
+    );
+  }
+
+  IconData _iconFor(String module) {
+    switch (module) {
+      case 'WCRA': return Icons.cloud_rounded;
+      case 'CSI': return Icons.heat_pump_rounded;
+      case 'MPI': return Icons.storefront_rounded;
+      case 'PDEW': return Icons.bug_report_rounded;
+      default: return Icons.warning_amber_rounded;
+    }
+  }
+
+  String _moduleFor(String code) {
+    switch (code) {
+      case 'WCRA': return 'Weather';
+      case 'CSI': return 'Saturation';
+      case 'MPI': return 'Market';
+      case 'PDEW': return 'Pest Alert';
+      default: return 'Saturation';
+    }
+  }
+}
+
+class _AlertItem {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final Color bg;
+  final String ctaLabel;
+  final String module;
+
+  const _AlertItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.bg,
+    required this.ctaLabel,
+    required this.module,
+  });
+}
+
+// ─── Key Metrics Row ──────────────────────────────────────────────────────────
+
+class _KeyMetricsRow extends StatelessWidget {
+  final List<AgrisenseSaturationScore> scores;
+  final _MarketSnapshot? market;
+
+  const _KeyMetricsRow({required this.scores, required this.market});
+
+  @override
+  Widget build(BuildContext context) {
+    final topScore = scores.isEmpty ? null : scores.first;
+    final secondScore = scores.length > 1 ? scores[1] : null;
+
+    // Crop suitability (derived from SRS: lower SRS = higher suitability)
+    final crop1 = topScore?.cropType ?? 'Ampalaya';
+    final suit1 = topScore == null ? 87 : (100 - topScore.srsScore.round()).clamp(40, 99);
+    final crop2 = secondScore?.cropType ?? 'Cabbage';
+    final suit2 = secondScore == null ? 92 : (100 - secondScore.srsScore.round()).clamp(40, 99);
+
+    // Profitability (estimated)
+    final profit1 = topScore == null ? '₱45k/ha' : '₱${(45 - topScore.srsScore / 5).toStringAsFixed(0)}k/ha';
+    final profit2 = secondScore == null ? '₱38k/ha' : '₱${(45 - secondScore.srsScore / 5).toStringAsFixed(0)}k/ha';
+
+    // Market price + trend
+    final priceCrop = market?.crop ?? 'Ampalaya';
+    final price = market == null ? 18.50 : market!.latestPrice;
+    final trend = market?.trendPercent ?? 6.5;
+    final trendStr = '${trend >= 0 ? '+' : ''}${trend.toStringAsFixed(1)}%';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 700;
+        if (isWide) {
+          return Row(
+            children: [
+              Expanded(child: _metricCard(
+                icon: Icons.eco_rounded,
+                color: const Color(0xFF16A34A),
+                title: 'Crop Suitability',
+                lines: ['$crop1: $suit1%', '$crop2: $suit2%'],
+              )),
+              const SizedBox(width: 12),
+              Expanded(child: _metricCard(
+                icon: Icons.attach_money_rounded,
+                color: const Color(0xFFCA8A04),
+                title: 'Profitability',
+                lines: ['$crop1: $profit1', '$crop2: $profit2'],
+              )),
+              const SizedBox(width: 12),
+              Expanded(child: _metricCard(
+                icon: Icons.trending_up_rounded,
+                color: trend >= 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                title: 'Market Price',
+                lines: [priceCrop, '₱${price.toStringAsFixed(2)}/kg ($trendStr)'],
+              )),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            _metricCard(
+              icon: Icons.eco_rounded,
+              color: const Color(0xFF16A34A),
+              title: 'Crop Suitability',
+              lines: ['$crop1: $suit1%', '$crop2: $suit2%'],
+            ),
+            const SizedBox(height: 10),
+            _metricCard(
+              icon: Icons.attach_money_rounded,
+              color: const Color(0xFFCA8A04),
+              title: 'Profitability',
+              lines: ['$crop1: $profit1', '$crop2: $profit2'],
+            ),
+            const SizedBox(height: 10),
+            _metricCard(
+              icon: Icons.trending_up_rounded,
+              color: trend >= 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+              title: 'Market Price',
+              lines: [priceCrop, '₱${price.toStringAsFixed(2)}/kg ($trendStr)'],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _metricCard({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required List<String> lines,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(color: color.withAlpha(30), borderRadius: BorderRadius.circular(8)),
+                child: Icon(icon, color: color, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF666666))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...lines.map((l) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              l,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A)),
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Smart Recommendation Card ────────────────────────────────────────────────
+
+class _SmartRecommendationCard extends StatelessWidget {
+  final List<AgrisenseSaturationScore> scores;
+  final _MarketSnapshot? market;
+  final VoidCallback onSimulate;
+  final VoidCallback onCompare;
+
+  const _SmartRecommendationCard({
+    required this.scores,
+    required this.market,
+    required this.onSimulate,
+    required this.onCompare,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Pick recommended crop: lowest SRS = lowest saturation risk = best to plant
+    final sortedByRisk = scores.isEmpty
+        ? <AgrisenseSaturationScore>[]
+        : (List.of(scores)..sort((a, b) => a.srsScore.compareTo(b.srsScore)));
+    final recommended = sortedByRisk.isEmpty ? null : sortedByRisk.first;
+
+    final crop = recommended?.cropType ?? 'Cabbage';
+    final suit = recommended == null ? 92 : (100 - recommended.srsScore.round()).clamp(40, 99);
+    final profit = recommended == null ? '₱38k/ha' : '₱${(45 - recommended.srsScore / 5).toStringAsFixed(0)}k/ha';
+    final demand = recommended == null
+        ? 'HIGH demand'
+        : recommended.srsScore < 50 ? 'HIGH demand' : recommended.srsScore < 80 ? 'MODERATE demand' : 'LOW demand';
+    final area = 0.8;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: const Color(0xFF16A34A).withAlpha(80)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF16A34A),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.flag_rounded, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'STRONG RECOMMENDATION',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF047857),
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Plant ${area}ha $crop',
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF064E3B)),
+          ),
+          const SizedBox(height: 12),
+          _bullet('Excellent suitability ($suit%)'),
+          _bullet('Good profit ($profit)'),
+          _bullet('$demand (Barangay supply only ${recommended == null ? 65 : (100 - recommended.srsScore.round()).clamp(20, 95)}%)'),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFB45309)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Risk: Medium price volatility; ensure quality for ₱18+ pricing.',
+                    style: TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              FilledButton.icon(
+                onPressed: onSimulate,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF16A34A),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.calculate_outlined, size: 16),
+                label: const Text('Simulate', style: TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(width: 10),
+              OutlinedButton.icon(
+                onPressed: onCompare,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF16A34A),
+                  side: const BorderSide(color: Color(0xFF16A34A)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.compare_arrows_rounded, size: 16),
+                label: const Text('Compare Crops', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bullet(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('• ', style: TextStyle(color: Color(0xFF065F46), fontWeight: FontWeight.w700)),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF065F46)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Scenario Comparison ──────────────────────────────────────────────────────
+
+class _ScenarioComparison extends StatelessWidget {
+  final List<AgrisenseSaturationScore> scores;
+  final _MarketSnapshot? market;
+
+  const _ScenarioComparison({required this.scores, required this.market});
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = scores.isEmpty
+        ? <AgrisenseSaturationScore>[]
+        : (List.of(scores)..sort((a, b) => a.srsScore.compareTo(b.srsScore)));
+    final best = sorted.isEmpty ? null : sorted.first;
+    final worst = sorted.isEmpty ? null : sorted.last;
+
+    final cropA = best?.cropType ?? 'Cabbage';
+    final cropB = worst?.cropType ?? 'Ampalaya';
+    final profitA = best == null ? 30400 : (38000 - best.srsScore * 100).round();
+    final profitB = worst == null ? 22500 : (38000 - worst.srsScore * 100).round();
+    final demandA = best == null || best.srsScore < 60 ? 'Adequate' : 'Oversupply';
+    final demandB = worst == null || worst.srsScore >= 60 ? 'Oversupply' : 'Adequate';
+    final riskA = best == null ? 'Medium' : best.srsScore < 50 ? 'Low' : best.srsScore < 80 ? 'Medium' : 'High';
+    final riskB = worst == null ? 'High' : worst.srsScore < 50 ? 'Low' : worst.srsScore < 80 ? 'Medium' : 'High';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 600;
+        final cardA = _scenarioCard(
+          label: 'Scenario A',
+          title: '0.8ha $cropA',
+          profit: profitA,
+          demand: demandA,
+          risk: riskA,
+          accent: const Color(0xFF16A34A),
+        );
+        final cardB = _scenarioCard(
+          label: 'Scenario B',
+          title: '0.5ha $cropB',
+          profit: profitB,
+          demand: demandB,
+          risk: riskB,
+          accent: const Color(0xFFDC2626),
+        );
+        if (isWide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: cardA),
+              const SizedBox(width: 12),
+              Expanded(child: cardB),
+            ],
+          );
+        }
+        return Column(children: [cardA, const SizedBox(height: 10), cardB]);
+      },
+    );
+  }
+
+  Widget _scenarioCard({
+    required String label,
+    required String title,
+    required int profit,
+    required String demand,
+    required String risk,
+    required Color accent,
+  }) {
+    final demandOk = demand == 'Adequate';
+    final riskColor = risk == 'Low'
+        ? const Color(0xFF16A34A)
+        : risk == 'Medium'
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFFDC2626);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withAlpha(60), width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: accent.withAlpha(30), borderRadius: BorderRadius.circular(999)),
+            child: Text(label, style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(height: 8),
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A))),
+          const SizedBox(height: 10),
+          _scenarioRow(Icons.attach_money_rounded, 'Expected Profit', '₱${_fmtMoney(profit)}', const Color(0xFF16A34A)),
+          _scenarioRow(
+            demandOk ? Icons.check_circle_rounded : Icons.cancel_rounded,
+            'Market Demand',
+            demand,
+            demandOk ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+          ),
+          _scenarioRow(Icons.warning_amber_rounded, 'Risk Level', risk, riskColor),
+        ],
+      ),
+    );
+  }
+
+  Widget _scenarioRow(IconData icon, String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF666666))),
+          const Spacer(),
+          Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+        ],
+      ),
+    );
+  }
+
+  String _fmtMoney(int amount) {
+    final str = amount.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) buf.write(',');
+      buf.write(str[i]);
+    }
+    return buf.toString();
+  }
+}
+
+// ─── Market Intelligence Panel ────────────────────────────────────────────────
+
+class _MarketIntelligencePanel extends StatelessWidget {
+  final List<AgrisenseSaturationScore> scores;
+  final _MarketSnapshot? market;
+  final VoidCallback onViewBuyers;
+
+  const _MarketIntelligencePanel({
+    required this.scores,
+    required this.market,
+    required this.onViewBuyers,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <_PriceTrendRow>[];
+    if (market != null) {
+      rows.add(_PriceTrendRow(market!.crop, market!.latestPrice, market!.trendPercent ?? 0));
+    }
+    if (rows.isEmpty || rows.length < 3) {
+      // Add fallback data
+      final defaults = [
+        _PriceTrendRow('Ampalaya', 35.00, 6.5),
+        _PriceTrendRow('Talong',   30.00, 3.2),
+        _PriceTrendRow('Kamatis',  40.00, -4.1),
+        _PriceTrendRow('Okra',     32.00, 8.0),
+        _PriceTrendRow('Sitaw',    45.00, 2.5),
+      ];
+      for (final d in defaults) {
+        if (!rows.any((r) => r.crop == d.crop)) rows.add(d);
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Text(
+                'Current Market Prices (Farm Gate)',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
+              ),
+              Spacer(),
+              Text('30-Day Trend', style: TextStyle(fontSize: 12, color: Color(0xFF666666))),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...rows.take(3).map((r) {
+            final up = r.trend >= 0;
+            final color = up ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${r.crop}: ₱${r.price.toStringAsFixed(2)}/kg',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A)),
+                    ),
+                  ),
+                  Icon(up ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, color: color, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${up ? '+' : ''}${r.trend.toStringAsFixed(1)}%',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
+          Container(height: 1, color: const Color(0xFFE5E7EB)),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onViewBuyers,
+              icon: const Icon(Icons.storefront_rounded, size: 14),
+              label: const Text('View Buyer Directory', style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(foregroundColor: const Color(0xFF1B7737)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PriceTrendRow {
+  final String crop;
+  final double price;
+  final double trend;
+  const _PriceTrendRow(this.crop, this.price, this.trend);
+}
+
+// ─── Financial Forecast Table ─────────────────────────────────────────────────
+
+class _FinancialForecastTable extends StatelessWidget {
+  final List<AgrisenseSaturationScore> scores;
+  final _MarketSnapshot? market;
+
+  const _FinancialForecastTable({required this.scores, required this.market});
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = scores.isEmpty
+        ? <AgrisenseSaturationScore>[]
+        : (List.of(scores)..sort((a, b) => a.srsScore.compareTo(b.srsScore)));
+    final crop = sorted.isEmpty ? 'Cabbage' : sorted.first.cropType;
+
+    final now = DateTime.now();
+    final months = List.generate(4, (i) {
+      final d = DateTime(now.year, now.month + i);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return monthNames[(d.month - 1) % 12];
+    });
+
+    final rows = <_ForecastRow>[
+      _ForecastRow(months[0], 15000, 0, -15000, 'Seed, fert, labor'),
+      _ForecastRow(months[1], 8000, 0, -23000, 'Maintenance'),
+      _ForecastRow(months[2], 2000, 0, -25000, 'Pest control'),
+      _ForecastRow(months[3], 0, 48000, 23000, 'Harvest & sale'),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B7737).withAlpha(30),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF1B7737), size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Assuming $crop planting (1 hectare)',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF666666), fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 600),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    decoration: const BoxDecoration(
+                      border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+                    ),
+                    child: const Row(
+                      children: [
+                        SizedBox(width: 70, child: Text('Month', style: _hStyle)),
+                        SizedBox(width: 110, child: Text('Input Cost', style: _hStyle)),
+                        SizedBox(width: 110, child: Text('Revenue', style: _hStyle)),
+                        SizedBox(width: 130, child: Text('Cash Balance', style: _hStyle)),
+                        SizedBox(width: 160, child: Text('Notes', style: _hStyle)),
+                      ],
+                    ),
+                  ),
+                  ...rows.map((r) {
+                    final balanceColor = r.balance >= 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+                    return Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                      decoration: const BoxDecoration(
+                        border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(width: 70, child: Text(r.month, style: _cellStyle)),
+                          SizedBox(
+                            width: 110,
+                            child: Text(
+                              r.cost == 0 ? '-' : '₱${_fmt(r.cost)}',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFFDC2626)),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 110,
+                            child: Text(
+                              r.revenue == 0 ? '-' : '₱${_fmt(r.revenue)}',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF16A34A), fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 130,
+                            child: Text(
+                              '${r.balance < 0 ? '-' : ''}₱${_fmt(r.balance.abs())}',
+                              style: TextStyle(fontSize: 12, color: balanceColor, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          SizedBox(width: 160, child: Text(r.notes, style: _cellStyle)),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static const _hStyle = TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF666666));
+  static const _cellStyle = TextStyle(fontSize: 12, color: Color(0xFF1A1A1A));
+
+  String _fmt(int amount) {
+    final str = amount.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) buf.write(',');
+      buf.write(str[i]);
+    }
+    return buf.toString();
+  }
+}
+
+class _ForecastRow {
+  final String month;
+  final int cost;
+  final int revenue;
+  final int balance;
+  final String notes;
+  const _ForecastRow(this.month, this.cost, this.revenue, this.balance, this.notes);
 }
 
 // ─── Green Header ─────────────────────────────────────────────────────────────
@@ -693,13 +1531,13 @@ class _StatusGrid extends StatelessWidget {
     _ModuleMeta('Saturation', Icons.heat_pump_rounded, 'CSI'),
     _ModuleMeta('Planting', Icons.grass_rounded, 'PIAE'),
     _ModuleMeta('Weather', Icons.cloud_rounded, 'WCRA'),
+    _ModuleMeta('Planting Advisor', Icons.tips_and_updates_rounded, 'CPA'),
     _ModuleMeta('Pest Alert', Icons.bug_report_rounded, 'PDEW'),
     _ModuleMeta('Market', Icons.storefront_rounded, 'MPI'),
     _ModuleMeta('Financial Model', Icons.account_balance_rounded, 'FFP'),
     _ModuleMeta('Harvest', Icons.agriculture_rounded, 'PHML'),
     _ModuleMeta('Programs', Icons.verified_user_rounded, 'DPAC'),
     _ModuleMeta('Crop Cycling', Icons.loop_rounded, 'CCM'),
-    _ModuleMeta('Planting Advisor', Icons.tips_and_updates_rounded, 'CPA'),
     _ModuleMeta('Heatmap', Icons.map_rounded, 'HMP'),
   ];
 
