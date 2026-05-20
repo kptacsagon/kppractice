@@ -234,21 +234,25 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
               onPressed: () async {
                 final production = _toDouble(productionController.text);
                 if (production <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Enter valid production amount')),
-                  );
+                  if (mounted && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Enter valid production amount')),
+                    );
+                  }
+                  return;
+                }
+
+                final user = Supabase.instance.client.auth.currentUser;
+                if (user == null) {
+                  if (mounted && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('User not authenticated')),
+                    );
+                  }
                   return;
                 }
 
                 try {
-                  final user = Supabase.instance.client.auth.currentUser;
-                  if (user == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('User not authenticated')),
-                    );
-                    return;
-                  }
-
                   final now = DateTime.now();
                   await Supabase.instance.client.from('production_reports').insert({
                     'farmer_id': user.id,
@@ -261,20 +265,27 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
                     'notes': 'Added via Supply Map',
                   });
 
+                  // Save references before navigation
+                  final nav = Navigator.of(context);
+                  productionController.dispose();
+                  storageController.dispose();
+                  farmersController.dispose();
+                  nav.pop();
+
                   if (mounted) {
-                    productionController.dispose();
-                    storageController.dispose();
-                    farmersController.dispose();
-                    Navigator.pop(context);
                     await _loadData();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Supply added successfully')),
-                    );
+                    if (mounted && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Supply added successfully')),
+                      );
+                    }
                   }
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
+                  if (mounted && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')),
+                    );
+                  }
                 }
               },
               child: const Text('Save'),
