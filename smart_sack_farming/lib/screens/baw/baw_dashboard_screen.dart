@@ -4,6 +4,8 @@ import '../../services/crop_declaration_service.dart';
 import '../../services/agri_financial_input_service.dart';
 import '../auth/login_screen.dart';
 import '../features/buyer_demand_board_screen.dart';
+import '../farmer/agri_financial_input_screen.dart';
+import '../farmer/farmer_crop_declaration_screen.dart';
 import 'baw_validation_queue_screen.dart';
 
 const _kGreen = Color(0xFF1B7737);
@@ -58,6 +60,91 @@ class _BawDashboardScreenState extends State<BawDashboardScreen> {
       _pendingFarmCount = farmCount;
       _pendingFinInputCount = finInputCount;
     });
+  }
+
+  /// Shows a dialog to collect farmer name + RSBSA before launching an assisted-entry screen.
+  /// Returns null if the BAW cancelled, otherwise returns the entered farmer info.
+  Future<({String name, String rsbsa})?> _promptFarmer(String mode) async {
+    final nameCtl = TextEditingController();
+    final rsbsaCtl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(children: [
+          Icon(
+            mode == 'journal' ? Icons.menu_book_rounded : Icons.eco_rounded,
+            color: const Color(0xFF2563EB), size: 20),
+          const SizedBox(width: 8),
+          Expanded(child: Text(
+            mode == 'journal' ? 'Assist: Crop Cycle Journal' : 'Assist: Declare Crop',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800))),
+        ]),
+        content: Form(
+          key: formKey,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(8)),
+              child: const Row(children: [
+                Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFCA8A04)),
+                SizedBox(width: 6),
+                Expanded(child: Text(
+                  'Verify the farmer\'s identity (ID or RSBSA card) before entering data on their behalf.',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF92400E)))),
+              ]),
+            ),
+            TextFormField(
+              controller: nameCtl,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                labelText: 'Farmer Full Name *',
+                hintText: 'e.g. Juan dela Cruz',
+                prefixIcon: const Icon(Icons.person_outline_rounded, size: 18),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Farmer name is required' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: rsbsaCtl,
+              decoration: InputDecoration(
+                labelText: 'RSBSA No. / Farmer ID',
+                hintText: 'e.g. 0600100001234',
+                prefixIcon: const Icon(Icons.badge_outlined, size: 18),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF6B7280)))),
+          ElevatedButton.icon(
+            onPressed: () {
+              if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
+            },
+            icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+            label: const Text('Continue', style: TextStyle(fontWeight: FontWeight.w700)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return null;
+    return (name: nameCtl.text.trim(), rsbsa: rsbsaCtl.text.trim());
   }
 
   Future<void> _logout() async {
@@ -160,6 +247,50 @@ class _BawDashboardScreenState extends State<BawDashboardScreen> {
             title: 'Farmer Directory',
             subtitle: 'Manage farmers in your assigned barangay',
             onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Farmer Directory — coming in Phase 2'))),
+          ),
+          const SizedBox(height: 22),
+
+          // ── Farmer Assistance section ─────────────────────────────────────
+          const Row(children: [
+            Icon(Icons.support_agent_rounded, size: 14, color: Color(0xFF6B7280)),
+            SizedBox(width: 6),
+            Text('Farmer Assisted Entry',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                    color: Color(0xFF6B7280), letterSpacing: 0.4)),
+          ]),
+          const SizedBox(height: 4),
+          const Text(
+            'Use these when a farmer cannot submit on their own. Verify their RSBSA card or valid ID first.',
+            style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+          const SizedBox(height: 10),
+          _card(
+            icon: Icons.menu_book_rounded, color: const Color(0xFF0891B2),
+            title: 'Assist: Crop Cycle Journal',
+            subtitle: 'Record 6-stage crop cycle on behalf of a farmer',
+            onTap: () async {
+              final farmer = await _promptFarmer('journal');
+              if (farmer == null || !mounted) return;
+              await Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => AgriFinancialInputScreen(
+                  assistedFarmerName: farmer.name,
+                  assistedRsbsa: farmer.rsbsa,
+                )));
+            },
+          ),
+          const SizedBox(height: 10),
+          _card(
+            icon: Icons.eco_rounded, color: const Color(0xFF0891B2),
+            title: 'Assist: Declare Crop',
+            subtitle: 'Submit HVC crop declaration on behalf of a farmer',
+            onTap: () async {
+              final farmer = await _promptFarmer('declare');
+              if (farmer == null || !mounted) return;
+              await Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => FarmerCropDeclarationScreen(
+                  assistedFarmerName: farmer.name,
+                  assistedRsbsa: farmer.rsbsa,
+                )));
+            },
           ),
         ]),
       )),

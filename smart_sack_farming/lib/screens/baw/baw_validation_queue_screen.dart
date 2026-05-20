@@ -11,6 +11,16 @@ final _phpK = NumberFormat('#,##0', 'en_PH');
 
 const _kGreen = Color(0xFF1B7737);
 
+const _kCycleStageNames = [
+  'Pre-Planting', 'Planting', 'Maintenance', 'Harvest', 'Post-Harvest', 'Sales'
+];
+
+String _stageLabel(int n) {
+  if (n == 0) return 'Full Cycle';
+  if (n >= 1 && n <= 6) return 'Stage $n: ${_kCycleStageNames[n - 1]}';
+  return 'Stage $n';
+}
+
 // PRD §3.3 — AT/BAW Workflow: Pending Declarations Queue + Validate/Return actions
 class BawValidationQueueScreen extends StatefulWidget {
   const BawValidationQueueScreen({super.key});
@@ -327,29 +337,52 @@ class _BawValidationQueueScreenState extends State<BawValidationQueueScreen> {
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             Text('${r.barangay} · ${r.areaPlantedHa.toStringAsFixed(2)} ha · planted ${_fmtDate(r.plantingDate)}',
                 style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+            Container(
+              margin: const EdgeInsets.only(top: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: r.stageNumber == 0
+                    ? const Color(0xFFE7F1E8)
+                    : const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(4)),
+              child: Text(
+                _stageLabel(r.stageNumber).toUpperCase(),
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: r.stageNumber == 0
+                      ? const Color(0xFF154D26)
+                      : const Color(0xFF2563EB))),
+            ),
           ])),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(4)),
+            decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(4)),
             child: const Text('PENDING REVIEW',
-                style: TextStyle(fontSize: 9, color: Color(0xFF2563EB), fontWeight: FontWeight.w800)),
+                style: TextStyle(fontSize: 9, color: Color(0xFF92400E), fontWeight: FontWeight.w800)),
           ),
         ]),
         const Divider(height: 16),
-        // ── 6-Stage Summary ──
-        _stageBlock('1', 'Pre-Planting',
-            'Land prep PHP ${_phpK.format(r.landPrepCost)} · Soil PHP ${_phpK.format(r.soilPrepCost)} · Seed ${r.seedQtyKg.toStringAsFixed(0)} kg / PHP ${_phpK.format(r.seedCostPhp)} (${r.seedSource})'),
-        _stageBlock('2', 'Planting',
-            'Labor PHP ${_phpK.format(r.laborPlantingPhp)} · Basal fert PHP ${_phpK.format(r.fertBasalPhp)} · Irrigation PHP ${_phpK.format(r.irrigationPhp)} · Pesticide PHP ${_phpK.format(r.pesticidePlantingPhp)}'),
-        _stageBlock('3', 'Maintenance',
-            'Weeding PHP ${_phpK.format(r.laborWeedingPhp)} · Spraying PHP ${_phpK.format(r.sprayingCostPhp)} · Top-dress PHP ${_phpK.format(r.fertTopDressPhp)}'
-            '${r.pestIncidents.isEmpty ? '' : '\n  ⚠ ${r.pestIncidents}'}'),
-        _stageBlock('4', 'Harvest',
-            'Gross ${r.grossHarvestKg.toStringAsFixed(0)} kg → Marketable ${r.marketableYieldKg.toStringAsFixed(0)} · Damaged ${r.damagedYieldKg.toStringAsFixed(0)} · Rejected ${r.rejectedYieldKg.toStringAsFixed(0)} kg'),
-        _stageBlock('5', 'Post-Harvest',
-            'Storage loss ${r.storageLossKg.toStringAsFixed(0)} kg · Unsold ${r.unsoldKg.toStringAsFixed(0)} kg · Transport PHP ${_phpK.format(r.transportPhp)} · Packaging PHP ${_phpK.format(r.packagingPhp)}'),
-        _stageBlock('6', 'Sales',
-            'Sold ${r.quantitySoldKg.toStringAsFixed(0)} kg @ PHP ${r.sellingPricePhp.toStringAsFixed(2)}/kg to ${r.buyerType}'),
+        // ── Stage Data (only show stages present in this submission) ──
+        if (r.stageNumber == 0 || r.stageNumber == 1)
+          _stageBlock('1', 'Pre-Planting',
+              'Land prep PHP ${_phpK.format(r.landPrepCost)} · Soil PHP ${_phpK.format(r.soilPrepCost)} · Seed ${r.seedQtyKg.toStringAsFixed(0)} kg / PHP ${_phpK.format(r.seedCostPhp)} (${r.seedSource})'),
+        if (r.stageNumber == 0 || r.stageNumber == 2)
+          _stageBlock('2', 'Planting',
+              'Labor PHP ${_phpK.format(r.laborPlantingPhp)} · Basal fert PHP ${_phpK.format(r.fertBasalPhp)} · Irrigation PHP ${_phpK.format(r.irrigationPhp)} · Pesticide PHP ${_phpK.format(r.pesticidePlantingPhp)}'),
+        if (r.stageNumber == 0 || r.stageNumber == 3)
+          _stageBlock('3', 'Maintenance',
+              'Weeding PHP ${_phpK.format(r.laborWeedingPhp)} · Spraying PHP ${_phpK.format(r.sprayingCostPhp)} · Top-dress PHP ${_phpK.format(r.fertTopDressPhp)}'
+              '${r.pestIncidents.isEmpty ? '' : '\n  ⚠ ${r.pestIncidents}'}'),
+        if (r.stageNumber == 0 || r.stageNumber == 4)
+          _stageBlock('4', 'Harvest',
+              'Gross ${r.grossHarvestKg.toStringAsFixed(0)} kg → Marketable ${r.marketableYieldKg.toStringAsFixed(0)} · Damaged ${r.damagedYieldKg.toStringAsFixed(0)} · Rejected ${r.rejectedYieldKg.toStringAsFixed(0)} kg'),
+        if (r.stageNumber == 0 || r.stageNumber == 5)
+          _stageBlock('5', 'Post-Harvest',
+              'Storage loss ${r.storageLossKg.toStringAsFixed(0)} kg · Unsold ${r.unsoldKg.toStringAsFixed(0)} kg · Transport PHP ${_phpK.format(r.transportPhp)} · Packaging PHP ${_phpK.format(r.packagingPhp)}'),
+        if (r.stageNumber == 0 || r.stageNumber == 6)
+          _stageBlock('6', 'Sales',
+              'Sold ${r.quantitySoldKg.toStringAsFixed(0)} kg @ PHP ${r.sellingPricePhp.toStringAsFixed(2)}/kg to ${r.buyerType}'),
         const SizedBox(height: 10),
         // ── Computed KPIs ──
         Row(children: [

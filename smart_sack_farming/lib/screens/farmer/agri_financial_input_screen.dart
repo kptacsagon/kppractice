@@ -30,7 +30,14 @@ const _kStages = [
 ];
 
 class AgriFinancialInputScreen extends StatefulWidget {
-  const AgriFinancialInputScreen({super.key});
+  /// When set, the screen is in BAW-assisted mode — recording on behalf of a farmer.
+  final String? assistedFarmerName;
+  final String? assistedRsbsa;
+  const AgriFinancialInputScreen({
+    super.key,
+    this.assistedFarmerName,
+    this.assistedRsbsa,
+  });
   @override
   State<AgriFinancialInputScreen> createState() => _AgriFinancialInputScreenState();
 }
@@ -41,6 +48,8 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
   int _stage = 0;
   bool _submitting = false;
   bool _submitted = false;
+  String _cycleId = '';
+  final Set<int> _submittedStages = {};
 
   // ── Crop metadata (header) ─────────────────────────────────────────────────
   String _cropType = 'Palay';
@@ -120,6 +129,7 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
     final user = Supabase.instance.client.auth.currentUser;
     final meta = user?.userMetadata ?? {};
     _barangay = meta['barangay'] as String?;
+    _cycleId = '${user?.id ?? 'anon'}_${DateTime.now().millisecondsSinceEpoch}';
   }
 
   @override
@@ -187,56 +197,100 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
     if (_stage > 0) setState(() => _stage--);
   }
 
+  // ── Build a FinancialInputRecord from current form state ──────────────────
+  // stageNumber 0 = full cycle; 1–6 = single stage.
+
+  FinancialInputRecord _buildRecord({int stageNumber = 0}) {
+    final user = Supabase.instance.client.auth.currentUser!;
+    final meta = user.userMetadata ?? {};
+    return FinancialInputRecord(
+      id: '${_cycleId}_${stageNumber == 0 ? 'full' : 's$stageNumber'}_${DateTime.now().millisecondsSinceEpoch}',
+      cycleId: _cycleId,
+      stageNumber: stageNumber,
+      farmerId: user.id,
+      farmerName: widget.assistedFarmerName ?? (meta['full_name'] as String?) ?? user.email ?? '',
+      rsbsaNumber: widget.assistedRsbsa ?? '',
+      barangay: _barangay ?? '',
+      status: FinInputStatus.pendingBaw,
+      submittedAt: DateTime.now(),
+      cropType: _cropType,
+      cropVariety: _varietyCtl.text.trim(),
+      areaPlantedHa: _d(_areaCtl),
+      plantingDate: _plantingDate!,
+      expectedHarvestDate: _harvestDate!,
+      landPrepCost: _d(_landPrepCtl), soilPrepCost: _d(_soilPrepCtl),
+      seedSource: _seedSource,
+      seedQtyKg: _d(_seedQtyCtl), seedCostPhp: _d(_seedCostCtl),
+      laborPlantingPhp: _d(_laborPlantCtl),
+      fertBasalPhp: _d(_fertBasalCtl),
+      irrigationPhp: _d(_irrigCtl),
+      pesticidePlantingPhp: _d(_pestPlantingCtl),
+      laborWeedingPhp: _d(_laborWeedCtl),
+      sprayingCostPhp: _d(_sprayingCtl),
+      fertTopDressPhp: _d(_fertTopCtl),
+      pestIncidents: _pestIncidentsCtl.text.trim(),
+      laborHarvestingPhp: _d(_laborHarvestCtl),
+      grossHarvestKg: _d(_grossHarvestCtl),
+      marketableYieldKg: _d(_marketableCtl),
+      damagedYieldKg: _d(_damagedCtl),
+      rejectedYieldKg: _d(_rejectedCtl),
+      storageLossKg: _d(_storageLossCtl),
+      unsoldKg: _d(_unsoldCtl),
+      transportPhp: _d(_transportCtl),
+      packagingPhp: _d(_packagingCtl),
+      sellingPricePhp: _d(_priceCtl),
+      buyerType: _buyerType,
+      quantitySoldKg: _d(_qtySoldCtl),
+      landRentalPhp: _d(_landRentalCtl),
+      equipmentDeprecPhp: _d(_equipCtl),
+    );
+  }
+
+  // ── Submit just the current stage independently ───────────────────────────
+
+  Future<void> _submitCurrentStage() async {
+    if (_plantingDate == null || _harvestDate == null ||
+        _areaCtl.text.trim().isEmpty || _barangay == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Set area, barangay, and planting date before submitting.'),
+          backgroundColor: _kRed));
+      return;
+    }
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    setState(() => _submitting = true);
+    try {
+      await _svc.submitInput(_buildRecord(stageNumber: _stage + 1));
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _submittedStages.add(_stage);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Stage ${_stage + 1}: ${_kStages[_stage].$1} sent to BAW ✓'),
+        backgroundColor: _kGreen));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Submission failed: $e'), backgroundColor: _kRed));
+    }
+  }
+
+  // ── Submit the full 6-stage cycle ─────────────────────────────────────────
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       setState(() => _stage = 0);
       return;
     }
     if (_plantingDate == null || _harvestDate == null) return;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
     setState(() => _submitting = true);
     try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) throw Exception('Not authenticated');
-      final meta = user.userMetadata ?? {};
-      final record = FinancialInputRecord(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        farmerId: user.id,
-        farmerName: (meta['full_name'] as String?) ?? user.email ?? '',
-        barangay: _barangay ?? '',
-        status: FinInputStatus.pendingBaw,
-        submittedAt: DateTime.now(),
-        cropType: _cropType,
-        cropVariety: _varietyCtl.text.trim(),
-        areaPlantedHa: _d(_areaCtl),
-        plantingDate: _plantingDate!,
-        expectedHarvestDate: _harvestDate!,
-        landPrepCost: _d(_landPrepCtl), soilPrepCost: _d(_soilPrepCtl),
-        seedSource: _seedSource,
-        seedQtyKg: _d(_seedQtyCtl), seedCostPhp: _d(_seedCostCtl),
-        laborPlantingPhp: _d(_laborPlantCtl),
-        fertBasalPhp: _d(_fertBasalCtl),
-        irrigationPhp: _d(_irrigCtl),
-        pesticidePlantingPhp: _d(_pestPlantingCtl),
-        laborWeedingPhp: _d(_laborWeedCtl),
-        sprayingCostPhp: _d(_sprayingCtl),
-        fertTopDressPhp: _d(_fertTopCtl),
-        pestIncidents: _pestIncidentsCtl.text.trim(),
-        laborHarvestingPhp: _d(_laborHarvestCtl),
-        grossHarvestKg: _d(_grossHarvestCtl),
-        marketableYieldKg: _d(_marketableCtl),
-        damagedYieldKg: _d(_damagedCtl),
-        rejectedYieldKg: _d(_rejectedCtl),
-        storageLossKg: _d(_storageLossCtl),
-        unsoldKg: _d(_unsoldCtl),
-        transportPhp: _d(_transportCtl),
-        packagingPhp: _d(_packagingCtl),
-        sellingPricePhp: _d(_priceCtl),
-        buyerType: _buyerType,
-        quantitySoldKg: _d(_qtySoldCtl),
-        landRentalPhp: _d(_landRentalCtl),
-        equipmentDeprecPhp: _d(_equipCtl),
-      );
-      await _svc.submitInput(record);
+      await _svc.submitInput(_buildRecord(stageNumber: 0));
       if (!mounted) return;
       setState(() { _submitting = false; _submitted = true; });
     } catch (e) {
@@ -275,29 +329,62 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
     );
   }
 
-  Widget _buildHeader() => Container(
-    color: _kCard,
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    child: Row(children: [
-      GestureDetector(
-        onTap: () => Navigator.maybePop(context),
-        child: const Icon(Icons.arrow_back_rounded, size: 22, color: _kText),
-      ),
-      const SizedBox(width: 12),
+  Widget _buildHeader() {
+    final isAssisted = widget.assistedFarmerName != null;
+    return Column(children: [
       Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(color: _kGreen.withAlpha(20), borderRadius: BorderRadius.circular(6)),
-        child: const Icon(Icons.menu_book_rounded, color: _kGreen, size: 18),
+        color: _kCard,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(children: [
+          GestureDetector(
+            onTap: () => Navigator.maybePop(context),
+            child: const Icon(Icons.arrow_back_rounded, size: 22, color: _kText),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: isAssisted ? const Color(0xFF2563EB).withAlpha(20) : _kGreen.withAlpha(20),
+              borderRadius: BorderRadius.circular(6)),
+            child: Icon(
+              isAssisted ? Icons.support_agent_rounded : Icons.menu_book_rounded,
+              color: isAssisted ? const Color(0xFF2563EB) : _kGreen, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              isAssisted ? 'Assisted Entry — Crop Cycle Journal' : 'Crop Cycle Journal',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _kText)),
+            Text(
+              isAssisted
+                  ? 'BAW recording on behalf of a farmer'
+                  : 'Record your full cycle for BAW verification',
+              style: const TextStyle(fontSize: 11, color: _kMuted)),
+          ])),
+        ]),
       ),
-      const SizedBox(width: 10),
-      const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Crop Cycle Journal',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _kText)),
-        Text('Record your full cycle for BAW verification',
-            style: TextStyle(fontSize: 11, color: _kMuted)),
-      ])),
-    ]),
-  );
+      if (isAssisted) Container(
+        color: const Color(0xFFEFF6FF),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(children: [
+          const Icon(Icons.badge_outlined, color: Color(0xFF2563EB), size: 16),
+          const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.assistedFarmerName!,
+                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF1D4ED8))),
+            if (widget.assistedRsbsa != null && widget.assistedRsbsa!.isNotEmpty)
+              Text('RSBSA / ID: ${widget.assistedRsbsa}',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF3B82F6))),
+          ])),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(color: const Color(0xFF2563EB), borderRadius: BorderRadius.circular(4)),
+            child: const Text('BAW ASSIST', style: TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w800)),
+          ),
+        ]),
+      ),
+    ]);
+  }
 
   Widget _buildStageProgress() => Container(
     color: _kCard,
@@ -493,7 +580,7 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
           Expanded(child: _field('Basal Fertilizer (PHP)', _fertBasalCtl,
               type: TextInputType.number, hint: 'Applied at planting')),
           const SizedBox(width: 10),
-          Expanded(child: _field('Irrigation Fees (PHP)', _irrigCtl,
+          Expanded(child: _field('Irrigation Fees (Optional, PHP)', _irrigCtl,
               type: TextInputType.number, hint: 'Water district / pump')),
         ]),
         const SizedBox(height: 10),
@@ -513,7 +600,7 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
     _card(
       title: 'Labor & Spraying',
       child: Row(children: [
-        Expanded(child: _field('Weeding Labor (PHP)', _laborWeedCtl,
+        Expanded(child: _field('Weeding Labor (Optional, PHP)', _laborWeedCtl,
             type: TextInputType.number)),
         const SizedBox(width: 10),
         Expanded(child: _field('Spraying Cost (PHP)', _sprayingCtl,
@@ -690,38 +777,77 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
 
   // ── Bottom action bar ──────────────────────────────────────────────────────
 
-  Widget _buildBottomBar() => Container(
-    color: _kCard,
-    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-    child: Row(children: [
-      if (_stage > 0)
-        OutlinedButton.icon(
-          onPressed: _back,
-          icon: const Icon(Icons.arrow_back_rounded, size: 14, color: _kMuted),
-          label: const Text('Back', style: TextStyle(fontSize: 12.5, color: _kText)),
-          style: OutlinedButton.styleFrom(
-            side: const BorderSide(color: _kBorder),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+  Widget _buildBottomBar() {
+    final isLast = _stage == _kStages.length - 1;
+    final stageSubmitted = _submittedStages.contains(_stage);
+    final headerOk = _plantingDate != null && _harvestDate != null &&
+        _areaCtl.text.trim().isNotEmpty && _barangay != null;
+
+    return Container(
+      color: _kCard,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // ── Per-stage submit ───────────────────────────────────────────────
+        SizedBox(
+          width: double.infinity,
+          child: stageSubmitted
+            ? Container(
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE7F1E8), borderRadius: BorderRadius.circular(8)),
+                alignment: Alignment.center,
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const Icon(Icons.check_circle_rounded, color: _kGreen, size: 15),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Stage ${_stage + 1}: ${_kStages[_stage].$1} submitted to BAW',
+                    style: const TextStyle(fontSize: 11.5, color: _kGreen, fontWeight: FontWeight.w700)),
+                ]),
+              )
+            : OutlinedButton.icon(
+                onPressed: (_submitting || !headerOk) ? null : _submitCurrentStage,
+                icon: const Icon(Icons.cloud_upload_rounded, size: 14, color: _kGreen),
+                label: Text(
+                  'Submit Stage ${_stage + 1}: ${_kStages[_stage].$1} to BAW',
+                  style: const TextStyle(fontSize: 11.5, color: _kGreen, fontWeight: FontWeight.w700)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: _kGreen),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              ),
         ),
-      const SizedBox(width: 10),
-      Expanded(child: ElevatedButton.icon(
-        onPressed: _submitting ? null : (_canAdvance() ? _next : null),
-        icon: _submitting
-            ? const SizedBox(width: 14, height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : Icon(_stage == _kStages.length - 1
-                ? Icons.send_rounded : Icons.arrow_forward_rounded, size: 15),
-        label: Text(_stage == _kStages.length - 1
-            ? 'Submit to BAW for Verification' : 'Continue to ${_kStages[_stage + 1].$1}',
-            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _kGreen, foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-      )),
-    ]),
-  );
+        const SizedBox(height: 8),
+        // ── Navigation / full-cycle submit ────────────────────────────────
+        Row(children: [
+          if (_stage > 0)
+            OutlinedButton.icon(
+              onPressed: _back,
+              icon: const Icon(Icons.arrow_back_rounded, size: 14, color: _kMuted),
+              label: const Text('Back', style: TextStyle(fontSize: 12.5, color: _kText)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: _kBorder),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            ),
+          const SizedBox(width: 10),
+          Expanded(child: ElevatedButton.icon(
+            onPressed: _submitting ? null : (_canAdvance() ? _next : null),
+            icon: _submitting
+                ? const SizedBox(width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : Icon(isLast ? Icons.send_rounded : Icons.arrow_forward_rounded, size: 15),
+            label: Text(
+              isLast ? 'Submit Full Cycle to BAW' : 'Continue to ${_kStages[_stage + 1].$1}',
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kGreenDark, foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+          )),
+        ]),
+      ]),
+    );
+  }
 
   // ── Reusable widgets ───────────────────────────────────────────────────────
 

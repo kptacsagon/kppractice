@@ -8,7 +8,14 @@ const _kGreen = Color(0xFF1B7737);
 const _kGreenLight = Color(0xFFE7F1E8);
 
 class FarmerCropDeclarationScreen extends StatefulWidget {
-  const FarmerCropDeclarationScreen({super.key});
+  /// When set, the screen is in BAW-assisted mode — recording on behalf of a farmer.
+  final String? assistedFarmerName;
+  final String? assistedRsbsa;
+  const FarmerCropDeclarationScreen({
+    super.key,
+    this.assistedFarmerName,
+    this.assistedRsbsa,
+  });
 
   @override
   State<FarmerCropDeclarationScreen> createState() => _FarmerCropDeclarationScreenState();
@@ -82,10 +89,17 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw Exception('Not authenticated');
 
+      final isAssisted = widget.assistedFarmerName != null;
+      String? remarks = _remarksController.text.trim().isEmpty ? null : _remarksController.text.trim();
+      if (isAssisted && widget.assistedRsbsa != null && widget.assistedRsbsa!.isNotEmpty) {
+        final rsbsaTag = '[RSBSA: ${widget.assistedRsbsa}]';
+        remarks = remarks == null ? rsbsaTag : '$rsbsaTag $remarks';
+      }
+
       await _svc.submitDeclaration(CropDeclaration(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         farmerId: user.id,
-        farmerName: user.userMetadata?['full_name'] as String? ?? user.email ?? 'Farmer',
+        farmerName: widget.assistedFarmerName ?? user.userMetadata?['full_name'] as String? ?? user.email ?? 'Farmer',
         cropId: _selectedCrop?.id ?? '',
         cropName: _selectedCrop?.displayName ?? '',
         barangay: _selectedBarangay,
@@ -95,7 +109,7 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
         expectedHarvestDate: _expectedHarvestDate ?? DateTime.now().add(const Duration(days: 60)),
         estimatedVolumeKg: _volumeKg,
         farmingMethod: _farmingMethod,
-        remarks: _remarksController.text.trim().isEmpty ? null : _remarksController.text.trim(),
+        remarks: remarks,
         status: CropDeclarationStatus.pendingReview,
         submittedAt: DateTime.now(),
       ));
@@ -144,11 +158,23 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
-        backgroundColor: _kGreen, foregroundColor: Colors.white, elevation: 0,
+        backgroundColor: widget.assistedFarmerName != null ? const Color(0xFF1D4ED8) : _kGreen,
+        foregroundColor: Colors.white, elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: () => Navigator.pop(context)),
-        title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Declare Crop Planting', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-          Text('Submit to your assigned AT/BAW', style: TextStyle(fontSize: 11, color: Colors.white70)),
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            widget.assistedFarmerName != null
+                ? 'Assisted: ${widget.assistedFarmerName}'
+                : 'Declare Crop Planting',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            overflow: TextOverflow.ellipsis),
+          Text(
+            widget.assistedFarmerName != null
+                ? (widget.assistedRsbsa != null && widget.assistedRsbsa!.isNotEmpty
+                    ? 'RSBSA / ID: ${widget.assistedRsbsa}'
+                    : 'BAW Assisted Entry')
+                : 'Submit to your assigned AT/BAW',
+            style: const TextStyle(fontSize: 11, color: Colors.white70)),
         ]),
       ),
       bottomNavigationBar: _tab == 0 ? Container(
@@ -160,7 +186,11 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
             icon: const Icon(Icons.send_rounded, size: 18),
             label: _submitting
               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : const Text('Submit Declaration to AT/BAW', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+              : Text(
+                  widget.assistedFarmerName != null
+                      ? 'Submit Declaration for ${widget.assistedFarmerName}'
+                      : 'Submit Declaration to AT/BAW',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             style: ElevatedButton.styleFrom(
               backgroundColor: _kGreen, foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -228,6 +258,31 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
+        // ── BAW Assisted Entry banner ──
+        if (widget.assistedFarmerName != null) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF93C5FD))),
+            child: Row(children: [
+              const Icon(Icons.support_agent_rounded, color: Color(0xFF2563EB), size: 20),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('BAW Assisted Entry',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF1D4ED8))),
+                const SizedBox(height: 2),
+                Text('Recording on behalf of: ${widget.assistedFarmerName}',
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                if (widget.assistedRsbsa != null && widget.assistedRsbsa!.isNotEmpty)
+                  Text('RSBSA / Farmer ID: ${widget.assistedRsbsa}',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF3B82F6))),
+              ])),
+            ]),
+          ),
+          const SizedBox(height: 10),
+        ],
         // ── Reporting chain ──
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -237,9 +292,7 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
             const SizedBox(width: 8),
             const Text('Reporting chain', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _kGreen)),
             const SizedBox(width: 8),
-            _chip('You', const Color(0xFF374151), Colors.white),
-            _arrow(),
-            _chip('AT/BAW', _kGreen, Colors.white),
+            _chip(widget.assistedFarmerName != null ? 'BAW (you)' : 'You', const Color(0xFF374151), Colors.white),
             _arrow(),
             _chip('MAO', const Color(0xFF1F4E8C), Colors.white),
           ]),

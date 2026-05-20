@@ -151,6 +151,14 @@ class FinancialInputRecord {
   // ── MAO ───────────────────────────────────────────────────────────────────
   final String? maoNotes;
 
+  // ── Stage tracking ─────────────────────────────────────────────────────────
+  /// 0 = full 6-stage cycle submission; 1–6 = a single stage submitted independently.
+  final int stageNumber;
+  /// Groups all stage submissions from the same crop cycle session.
+  final String cycleId;
+  /// RSBSA number or farmer ID — populated when BAW submits on behalf of a farmer.
+  final String rsbsaNumber;
+
   const FinancialInputRecord({
     required this.id,
     required this.farmerId,
@@ -158,6 +166,9 @@ class FinancialInputRecord {
     required this.barangay,
     required this.status,
     required this.submittedAt,
+    this.stageNumber = 0,
+    this.cycleId = '',
+    this.rsbsaNumber = '',
     // crop metadata
     required this.cropType,
     required this.cropVariety,
@@ -250,6 +261,9 @@ class FinancialInputRecord {
     'barangay': barangay,
     'status': status.value,
     'submitted_at': submittedAt.toIso8601String(),
+    'stage_number': stageNumber,
+    'cycle_id': cycleId,
+    'rsbsa_number': rsbsaNumber,
     // crop
     'crop_type': cropType,
     'crop_variety': cropVariety,
@@ -305,6 +319,9 @@ class FinancialInputRecord {
     barangay: j['barangay'] as String? ?? '',
     status: FinInputStatusExt.fromString(j['status'] as String?),
     submittedAt: DateTime.parse(j['submitted_at'] as String),
+    stageNumber: (j['stage_number'] as int?) ?? 0,
+    cycleId: j['cycle_id'] as String? ?? '',
+    rsbsaNumber: j['rsbsa_number'] as String? ?? '',
     // crop
     cropType: j['crop_type'] as String? ?? '',
     cropVariety: j['crop_variety'] as String? ?? '',
@@ -365,6 +382,7 @@ class FinancialInputRecord {
   }) => FinancialInputRecord(
     id: id, farmerId: farmerId, farmerName: farmerName, barangay: barangay,
     status: status ?? this.status, submittedAt: submittedAt,
+    stageNumber: stageNumber, cycleId: cycleId, rsbsaNumber: rsbsaNumber,
     cropType: cropType, cropVariety: cropVariety, areaPlantedHa: areaPlantedHa,
     plantingDate: plantingDate, expectedHarvestDate: expectedHarvestDate,
     landPrepCost: landPrepCost, soilPrepCost: soilPrepCost,
