@@ -1189,8 +1189,52 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
             Text('+ ${upcoming.length - 5} more upcoming harvests',
               style: const TextStyle(fontSize: 12, color: _muted)),
         ],
+        // ── MAO approve pending validated declarations ──────────────────────
+        ..._validatedDeclarations
+            .where((d) => d.status == CropDeclarationStatus.validated)
+            .take(5)
+            .map((d) => _buildDeclApproveRow(d)),
       ]),
     );
+  }
+
+  Widget _buildDeclApproveRow(CropDeclaration d) => Container(
+    margin: const EdgeInsets.only(top: 10),
+    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF0FDF4),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: const Color(0xFF86EFAC)),
+    ),
+    child: Row(children: [
+      const Icon(Icons.eco_rounded, color: Color(0xFF16A34A), size: 16),
+      const SizedBox(width: 10),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('${d.cropName} — ${d.farmerName}',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF166534))),
+        Text('${d.estimatedVolumeKg.toStringAsFixed(0)} kg · ${d.barangay ?? "—"} · BAW validated',
+          style: const TextStyle(fontSize: 11, color: Color(0xFF4B5563))),
+      ])),
+      const SizedBox(width: 8),
+      ElevatedButton(
+        onPressed: () => _approveDeclaration(d),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF16A34A), foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+        child: const Text('Approve'),
+      ),
+    ]),
+  );
+
+  Future<void> _approveDeclaration(CropDeclaration d) async {
+    await _declSvc.maoApproveDeclaration(d.id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('✓ Approved: ${d.cropName} — ${d.farmerName}'),
+      backgroundColor: const Color(0xFF16A34A)));
+    _loadDashboardData();
   }
 
   Widget _declKpi(String label, String value, Color color) {

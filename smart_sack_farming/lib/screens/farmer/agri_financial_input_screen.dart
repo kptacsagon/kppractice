@@ -301,9 +301,12 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
 
   // ── Submit just the current stage independently ───────────────────────────
 
-  Future<void> _submitCurrentStage() async {
-    if (_plantingDate == null || _harvestDate == null ||
-        _areaCtl.text.trim().isEmpty || _barangay == null) {
+  bool _headerOk() =>
+    _plantingDate != null && _harvestDate != null &&
+    _areaCtl.text.trim().isNotEmpty && _barangay != null;
+
+  Future<void> _submitCurrentStage({bool toMao = false}) async {
+    if (!_headerOk()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Set area, barangay, and planting date before submitting.'),
@@ -314,14 +317,17 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
     if (user == null) return;
     setState(() => _submitting = true);
     try {
-      await _svc.submitInput(_buildRecord(stageNumber: _stage + 1));
+      final rec = _buildRecord(stageNumber: _stage + 1)
+          .copyWith(status: toMao ? FinInputStatus.pendingMao : FinInputStatus.pendingBaw);
+      await _svc.submitInput(rec);
       if (!mounted) return;
       setState(() {
         _submitting = false;
         _submittedStages.add(_stage);
       });
+      final dest = toMao ? 'MAO' : 'BAW';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Stage ${_stage + 1}: ${_kStages[_stage].$1} sent to BAW ✓'),
+        content: Text('Stage ${_stage + 1}: ${_kStages[_stage].$1} sent to $dest ✓'),
         backgroundColor: _kGreen));
     } catch (e) {
       if (!mounted) return;
@@ -331,7 +337,7 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
     }
   }
 
-  // ── Submit the full 6-stage cycle ─────────────────────────────────────────
+  // ── Submit the full 6-stage cycle to BAW ──────────────────────────────────
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
@@ -344,6 +350,31 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
     setState(() => _submitting = true);
     try {
       await _svc.submitInput(_buildRecord(stageNumber: 0));
+      if (!mounted) return;
+      setState(() { _submitting = false; _submitted = true; });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Submission failed: $e'), backgroundColor: _kRed));
+    }
+  }
+
+  // ── Submit the full 6-stage cycle directly to MAO (bypass BAW) ───────────
+
+  Future<void> _submitToMaoFull() async {
+    if (!_formKey.currentState!.validate()) {
+      setState(() => _stage = 0);
+      return;
+    }
+    if (_plantingDate == null || _harvestDate == null) return;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    setState(() => _submitting = true);
+    try {
+      final rec = _buildRecord(stageNumber: 0)
+          .copyWith(status: FinInputStatus.pendingMao);
+      await _svc.submitInput(rec);
       if (!mounted) return;
       setState(() { _submitting = false; _submitted = true; });
     } catch (e) {
@@ -857,34 +888,47 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         // ── Per-stage submit ───────────────────────────────────────────────
-        SizedBox(
-          width: double.infinity,
-          child: stageSubmitted
-            ? Container(
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE7F1E8), borderRadius: BorderRadius.circular(8)),
-                alignment: Alignment.center,
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Icon(Icons.check_circle_rounded, color: _kGreen, size: 15),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Stage ${_stage + 1}: ${_kStages[_stage].$1} submitted to BAW',
-                    style: const TextStyle(fontSize: 11.5, color: _kGreen, fontWeight: FontWeight.w700)),
-                ]),
-              )
-            : OutlinedButton.icon(
-                onPressed: (_submitting || !headerOk) ? null : _submitCurrentStage,
-                icon: const Icon(Icons.cloud_upload_rounded, size: 14, color: _kGreen),
-                label: Text(
-                  'Submit Stage ${_stage + 1}: ${_kStages[_stage].$1} to BAW',
-                  style: const TextStyle(fontSize: 11.5, color: _kGreen, fontWeight: FontWeight.w700)),
+        // ── Per-stage submit: send to BAW or directly to MAO ─────────────
+        if (stageSubmitted)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE7F1E8), borderRadius: BorderRadius.circular(8)),
+            alignment: Alignment.center,
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.check_circle_rounded, color: _kGreen, size: 15),
+              const SizedBox(width: 6),
+              Text(
+                'Stage ${_stage + 1}: ${_kStages[_stage].$1} submitted',
+                style: const TextStyle(fontSize: 11.5, color: _kGreen, fontWeight: FontWeight.w700)),
+            ]),
+          )
+        else
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: (_submitting || !headerOk) ? null : () => _submitCurrentStage(toMao: false),
+                icon: const Icon(Icons.verified_user_rounded, size: 13, color: _kGreen),
+                label: const Text('Send to BAW', style: TextStyle(fontSize: 11, color: _kGreen, fontWeight: FontWeight.w700)),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: _kGreen),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
               ),
-        ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: (_submitting || !headerOk) ? null : () => _submitCurrentStage(toMao: true),
+                icon: const Icon(Icons.account_balance_rounded, size: 13, color: Color(0xFF1D4ED8)),
+                label: const Text('Send to MAO', style: TextStyle(fontSize: 11, color: Color(0xFF1D4ED8), fontWeight: FontWeight.w700)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF1D4ED8)),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              ),
+            ),
+          ]),
         const SizedBox(height: 8),
         // ── Navigation / full-cycle submit ────────────────────────────────
         Row(children: [
@@ -914,6 +958,23 @@ class _AgriFinancialInputScreenState extends State<AgriFinancialInputScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
           )),
         ]),
+        // ── On last stage: also offer direct MAO submit ───────────────────
+        if (isLast) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _submitting ? null : () => _submitToMaoFull(),
+              icon: const Icon(Icons.account_balance_rounded, size: 14, color: Color(0xFF1D4ED8)),
+              label: const Text('Submit Full Cycle Directly to MAO',
+                style: TextStyle(fontSize: 12, color: Color(0xFF1D4ED8), fontWeight: FontWeight.w700)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF1D4ED8)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            ),
+          ),
+        ],
       ]),
     );
   }

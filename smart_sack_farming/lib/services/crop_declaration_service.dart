@@ -1,25 +1,28 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // PRD §3.2.3 — Crop Declaration Status Lifecycle
-enum CropDeclarationStatus { pendingReview, validated, returned, harvested, cancelled }
+// pending_review → validated (BAW) → mao_approved (MAO)
+enum CropDeclarationStatus { pendingReview, validated, maoApproved, returned, harvested, cancelled }
 
 String cropStatusToString(CropDeclarationStatus s) {
   switch (s) {
     case CropDeclarationStatus.pendingReview: return 'pending_review';
-    case CropDeclarationStatus.validated: return 'validated';
-    case CropDeclarationStatus.returned: return 'returned';
-    case CropDeclarationStatus.harvested: return 'harvested';
-    case CropDeclarationStatus.cancelled: return 'cancelled';
+    case CropDeclarationStatus.validated:     return 'validated';
+    case CropDeclarationStatus.maoApproved:   return 'mao_approved';
+    case CropDeclarationStatus.returned:      return 'returned';
+    case CropDeclarationStatus.harvested:     return 'harvested';
+    case CropDeclarationStatus.cancelled:     return 'cancelled';
   }
 }
 
 CropDeclarationStatus cropStatusFromString(String? s) {
   switch (s) {
-    case 'validated': return CropDeclarationStatus.validated;
-    case 'returned': return CropDeclarationStatus.returned;
-    case 'harvested': return CropDeclarationStatus.harvested;
-    case 'cancelled': return CropDeclarationStatus.cancelled;
-    default: return CropDeclarationStatus.pendingReview;
+    case 'validated':    return CropDeclarationStatus.validated;
+    case 'mao_approved': return CropDeclarationStatus.maoApproved;
+    case 'returned':     return CropDeclarationStatus.returned;
+    case 'harvested':    return CropDeclarationStatus.harvested;
+    case 'cancelled':    return CropDeclarationStatus.cancelled;
+    default:             return CropDeclarationStatus.pendingReview;
   }
 }
 
@@ -234,6 +237,37 @@ class CropDeclarationService {
         technicianId: technicianId,
         atNotes: notes,
       );
+    }
+  }
+
+  Future<void> maoApproveDeclaration(String id, {String? notes}) async {
+    try {
+      await _client.from('crop_declarations').update({
+        'status': 'mao_approved',
+        if (notes != null) 'at_notes': notes,
+      }).eq('id', id);
+    } catch (_) {
+      final idx = _cache.indexWhere((d) => d.id == id);
+      if (idx != -1) _cache[idx] = _cache[idx].copyWith(
+        status: CropDeclarationStatus.maoApproved,
+      );
+    }
+  }
+
+  Future<List<CropDeclaration>> getValidatedForMao({String? barangay}) async {
+    try {
+      var q = _client.from('crop_declarations').select()
+          .eq('status', 'validated');
+      if (barangay != null) q = q.eq('barangay', barangay);
+      final res = await q.order('submitted_at', ascending: false);
+      return (res as List).map((e) => CropDeclaration.fromJson(e)).toList();
+    } catch (e) {
+      if (_isMissingTableError(e)) {
+        return _cache.where((d) =>
+          d.status == CropDeclarationStatus.validated &&
+          (barangay == null || d.barangay == barangay)).toList();
+      }
+      rethrow;
     }
   }
 }

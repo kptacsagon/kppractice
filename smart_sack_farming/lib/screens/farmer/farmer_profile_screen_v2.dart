@@ -93,11 +93,14 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
   bool _isSavingPersonal = false;
   bool _isSavingAgri = false;
   String? _agriProfileId; // agrisense_farmer_profiles.id — used by Farm Registry
+  bool _prefillBarangay = false; // true when barangay was auto-filled from personal profile
+  bool _prefillContact = false;  // true when contact was auto-filled from personal profile
 
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 2, vsync: this);
+    _tabs.addListener(() { if (mounted) setState(() {}); });
     _loadAll();
   }
 
@@ -138,6 +141,16 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
       _agriProfile = agri;
       _agriProfileId = agri?.id;
       if (agri != null) _populateAgriControllers(agri);
+
+      // Pre-fill AgriSense fields from personal profile when not already set
+      if (_agriBarangay == null && _selectedPersonalBarangay != null) {
+        _agriBarangay = _selectedPersonalBarangay;
+        _prefillBarangay = true;
+      }
+      if (_contactCtrl.text.trim().isEmpty && _phoneCtrl.text.trim().isNotEmpty) {
+        _contactCtrl.text = _phoneCtrl.text.trim();
+        _prefillContact = true;
+      }
 
       if (!mounted) return;
       setState(() => _loading = false);
@@ -348,19 +361,16 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F0),
-      body: NestedScrollView(
-        floatHeaderSlivers: true,
-        headerSliverBuilder: (_, __) => [
-          SliverToBoxAdapter(child: _buildHeader()),
-        ],
-        body: Column(
-          children: [
-            _buildTabBar(),
-            Expanded(child: TabBarView(controller: _tabs, children: [
-              _buildPersonalTab(),
-              _buildAgriTab(),
-            ])),
-          ],
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: Column(
+            children: [
+              _buildHeader(),
+              _buildTabBar(),
+              _tabs.index == 0 ? _buildPersonalTab() : _buildAgriTab(),
+            ],
+          ),
         ),
       ),
     );
@@ -468,7 +478,7 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
   // ── Tab 1: Personal Info ──────────────────────────────────────────────────
 
   Widget _buildPersonalTab() {
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.all(16),
       child: _isEditing ? _buildPersonalEditForm() : _buildPersonalViewMode(),
     );
@@ -586,7 +596,7 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
   // ── Tab 2: AgriSense Profile ──────────────────────────────────────────────
 
   Widget _buildAgriTab() {
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.all(16),
       child: Form(
         key: _agriForm,
@@ -606,6 +616,7 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
             _formField('RSBSA Number', _rsbsaCtrl, hint: 'Leave blank if not yet registered', icon: Icons.numbers_rounded),
             const SizedBox(height: 12),
             _formField('Contact Number', _contactCtrl, icon: Icons.phone_rounded, type: TextInputType.phone),
+            if (_prefillContact) _prefillHint('Pre-filled from your Personal Info · edit if different'),
           ]),
 
           _agriSection('LOCATION — Tubungan, Iloilo', Icons.location_on_rounded, [
@@ -614,9 +625,10 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
               decoration: _dec('Barangay *'),
               isExpanded: true,
               items: _kBarangays.map((b) => DropdownMenuItem(value: b, child: Text(b, style: const TextStyle(fontSize: 13)))).toList(),
-              onChanged: (v) => setState(() => _agriBarangay = v),
+              onChanged: (v) => setState(() { _agriBarangay = v; _prefillBarangay = false; }),
               validator: (v) => v == null ? 'Please select your barangay' : null,
             ),
+            if (_prefillBarangay) _prefillHint('Pre-filled from your Personal Info · edit if different'),
             const SizedBox(height: 10),
             _readonlyRow('Municipality', 'Tubungan'),
             _readonlyRow('Province', 'Iloilo'),
@@ -803,6 +815,15 @@ class _FarmerProfileScreenV2State extends State<FarmerProfileScreenV2>
       ]),
     );
   }
+
+  Widget _prefillHint(String msg) => Padding(
+    padding: const EdgeInsets.only(top: 4),
+    child: Row(children: [
+      const Icon(Icons.auto_awesome_rounded, size: 11, color: Color(0xFF6D28D9)),
+      const SizedBox(width: 4),
+      Expanded(child: Text(msg, style: const TextStyle(fontSize: 10, color: Color(0xFF7C3AED), height: 1.3))),
+    ]),
+  );
 
   Widget _syncRow(IconData icon, String label, String value) => Padding(
     padding: const EdgeInsets.only(bottom: 4),

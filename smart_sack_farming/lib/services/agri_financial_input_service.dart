@@ -5,18 +5,21 @@
 //   1. Pre-Planting   2. Planting    3. Maintenance
 //   4. Harvest        5. Post-Harvest 6. Sales
 //
-// Status lifecycle: pending_baw → baw_verified / baw_returned → mao_approved
+// Status lifecycle:
+//   Farmer→BAW path: pending_baw → baw_verified / baw_returned → mao_approved
+//   Farmer→MAO path: pending_mao → mao_approved / mao_rejected (bypasses BAW)
 // Falls back to in-memory cache when the table doesn't exist yet.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-enum FinInputStatus { pendingBaw, bawVerified, bawReturned, maoApproved, maoRejected }
+enum FinInputStatus { pendingBaw, pendingMao, bawVerified, bawReturned, maoApproved, maoRejected }
 
 extension FinInputStatusExt on FinInputStatus {
   String get value {
     switch (this) {
       case FinInputStatus.pendingBaw:   return 'pending_baw';
+      case FinInputStatus.pendingMao:   return 'pending_mao';
       case FinInputStatus.bawVerified:  return 'baw_verified';
       case FinInputStatus.bawReturned:  return 'baw_returned';
       case FinInputStatus.maoApproved:  return 'mao_approved';
@@ -27,6 +30,7 @@ extension FinInputStatusExt on FinInputStatus {
   String get label {
     switch (this) {
       case FinInputStatus.pendingBaw:   return 'Pending BAW Review';
+      case FinInputStatus.pendingMao:   return 'Sent Direct to MAO';
       case FinInputStatus.bawVerified:  return 'BAW Verified';
       case FinInputStatus.bawReturned:  return 'Returned for Correction';
       case FinInputStatus.maoApproved:  return 'MAO Approved';
@@ -36,6 +40,7 @@ extension FinInputStatusExt on FinInputStatus {
 
   static FinInputStatus fromString(String? s) {
     switch (s) {
+      case 'pending_mao':   return FinInputStatus.pendingMao;
       case 'baw_verified':  return FinInputStatus.bawVerified;
       case 'baw_returned':  return FinInputStatus.bawReturned;
       case 'mao_approved':  return FinInputStatus.maoApproved;
@@ -487,14 +492,15 @@ class AgriFinancialInputService {
 
   Future<List<FinancialInputRecord>> getVerifiedForMao({String? barangay}) async {
     try {
-      var q = _client.from(_table).select().eq('status', FinInputStatus.bawVerified.value);
+      var q = _client.from(_table).select()
+          .in_('status', [FinInputStatus.bawVerified.value, FinInputStatus.pendingMao.value]);
       if (barangay != null) q = q.eq('barangay', barangay);
       final res = await q.order('submitted_at', ascending: false);
       return (res as List).map((e) => FinancialInputRecord.fromJson(e)).toList();
     } catch (e) {
       if (_isMissing(e)) {
         return _cache.where((r) =>
-          r.status == FinInputStatus.bawVerified &&
+          (r.status == FinInputStatus.bawVerified || r.status == FinInputStatus.pendingMao) &&
           (barangay == null || r.barangay == barangay)).toList();
       }
       rethrow;

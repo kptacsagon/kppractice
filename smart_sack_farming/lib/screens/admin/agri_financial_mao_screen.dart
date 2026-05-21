@@ -432,20 +432,24 @@ class _AgriFinancialMaoScreenState extends State<AgriFinancialMaoScreen>
   Widget _approvalCard(FinancialInputRecord r) {
     final nfi = r.netFarmIncome;
     final fmt = NumberFormat('#,##0', 'en_PH');
+    final isDirect = r.status == FinInputStatus.pendingMao;
+    final headerBg = isDirect ? const Color(0xFFEFF6FF) : const Color(0xFFFFFBEB);
+    final borderClr = isDirect ? const Color(0xFF3B82F6) : const Color(0xFFF59E0B);
     return Container(
       decoration: BoxDecoration(
         color: Colors.white, borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFF59E0B).withAlpha(120)),
+        border: Border.all(color: borderClr.withAlpha(120)),
         boxShadow: [BoxShadow(color: Colors.black.withAlpha(6), blurRadius: 6, offset: const Offset(0, 2))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           padding: const EdgeInsets.all(14),
-          decoration: const BoxDecoration(
-            color: Color(0xFFFFFBEB),
-            borderRadius: BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12))),
+          decoration: BoxDecoration(
+            color: headerBg,
+            borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12))),
           child: Row(children: [
-            const Icon(Icons.menu_book_rounded, color: Color(0xFFF59E0B), size: 16),
+            Icon(isDirect ? Icons.account_balance_rounded : Icons.menu_book_rounded,
+                color: isDirect ? const Color(0xFF2563EB) : const Color(0xFFF59E0B), size: 16),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${r.farmerName}  ·  ${r.cropType}${r.cropVariety.isEmpty ? '' : ' (${r.cropVariety})'}',
@@ -458,9 +462,14 @@ class _AgriFinancialMaoScreenState extends State<AgriFinancialMaoScreen>
             ])),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(6)),
-              child: const Text('BAW VERIFIED',
-                  style: TextStyle(fontSize: 9, color: Color(0xFF92400E), fontWeight: FontWeight.w800)),
+              decoration: BoxDecoration(
+                color: isDirect ? const Color(0xFFDBEAFE) : const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(6)),
+              child: Text(isDirect ? 'DIRECT TO MAO' : 'BAW VERIFIED',
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: isDirect ? const Color(0xFF1E40AF) : const Color(0xFF92400E),
+                    fontWeight: FontWeight.w800)),
             ),
           ]),
         ),
