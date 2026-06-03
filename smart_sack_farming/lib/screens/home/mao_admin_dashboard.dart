@@ -65,6 +65,7 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
   List<CropIndicators> _indicators = [];
   int _upcomingHarvests30d = 0;
   String? _declBarangayFilter;
+  bool _satSortDesc = true; // saturation table sort: highest risk first
 
   List<_TrendPoint> _supplyTrend = const [
     _TrendPoint('Jan', 40),
@@ -705,49 +706,82 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
   }
 
   Widget _buildMainContent({required bool isDesktop}) {
+    // ── Strategic computations (forecast-driven) ────────────────────────────
+    final profits = _computeCropProfits();
+    final satRows = List<_CropProfit>.from(profits)
+      ..sort((a, b) => _satSortDesc ? a.ppi.compareTo(b.ppi) : b.ppi.compareTo(a.ppi));
+    final rankRows = List<_CropProfit>.from(profits)
+      ..sort((a, b) => b.roi.compareTo(a.roi));
+    final brisks = _computeBarangayRisks();
+    final scen = _municipalScenarios();
+    final recs = _computeRecommendations(profits, brisks);
+
+    final declaredTons =
+        _validatedDeclarations.fold<double>(0, (s, d) => s + d.estimatedVolumeKg) / 1000;
+    final totalProdTons =
+        kAnnualTotals.values.fold<double>(0, (s, t) => s + t.productionMT);
+    final shownProdTons = declaredTons > 0 ? declaredTons : totalProdTons;
+    final avgNfi = profits.isEmpty
+        ? 0.0
+        : profits.map((p) => p.nfiPerFarmer).reduce((a, b) => a + b) / profits.length;
+    final cropsAtRisk = profits.where((p) => p.ppi <= -10).length;
+    final highRiskBgy = brisks.where((b) => b.risk >= 0.5).length;
+    final activeFarmers = _totalFarmers > 0
+        ? _totalFarmers
+        : kAnnualTotals.values.fold<int>(0, (s, t) => s + t.totalFarmers);
+
     final cards = [
       _KpiCardData(
         title: 'Active\nFarmers',
-        value: _totalFarmers > 0 ? '$_totalFarmers' : '5',
+        value: '$activeFarmers',
         suffix: '',
-        subText: '+3 this\nmonth',
+        subText: 'registered',
         icon: Icons.people_outline_rounded,
         valueColor: const Color(0xFF2E7D32),
         iconBg: const Color(0xFFE7F1E8),
       ),
       _KpiCardData(
-        title: 'Area\nPlanted',
-        value: _totalPlantedAreaHa.toStringAsFixed(1),
-        suffix: '\nha',
-        subText: '+0.8 ha',
-        icon: Icons.eco_outlined,
+        title: 'Declared\nProduction',
+        value: shownProdTons.toStringAsFixed(0),
+        suffix: '\ntons',
+        subText: declaredTons > 0 ? 'this season' : '2025 actual',
+        icon: Icons.inventory_2_outlined,
         valueColor: const Color(0xFF1565C0),
         iconBg: const Color(0xFFE7EDF8),
       ),
       _KpiCardData(
-        title: 'Estimated\nYield',
-        value: (_totalYieldKg > 0 ? _totalYieldKg / 1000 : 77).toStringAsFixed(0),
-        suffix: '\ntons',
-        subText: '+12%',
-        icon: Icons.inventory_2_outlined,
+        title: 'Forecasted\nRevenue',
+        value: '₱${_compact(scen.expRev)}',
+        suffix: '',
+        subText: 'expected case',
+        icon: Icons.payments_outlined,
         valueColor: const Color(0xFF2E7D32),
         iconBg: const Color(0xFFE7F1E8),
       ),
       _KpiCardData(
-        title: 'Oversupply\nRisk',
-        value: '${(_overallRisk * 100).toStringAsFixed(0)}%',
-        suffix: '',
-        subText: 'High Alert',
+        title: 'Avg Net Farm\nIncome',
+        value: '₱${_compact(avgNfi)}',
+        suffix: '\n/ha',
+        subText: 'per farmer',
+        icon: Icons.account_balance_wallet_outlined,
+        valueColor: avgNfi >= 0 ? const Color(0xFF2E7D32) : const Color(0xFFDC2626),
+        iconBg: const Color(0xFFE7F1E8),
+      ),
+      _KpiCardData(
+        title: 'Crops at\nRisk',
+        value: '$cropsAtRisk',
+        suffix: '\nof 5',
+        subText: 'oversupply',
         icon: Icons.warning_amber_rounded,
         valueColor: const Color(0xFFF59E0B),
         iconBg: const Color(0xFFFAF1E3),
       ),
       _KpiCardData(
-        title: 'Crops at\nRisk',
-        value: '$_cropsAtRisk',
+        title: 'High-Risk\nBarangays',
+        value: '$highRiskBgy',
         suffix: '',
-        subText: 'Intervention\nneeded',
-        icon: Icons.show_chart_rounded,
+        subText: 'need action',
+        icon: Icons.location_on_outlined,
         valueColor: const Color(0xFFDC2626),
         iconBg: const Color(0xFFFBEAEA),
       ),
@@ -769,7 +803,7 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
                         Text(
-                          'Municipal Dashboard',
+                          'Municipal Command Center',
                           style: TextStyle(
                             color: _text,
                             fontSize: 46 / 2,
@@ -778,7 +812,7 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
                         ),
                         SizedBox(height: 8),
                         Text(
-                          'Real-time agricultural supply monitoring',
+                          'Strategic agricultural intelligence · Tubungan, Iloilo',
                           style: TextStyle(
                             color: _muted,
                             fontSize: 33 / 2,
@@ -824,44 +858,48 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
                     .toList(),
               ),
               const SizedBox(height: 14),
-              _buildFarmVerificationBanner(context),
-              const SizedBox(height: 16),
-              _buildMsiSaturationMatrix(),
-              const SizedBox(height: 14),
-              _buildCropDeclarationsPanel(),
-              const SizedBox(height: 14),
-              _buildIurPpiAlertPanel(),
-              const SizedBox(height: 14),
-              _buildBuyerDemandTile(),
+              _buildPendingActionsBanner(context),
               const SizedBox(height: 18),
-              _responsiveRow(
-                isDesktop: isDesktop,
-                left: _panel(
-                  title: 'Supply vs Demand Trend',
-                  child: _buildSupplyDemandChart(),
-                ),
-                right: _panel(
-                  title: 'Production by Barangay',
-                  child: _buildBarangayBarChart(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _responsiveRow(
-                isDesktop: isDesktop,
-                left: _panel(
-                  title: 'Harvest Calendar (May 2026)',
-                  child: _buildHarvestChart(),
-                ),
-                right: _panel(
-                  title: 'Recent Alerts',
-                  child: _buildAlertsList(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _panel(
-                title: 'Oversupply Risk by Crop',
-                child: _buildRiskTable(),
-              ),
+
+              // ── Section 1: Market Saturation Monitoring ──────────────────
+              _sectionHeader('Market Saturation Monitoring',
+                  'What crops are at risk of oversupply?'),
+              const SizedBox(height: 10),
+              _panel(title: 'Saturation Risk by Crop', child: _buildSaturationMonitoring(satRows)),
+              const SizedBox(height: 18),
+
+              // ── Section 2: Financial Forecasting ─────────────────────────
+              _sectionHeader('Financial Forecasting',
+                  'Projected municipal revenue under each scenario'),
+              const SizedBox(height: 10),
+              _buildFinancialForecastSummary(scen),
+              const SizedBox(height: 18),
+
+              // ── Section 3: Crop Profitability Rankings ───────────────────
+              _sectionHeader('Crop Profitability Rankings',
+                  'Which crops should be promoted?'),
+              const SizedBox(height: 10),
+              _panel(title: 'Crops Ranked by ROI', child: _buildProfitabilityRankings(rankRows)),
+              const SizedBox(height: 18),
+
+              // ── Section 4: Barangay Risk Monitoring ──────────────────────
+              _sectionHeader('Barangay Risk Monitoring',
+                  'Which barangays require intervention?'),
+              const SizedBox(height: 10),
+              _panel(title: 'Barangays Ranked by Risk', child: _buildBarangayRiskMonitoring(brisks)),
+              const SizedBox(height: 18),
+
+              // ── Section 5: Recommended Actions ───────────────────────────
+              _sectionHeader('Recommended Actions',
+                  'What should the MAO do this week?'),
+              const SizedBox(height: 10),
+              _buildRecommendations(recs),
+              const SizedBox(height: 18),
+
+              // ── Section 6: Critical Alerts ───────────────────────────────
+              _sectionHeader('Critical Alerts', 'Recent market & system alerts'),
+              const SizedBox(height: 10),
+              _panel(title: 'Recent Alerts', child: _buildAlertsList()),
             ],
           ),
         ),
@@ -1006,6 +1044,452 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
         ]),
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  STRATEGIC COMPUTATIONS  (forecast-driven, real AgriSat 2025 + PRD model)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  String _compact(double v) {
+    final a = v.abs();
+    if (a >= 1e9) return '${(v / 1e9).toStringAsFixed(1)}B';
+    if (a >= 1e6) return '${(v / 1e6).toStringAsFixed(1)}M';
+    if (a >= 1e3) return '${(v / 1e3).toStringAsFixed(0)}K';
+    return v.toStringAsFixed(0);
+  }
+
+  String _peso(double v) {
+    final n = v.round().abs().toString();
+    final b = StringBuffer();
+    for (int i = 0; i < n.length; i++) {
+      if (i > 0 && (n.length - i) % 3 == 0) b.write(',');
+      b.write(n[i]);
+    }
+    return '${v < 0 ? '-' : ''}₱${b.toString()}';
+  }
+
+  /// Per-crop profitability + saturation using the forecast engine + real PPI.
+  List<_CropProfit> _computeCropProfits() {
+    return kFmCropKeys.map((key) {
+      final agri = kFmKeyToAgriSat[key]!;
+      final totals = kAnnualTotals[agri]!;
+      final ppi = kPpiResults[agri]!.latestPPI;
+      final f = AgriForecastEngine.computeFarmerForecast(
+        cropKey: key,
+        farmSizeHa: 1.0,
+        municipalSupplyKg: (kMonthlyDemand[key] ?? 50000).toDouble(),
+      );
+      final risk = ppi <= -25 ? 'Saturated' : ppi <= -10 ? 'Watchlist' : 'Balanced';
+      final color = ppi <= -25
+          ? const Color(0xFFDC2626)
+          : ppi <= -10
+              ? const Color(0xFFF59E0B)
+              : const Color(0xFF16A34A);
+      return _CropProfit(
+        key: key,
+        name: kCropKeyToName[key] ?? key,
+        nfiPerFarmer: f.nfi,
+        roi: f.roi,
+        revenuePotential: f.grossRevenue,
+        productionMT: totals.productionMT,
+        ppi: ppi,
+        riskLabel: risk,
+        riskColor: color,
+      );
+    }).toList();
+  }
+
+  /// Best / Expected / Worst municipal revenue + net income (grounded in real production).
+  _ScenSummary _municipalScenarios() {
+    double br = 0, er = 0, wr = 0, bn = 0, en = 0, wn = 0;
+    for (final key in kFmCropKeys) {
+      final agri = kFmKeyToAgriSat[key]!;
+      final t = kAnnualTotals[agri]!;
+      final kg = t.productionMT * 1000;
+      final cost = t.haHarvested * kTotalDefaultCostPerHa;
+      final base = kFmBasePrices[key] ?? 50.0;
+      // Best: +15% price, +10% yield · Expected: baseline · Worst: -25% price, -20% yield
+      final bRev = (kg * 1.10) * (base * 1.15);
+      final eRev = kg * base;
+      final wRev = (kg * 0.80) * (base * 0.75);
+      br += bRev; er += eRev; wr += wRev;
+      bn += bRev - cost; en += eRev - cost; wn += wRev - cost;
+    }
+    return _ScenSummary(br, er, wr, bn, en, wn);
+  }
+
+  /// Barangay risk from validated declarations (fallback to real production data).
+  List<_BarangayRisk> _computeBarangayRisks() {
+    final riskyKeywords = <String>{
+      for (final k in kFmCropKeys)
+        if ((kPpiResults[kFmKeyToAgriSat[k]!]!.latestPPI) <= -10)
+          (kCropKeyToName[k] ?? k).toLowerCase().split(' ').first
+    };
+
+    final totalVol = <String, double>{};
+    final riskyVol = <String, double>{};
+    for (final d in _validatedDeclarations) {
+      final b = (d.barangay == null || d.barangay!.isEmpty) ? 'Unspecified' : d.barangay!;
+      totalVol[b] = (totalVol[b] ?? 0) + d.estimatedVolumeKg;
+      final cn = d.cropName.toLowerCase();
+      if (riskyKeywords.any((rc) => cn.contains(rc))) {
+        riskyVol[b] = (riskyVol[b] ?? 0) + d.estimatedVolumeKg;
+      }
+    }
+
+    if (totalVol.isEmpty) {
+      // Fallback: derive exposure from real production volume per barangay
+      if (_barangayProduction.isEmpty) return [];
+      final maxVal = _barangayProduction.first.value == 0 ? 1.0 : _barangayProduction.first.value;
+      return _barangayProduction.map((bp) {
+        final score = (bp.value / maxVal).clamp(0.0, 1.0);
+        final action = score > 0.66
+            ? 'High production — monitor for oversupply'
+            : score > 0.33
+                ? 'Moderate exposure — watchlist'
+                : 'Stable';
+        return _BarangayRisk(bp.label, score, action);
+      }).toList();
+    }
+
+    final list = totalVol.entries.map((e) {
+      final risk = (riskyVol[e.key] ?? 0) / (e.value == 0 ? 1 : e.value);
+      final action = risk > 0.5
+          ? 'Intervention — promote crop diversification'
+          : risk > 0.25
+              ? 'Watchlist — monitor declarations'
+              : 'Stable';
+      return _BarangayRisk(e.key, risk, action);
+    }).toList()
+      ..sort((a, b) => b.risk.compareTo(a.risk));
+    return list;
+  }
+
+  /// Recommendation engine — actionable advisories from PPI + profitability + barangay risk.
+  List<_Recommendation> _computeRecommendations(
+      List<_CropProfit> profits, List<_BarangayRisk> brisks) {
+    final recs = <_Recommendation>[];
+
+    for (final p in profits.where((p) => p.ppi <= -25)) {
+      recs.add(_Recommendation(
+        'Restrict ${p.name} planting',
+        'PPI ${p.ppi.toStringAsFixed(0)}% — SEVERE oversupply. Price collapse risk. Advise farmers to switch crops next season.',
+        const Color(0xFFDC2626), Icons.block_rounded));
+    }
+    for (final p in profits.where((p) => p.ppi > -25 && p.ppi <= -10)) {
+      recs.add(_Recommendation(
+        'Reduce ${p.name} planting',
+        'PPI ${p.ppi.toStringAsFixed(0)}% — watchlist. Stagger planting schedules to avoid harvest pile-up.',
+        const Color(0xFFF59E0B), Icons.trending_down_rounded));
+    }
+    final promote = profits.where((p) => p.ppi >= 10).toList()
+      ..sort((a, b) => b.roi.compareTo(a.roi));
+    for (final p in promote.take(2)) {
+      recs.add(_Recommendation(
+        'Promote ${p.name} production',
+        'PPI +${p.ppi.toStringAsFixed(0)}% (high demand), ROI ${p.roi.toStringAsFixed(0)}%. Encourage farmers to plant.',
+        const Color(0xFF16A34A), Icons.trending_up_rounded));
+    }
+    for (final b in brisks.where((b) => b.risk >= 0.5).take(2)) {
+      recs.add(_Recommendation(
+        'Intervene in ${b.name}',
+        'Oversupply exposure ${(b.risk * 100).toStringAsFixed(0)}%. ${b.action}.',
+        const Color(0xFFF59E0B), Icons.location_on_rounded));
+    }
+    final saturated = profits.where((p) => p.ppi <= -10).length;
+    if (saturated >= 2) {
+      recs.add(_Recommendation(
+        'Encourage crop diversification',
+        '$saturated crops show oversupply risk. Promote balanced cropping across the 48 barangays.',
+        const Color(0xFF1D4ED8), Icons.spa_rounded));
+    }
+    if (recs.isEmpty) {
+      recs.add(_Recommendation(
+        'Market balanced',
+        'No critical oversupply detected this period. Continue routine monitoring.',
+        const Color(0xFF16A34A), Icons.check_circle_rounded));
+    }
+    return recs;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  STRATEGIC SECTION WIDGETS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Widget _sectionHeader(String title, String sub) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _text)),
+          const SizedBox(height: 2),
+          Text(sub, style: const TextStyle(fontSize: 12.5, color: _muted)),
+        ],
+      );
+
+  Widget _buildPendingActionsBanner(BuildContext context) {
+    final pendingApprovals =
+        _validatedDeclarations.where((d) => d.status == CropDeclarationStatus.validated).length;
+    final total = _pendingVerifications + pendingApprovals;
+    if (total == 0) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFDCFCE7),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF86EFAC)),
+        ),
+        child: Row(children: const [
+          Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 20),
+          SizedBox(width: 10),
+          Expanded(child: Text('All caught up — no pending verifications or approvals.',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF166534)))),
+        ]),
+      );
+    }
+    return Column(children: [
+      GestureDetector(
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const AgrisenseFarmVerificationScreen())),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFF59E0B)),
+          ),
+          child: Row(children: [
+            const Icon(Icons.pending_actions_rounded, color: Color(0xFFF59E0B), size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('$total item${total > 1 ? 's' : ''} need your review',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF92400E))),
+                const SizedBox(height: 2),
+                Text('$_pendingVerifications farm verification${_pendingVerifications == 1 ? '' : 's'} · '
+                    '$pendingApprovals declaration approval${pendingApprovals == 1 ? '' : 's'}',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF78350F))),
+              ]),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Color(0xFF9CA3AF)),
+          ]),
+        ),
+      ),
+      // Inline declaration approvals (actionable, on-demand)
+      if (pendingApprovals > 0) ...[
+        const SizedBox(height: 12),
+        _panel(
+          title: 'Pending Declaration Approvals',
+          child: Column(
+            children: _validatedDeclarations
+                .where((d) => d.status == CropDeclarationStatus.validated)
+                .take(5)
+                .map(_buildDeclApproveRow)
+                .toList(),
+          ),
+        ),
+      ],
+    ]);
+  }
+
+  Widget _buildSaturationMonitoring(List<_CropProfit> rows) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Header (sortable by risk)
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(children: [
+          const Expanded(flex: 3, child: Text('Crop', style: _thStyle)),
+          const Expanded(flex: 2, child: Text('Production', style: _thStyle, textAlign: TextAlign.center)),
+          const Expanded(flex: 2, child: Text('PPI', style: _thStyle, textAlign: TextAlign.center)),
+          Expanded(flex: 3, child: InkWell(
+            onTap: () => setState(() => _satSortDesc = !_satSortDesc),
+            child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+              const Text('Risk Level', style: _thStyle),
+              Icon(_satSortDesc ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                  size: 12, color: _muted),
+            ]),
+          )),
+        ]),
+      ),
+      const Divider(height: 8),
+      ...rows.map((r) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(children: [
+              Expanded(flex: 3, child: Text(r.name,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _text))),
+              Expanded(flex: 2, child: Text('${r.productionMT.toStringAsFixed(1)} MT',
+                  style: const TextStyle(fontSize: 11.5, color: _muted), textAlign: TextAlign.center)),
+              Expanded(flex: 2, child: Center(child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: r.riskColor.withAlpha(25), borderRadius: BorderRadius.circular(6)),
+                child: Text('${r.ppi >= 0 ? '+' : ''}${r.ppi.toStringAsFixed(0)}%',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: r.riskColor)),
+              ))),
+              Expanded(flex: 3, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                Container(width: 8, height: 8, decoration: BoxDecoration(color: r.riskColor, shape: BoxShape.circle)),
+                const SizedBox(width: 6),
+                Text(r.riskLabel, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: r.riskColor)),
+              ])),
+            ]),
+          )),
+      const SizedBox(height: 8),
+      Wrap(spacing: 14, runSpacing: 4, children: const [
+        _LegendDot(color: Color(0xFF16A34A), label: 'Balanced'),
+        _LegendDot(color: Color(0xFFF59E0B), label: 'Watchlist'),
+        _LegendDot(color: Color(0xFFDC2626), label: 'Saturated'),
+      ]),
+    ]);
+  }
+
+  Widget _buildFinancialForecastSummary(_ScenSummary s) {
+    Widget card(String label, double rev, double nfi, Color c, Color bg, String emoji) => Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: bg, borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: c.withAlpha(80)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text(emoji, style: const TextStyle(fontSize: 15)),
+              const SizedBox(width: 6),
+              Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: c)),
+            ]),
+            const SizedBox(height: 10),
+            const Text('Municipal Revenue', style: TextStyle(fontSize: 10.5, color: _muted)),
+            Text(_peso(rev), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: c)),
+            const SizedBox(height: 8),
+            const Text('Net Income', style: TextStyle(fontSize: 10.5, color: _muted)),
+            Text(_peso(nfi),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                    color: nfi >= 0 ? c : const Color(0xFFDC2626))),
+          ]),
+        );
+
+    return LayoutBuilder(builder: (ctx, box) {
+      final cards = [
+        card('Best Case', s.bestRev, s.bestNfi, const Color(0xFF16A34A), const Color(0xFFF0FDF4), '🟢'),
+        card('Expected Case', s.expRev, s.expNfi, const Color(0xFF1D4ED8), const Color(0xFFEFF6FF), '🔵'),
+        card('Worst Case', s.worstRev, s.worstNfi, const Color(0xFFDC2626), const Color(0xFFFEF2F2), '🔴'),
+      ];
+      if (box.maxWidth >= 700) {
+        return Row(crossAxisAlignment: CrossAxisAlignment.start,
+            children: cards
+                .map((c) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 5), child: c)))
+                .toList());
+      }
+      return Column(children: cards.map((c) => Padding(padding: const EdgeInsets.only(bottom: 10), child: c)).toList());
+    });
+  }
+
+  Widget _buildProfitabilityRankings(List<_CropProfit> rows) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(children: const [
+          SizedBox(width: 28, child: Text('#', style: _thStyle)),
+          Expanded(flex: 3, child: Text('Crop', style: _thStyle)),
+          Expanded(flex: 3, child: Text('NFI / ha', style: _thStyle, textAlign: TextAlign.right)),
+          Expanded(flex: 2, child: Text('ROI', style: _thStyle, textAlign: TextAlign.right)),
+        ]),
+      ),
+      const Divider(height: 8),
+      ...List.generate(rows.length, (i) {
+        final r = rows[i];
+        final medal = i == 0 ? '🥇' : i == 1 ? '🥈' : i == 2 ? '🥉' : '${i + 1}';
+        final nfiColor = r.nfiPerFarmer >= 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(children: [
+            SizedBox(width: 28, child: Text(medal, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+            Expanded(flex: 3, child: Text(r.name,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _text))),
+            Expanded(flex: 3, child: Text(_peso(r.nfiPerFarmer),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: nfiColor), textAlign: TextAlign.right)),
+            Expanded(flex: 2, child: Text('${r.roi.toStringAsFixed(0)}%',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: nfiColor), textAlign: TextAlign.right)),
+          ]),
+        );
+      }),
+      const SizedBox(height: 6),
+      const Text('NFI/ROI projected for 1 ha at expected-case prices (DA/MAO reference yields & costs).',
+          style: TextStyle(fontSize: 10, color: _muted)),
+    ]);
+  }
+
+  Widget _buildBarangayRiskMonitoring(List<_BarangayRisk> rows) {
+    if (rows.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Text('No barangay declaration data yet. Risk appears once farmers declare crops.',
+            style: TextStyle(fontSize: 12, color: _muted)),
+      );
+    }
+    final top = rows.take(8).toList();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(children: const [
+          Expanded(flex: 3, child: Text('Barangay', style: _thStyle)),
+          Expanded(flex: 3, child: Text('Risk', style: _thStyle)),
+          Expanded(flex: 4, child: Text('Recommended Action', style: _thStyle)),
+        ]),
+      ),
+      const Divider(height: 8),
+      ...top.map((b) {
+        final color = b.risk >= 0.5
+            ? const Color(0xFFDC2626)
+            : b.risk >= 0.25
+                ? const Color(0xFFF59E0B)
+                : const Color(0xFF16A34A);
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Expanded(flex: 3, child: Text(b.name,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _text))),
+            Expanded(flex: 3, child: Row(children: [
+              Expanded(child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: b.risk.clamp(0.0, 1.0), minHeight: 7,
+                  backgroundColor: const Color(0xFFE5E7EB),
+                  valueColor: AlwaysStoppedAnimation(color),
+                ),
+              )),
+              const SizedBox(width: 6),
+              Text('${(b.risk * 100).toStringAsFixed(0)}%',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+            ])),
+            Expanded(flex: 4, child: Text(b.action,
+                style: const TextStyle(fontSize: 10.5, color: _muted, height: 1.3))),
+          ]),
+        );
+      }),
+    ]);
+  }
+
+  Widget _buildRecommendations(List<_Recommendation> recs) {
+    return Column(children: recs.map((r) => Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _card, borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: r.color.withAlpha(70)),
+            boxShadow: [BoxShadow(color: Colors.black.withAlpha(6), blurRadius: 6, offset: const Offset(0, 2))],
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: r.color.withAlpha(20), borderRadius: BorderRadius.circular(10)),
+              child: Icon(r.icon, color: r.color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(r.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: r.color)),
+              const SizedBox(height: 3),
+              Text(r.detail, style: const TextStyle(fontSize: 11.5, color: _muted, height: 1.4)),
+            ])),
+          ]),
+        )).toList());
   }
 
   Widget _buildKpiCard(_KpiCardData data) {
@@ -1979,6 +2463,54 @@ class _NavItem {
   final IconData icon;
 
   const _NavItem(this.label, this.icon);
+}
+
+// ── Strategic dashboard styling + data structs ────────────────────────────────
+const TextStyle _thStyle = TextStyle(
+  fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF4B5563));
+
+class _CropProfit {
+  final String key;
+  final String name;
+  final double nfiPerFarmer;
+  final double roi;
+  final double revenuePotential;
+  final double productionMT;
+  final double ppi;
+  final String riskLabel;
+  final Color riskColor;
+  const _CropProfit({
+    required this.key,
+    required this.name,
+    required this.nfiPerFarmer,
+    required this.roi,
+    required this.revenuePotential,
+    required this.productionMT,
+    required this.ppi,
+    required this.riskLabel,
+    required this.riskColor,
+  });
+}
+
+class _ScenSummary {
+  final double bestRev, expRev, worstRev, bestNfi, expNfi, worstNfi;
+  const _ScenSummary(
+      this.bestRev, this.expRev, this.worstRev, this.bestNfi, this.expNfi, this.worstNfi);
+}
+
+class _BarangayRisk {
+  final String name;
+  final double risk; // 0..1
+  final String action;
+  const _BarangayRisk(this.name, this.risk, this.action);
+}
+
+class _Recommendation {
+  final String title;
+  final String detail;
+  final Color color;
+  final IconData icon;
+  const _Recommendation(this.title, this.detail, this.color, this.icon);
 }
 
 class _KpiCardData {

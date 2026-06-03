@@ -23,6 +23,16 @@ const Map<String, String> kCropKeyToName = {
   'okra':        'Okra',
 };
 
+/// Bridges fm snake_case key → agrisat_real_data.dart camelCase key
+/// (kAnnualTotals, kPpiResults, kCropDisplayNames use camelCase)
+const Map<String, String> kFmKeyToAgriSat = {
+  'ampalaya':     'ampalaya',
+  'string_beans': 'stringBeans',
+  'squash':       'squash',
+  'eggplant':     'eggplant',
+  'okra':         'okra',
+};
+
 // ── §5.1  Yield per hectare (kg/ha) — DA/MAO Iloilo reference ─────────────
 const Map<String, double> kYieldPerHa = {
   'ampalaya':    9000,   // 9 MT/ha (bitter gourd)
