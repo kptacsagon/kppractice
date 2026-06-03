@@ -105,32 +105,6 @@ class FarmerDashboardScreen extends StatelessWidget {
                       onTap: () => _navigateToFeature(context, 'Financial Model Input'),
                     ),
                     _buildFeatureCard(
-                      icon: Icons.insights_rounded,
-                      iconColor: const Color(0xFF00897B),
-                      title: 'AgriSense DSS',
-                      description:
-                          'Analyze oversupply risk with OSI and crop alternatives',
-                      buttonText: 'Open AgriSense',
-                      onTap: () => _navigateToFeature(context, 'AgriSense DSS'),
-                    ),
-                    _buildFeatureCard(
-                      icon: Icons.shopping_bag_rounded,
-                      iconColor: const Color(0xFFEA8A1A),
-                      title: 'Buyer Demands',
-                      description: 'View institutional buyer requests from MAO — LGU canteens, cooperatives, processors.',
-                      buttonText: 'View Buyers',
-                      onTap: () => _navigateToFeature(context, 'Buyer Demands'),
-                    ),
-                    _buildFeatureCard(
-                      icon: Icons.storefront_rounded,
-                      iconColor: const Color(0xFF00A86B),
-                      title: 'My Market',
-                      description:
-                          'View market endorsements linked to your plantings',
-                      buttonText: 'Open Market',
-                      onTap: () => _navigateToFeature(context, 'My Market'),
-                    ),
-                    _buildFeatureCard(
                       icon: Icons.person_rounded,
                       iconColor: const Color(0xFF1B7737),
                       title: 'My Profile',
@@ -162,22 +136,6 @@ class FarmerDashboardScreen extends StatelessWidget {
                       description: 'View MAR, PPI, and IUR indicators for your crops. Know your saturation risk.',
                       buttonText: 'View Signals',
                       onTap: () => _navigateToFeature(context, 'Market Signals'),
-                    ),
-                    _buildFeatureCard(
-                      icon: Icons.upload_rounded,
-                      iconColor: const Color(0xFF2563EB),
-                      title: 'Report Harvest',
-                      description: 'Submit actual yield, quantity sold, unsold stock, and price received.',
-                      buttonText: 'Report Harvest',
-                      onTap: () => _navigateToFeature(context, 'Harvest Report'),
-                    ),
-                    _buildFeatureCard(
-                      icon: Icons.grass,
-                      iconColor: const Color(0xFF4CAF50),
-                      title: 'Predictive Planting',
-                      description: 'Submit your crop schedule for saturation validation.',
-                      buttonText: 'Crop Schedule',
-                      onTap: () => _navigateToFeature(context, 'AgriSense Seasonal Crops'),
                     ),
                     _buildFeatureCard(
                       icon: Icons.map_rounded,
