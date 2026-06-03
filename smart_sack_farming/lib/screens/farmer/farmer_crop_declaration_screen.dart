@@ -4,7 +4,12 @@ import 'package:intl/intl.dart';
 import '../../data/hvc_master_list.dart';
 import '../../data/tubungan_barangays.dart';
 import '../../data/agrisat_real_data.dart';
+import '../../data/financial_model_assumptions.dart';
 import '../../services/crop_declaration_service.dart';
+import '../../services/agri_forecast_engine.dart';
+
+final _phpFmt = NumberFormat('#,##0', 'en_PH');
+final _phpFmtD = NumberFormat('#,##0.00', 'en_PH');
 
 const _kGreen = Color(0xFF1B7737);
 const _kGreenLight = Color(0xFFE7F1E8);
@@ -710,6 +715,11 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
         _selectedCrop == null
             ? _buildInsightsPlaceholder()
             : _buildInsightsContent(_selectedCrop!.nameEnglish),
+        // ── FR02: Financial Forecast Preview ────────────────────────────────
+        if (_selectedCrop != null) ...[
+          const SizedBox(height: 14),
+          _buildFinancialPreview(),
+        ],
       ]),
     );
   }
@@ -888,6 +898,175 @@ class _FarmerCropDeclarationScreenState extends State<FarmerCropDeclarationScree
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         child: _buildInsightsContent(_selectedCrop?.nameEnglish ?? ''),
       ),
+    ]),
+  );
+
+  // ── FR02: Farmer Financial Preview ───────────────────────────────────────────
+  // Shows projected EGP, NSQ, Forecasted Price, NFI, ROI before submission
+  Widget _buildFinancialPreview() {
+    final cropKey = kCropNameToKey[_selectedCrop!.nameEnglish];
+    if (cropKey == null) return const SizedBox.shrink();
+
+    final areaHa = double.tryParse(_areaController.text) ?? 1.0;
+    final monthlyDemand = kMonthlyDemand[cropKey] ?? 50000.0;
+    final forecast = AgriForecastEngine.computeFarmerForecast(
+      cropKey: cropKey,
+      farmSizeHa: areaHa,
+      municipalSupplyKg: monthlyDemand, // use demand as proxy supply for new declaration
+    );
+
+    final nfiPositive = forecast.nfi >= 0;
+    final msiColor = Color(forecast.msiStatus.colorValue);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF86EFAC)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header
+        Row(children: [
+          const Icon(Icons.calculate_rounded, color: Color(0xFF16A34A), size: 15),
+          const SizedBox(width: 6),
+          const Expanded(child: Text('Financial Forecast',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF166534)))),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(color: const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(4)),
+            child: const Text('PRE-PLANTING', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Color(0xFF15803D))),
+          ),
+        ]),
+        const SizedBox(height: 2),
+        Text('${areaHa.toStringAsFixed(1)} ha · ${_selectedCrop!.nameEnglish}',
+            style: const TextStyle(fontSize: 10, color: Color(0xFF4B5563))),
+        const Divider(height: 14, color: Color(0xFFBBF7D0)),
+
+        // Production section
+        _fRow('Expected Production (EGP)', '${_phpFmt.format(forecast.egpKg)} kg', const Color(0xFF374151)),
+        _fRow('(−) Pre-Harvest Loss', '${_phpFmt.format(forecast.preHarvestLossKg)} kg', const Color(0xFFDC2626)),
+        _fRow('(−) Post-Harvest Loss', '${_phpFmt.format(forecast.postHarvestLossKg)} kg', const Color(0xFFDC2626)),
+        _fRowBold('Net Sellable Qty (NSQ)', '${_phpFmt.format(forecast.nsqKg)} kg', const Color(0xFF1B7737)),
+        const Divider(height: 12, color: Color(0xFFBBF7D0)),
+
+        // Revenue section
+        _fRow('Forecasted Price', '₱${_phpFmtD.format(forecast.forecastedPrice)}/kg', const Color(0xFF374151)),
+        _fRowBold('Gross Revenue', '₱${_phpFmt.format(forecast.grossRevenue)}', const Color(0xFF1B7737)),
+        const Divider(height: 12, color: Color(0xFFBBF7D0)),
+
+        // Cost section
+        _fRow('Est. Production Cost', '₱${_phpFmt.format(forecast.totalProductionCost)}', const Color(0xFFDC2626)),
+        _fRow('Cost per kg', '₱${_phpFmtD.format(forecast.costPerKg)}/kg', const Color(0xFF6B7280)),
+        _fRow('Loss Value', '₱${_phpFmt.format(forecast.lossValue)}', const Color(0xFFF59E0B)),
+        const Divider(height: 12, color: Color(0xFFBBF7D0)),
+
+        // NFI + ROI — highlighted
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: nfiPositive ? const Color(0xFFDCFCE7) : const Color(0xFFFEF2F2),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Column(children: [
+            Row(children: [
+              const Expanded(child: Text('NET FARM INCOME', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF111827)))),
+              Text('₱${_phpFmt.format(forecast.nfi)}',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                      color: nfiPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626))),
+            ]),
+            const SizedBox(height: 4),
+            Row(children: [
+              const Expanded(child: Text('ROI', style: TextStyle(fontSize: 10, color: Color(0xFF6B7280)))),
+              Text('${forecast.roi.toStringAsFixed(1)}%',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                      color: nfiPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626))),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 10),
+
+        // MSI warning — FR03
+        _buildDiversificationNudge(forecast.msi, forecast.msiStatus, msiColor, cropKey),
+
+        const SizedBox(height: 6),
+        const Text('* Based on DA/MAO reference yields and default cost assumptions. '
+            'Actual results vary by season, inputs, and market conditions.',
+            style: TextStyle(fontSize: 9, color: Color(0xFF9CA3AF), height: 1.4)),
+      ]),
+    );
+  }
+
+  // ── FR03: Diversification Nudge ───────────────────────────────────────────────
+  Widget _buildDiversificationNudge(double msi, MsiStatus msiStatus, Color msiColor, String cropKey) {
+    final insight = _kCropInsightData[_selectedCrop?.nameEnglish ?? ''];
+    final alts = insight?.alts ?? [];
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // MSI bar
+      Row(children: [
+        const Text('Market Saturation Index:', style: TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+        const SizedBox(width: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(color: msiColor.withAlpha(25), borderRadius: BorderRadius.circular(4)),
+          child: Text(msi.toStringAsFixed(2),
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: msiColor)),
+        ),
+        const SizedBox(width: 6),
+        Text(msiStatus.label, style: TextStyle(fontSize: 9.5, color: msiColor, fontWeight: FontWeight.w600)),
+      ]),
+      // Nudge warning if saturated
+      if (msi > 1.10) ...[
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: msi > 1.30 ? const Color(0xFFFEF2F2) : const Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: msiColor.withAlpha(80)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(msi > 1.30 ? Icons.warning_rounded : Icons.info_rounded, size: 13, color: msiColor),
+              const SizedBox(width: 4),
+              Expanded(child: Text(
+                msi > 1.30
+                  ? 'CRITICAL: This crop is oversupplied. Price collapse risk is HIGH.'
+                  : 'WARNING: Moderate oversupply risk for this crop.',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: msiColor, height: 1.3),
+              )),
+            ]),
+            if (alts.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              const Text('Consider these lower-saturation alternatives:',
+                  style: TextStyle(fontSize: 9.5, color: Color(0xFF6B7280))),
+              const SizedBox(height: 4),
+              Wrap(spacing: 4, runSpacing: 4, children: alts.map((alt) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: const Color(0xFFE7F1E8), borderRadius: BorderRadius.circular(4)),
+                child: Text(alt, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF1B7737))),
+              )).toList()),
+            ],
+          ]),
+        ),
+      ],
+    ]);
+  }
+
+  Widget _fRow(String label, String value, Color color) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(children: [
+      Expanded(child: Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280)))),
+      Text(value, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color)),
+    ]),
+  );
+
+  Widget _fRowBold(String label, String value, Color color) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(children: [
+      Expanded(child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF374151)))),
+      Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
     ]),
   );
 

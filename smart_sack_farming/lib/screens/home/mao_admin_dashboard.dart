@@ -26,6 +26,9 @@ import '../features/buyer_demand_board_screen.dart';
 import '../mao/agri_command_center.dart';
 import '../mao/crop_intelligence_screen.dart';
 import '../mao/smart_crop_advisor_screen.dart';
+import '../mao/scenario_analysis_screen.dart';
+import '../../data/financial_model_assumptions.dart';
+import '../../services/agri_forecast_engine.dart';
 
 class MaoAdminDashboard extends StatefulWidget {
   const MaoAdminDashboard({super.key});
@@ -427,6 +430,7 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
       const _NavItem('AgriDSS Command Center', Icons.dashboard_customize_rounded),
       const _NavItem('Crop Intelligence', Icons.analytics_outlined),
       const _NavItem('Smart Crop Advisor', Icons.tips_and_updates_rounded),
+      const _NavItem('Scenario Analysis', Icons.auto_graph_rounded),
     ];
 
     return Container(
@@ -688,6 +692,13 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
         );
         setState(() => _selectedNavIndex = 0);
         break;
+      case 17:
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ScenarioAnalysisScreen()),
+        );
+        setState(() => _selectedNavIndex = 0);
+        break;
       default:
         return;
     }
@@ -815,6 +826,8 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
               const SizedBox(height: 14),
               _buildFarmVerificationBanner(context),
               const SizedBox(height: 16),
+              _buildMsiSaturationMatrix(),
+              const SizedBox(height: 14),
               _buildCropDeclarationsPanel(),
               const SizedBox(height: 14),
               _buildIurPpiAlertPanel(),
@@ -878,6 +891,71 @@ class _MaoAdminDashboardState extends State<MaoAdminDashboard> {
         const SizedBox(width: 16),
         Expanded(child: right),
       ],
+    );
+  }
+
+  // ── §8.3  MSI Saturation Matrix ───────────────────────────────────────────────
+  Widget _buildMsiSaturationMatrix() {
+    return _panel(
+      title: 'Market Saturation Index (MSI)',
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(
+            'MSI = Municipal Supply ÷ Monthly Demand. '
+            'Real-time forecast using current declarations + PRD §6.5 thresholds.',
+            style: const TextStyle(fontSize: 11, color: _muted, height: 1.4))),
+          TextButton.icon(
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const ScenarioAnalysisScreen())),
+            icon: const Icon(Icons.auto_graph_rounded, size: 14, color: Color(0xFF1D4ED8)),
+            label: const Text('Run Scenarios', style: TextStyle(fontSize: 11, color: Color(0xFF1D4ED8))),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        // Column headers
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(children: const [
+            Expanded(flex: 3, child: Text('Crop', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _muted))),
+            Expanded(flex: 2, child: Text('MSI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _muted), textAlign: TextAlign.center)),
+            Expanded(flex: 2, child: Text('Status', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _muted))),
+            Expanded(flex: 4, child: Text('Action', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _muted))),
+          ]),
+        ),
+        const Divider(height: 6),
+        ...kFmCropKeys.map((key) {
+          final cropName = kCropKeyToName[key] ?? key;
+          final demand = kMonthlyDemand[key] ?? 50000.0;
+          // Use actual validated declarations volume as municipal supply
+          final declaredKg = _validatedDeclarations
+              .where((d) => d.cropName.toLowerCase().contains(key.split('_').first))
+              .fold(0.0, (s, d) => s + d.estimatedVolumeKg);
+          final supplyKg = declaredKg > 0 ? declaredKg : demand * 0.9; // fallback
+          final msi = AgriForecastEngine.computeMSI(supplyKg, key, 1.0);
+          final status = getMsiStatus(msi);
+          final color = Color(status.colorValue);
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(children: [
+              Expanded(flex: 3, child: Text(cropName,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _text))),
+              Expanded(flex: 2, child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color.withAlpha(25), borderRadius: BorderRadius.circular(6)),
+                  child: Text(msi.toStringAsFixed(2),
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
+                ),
+              )),
+              Expanded(flex: 2, child: Text(status.label,
+                  style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: color, height: 1.3))),
+              Expanded(flex: 4, child: Text(status.action,
+                  style: const TextStyle(fontSize: 9.5, color: _muted, height: 1.3))),
+            ]),
+          );
+        }),
+      ]),
     );
   }
 
