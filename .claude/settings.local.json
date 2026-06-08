@@ -13,7 +13,8 @@
       "Bash(taskkill /F /IM smart_sack_farming.exe /T)",
       "Bash(taskkill /F /IM dartaotruntime.exe)",
       "Bash(head -712 \"c:\\\\Users\\\\kingp\\\\OneDrive\\\\Documents\\\\GitHub\\\\kppractice\\\\smart_sack_farming\\\\lib\\\\screens\\\\admin\\\\agri_financial_mao_screen.dart\")",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "PowerShell(Start-Process powershell -ArgumentList '-NoExit', '-Command', \"cd 'c:\\\\Users\\\\kingp\\\\OneDrive\\\\Documents\\\\GitHub\\\\kppractice\\\\smart_sack_farming'; flutter run -d chrome --web-port 9901\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\Asus\\Documents\\auth"
