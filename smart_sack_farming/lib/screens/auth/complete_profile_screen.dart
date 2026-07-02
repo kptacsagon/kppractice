@@ -75,47 +75,69 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw Exception('User not logged in');
 
+      // Build update data - consistent for all roles
+      final updateData = <String, dynamic>{
+        'profile_complete': true,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
       if (widget.role == UserRole.farmer) {
-        // Call the complete_profile RPC function for farmers
-        final response = await Supabase.instance.client.rpc(
-          'complete_profile',
-          params: {
-            'p_user_id': user.id,
-            'p_address': _addressController.text.trim(),
-            'p_age': _ageController.text.trim().isNotEmpty ? int.parse(_ageController.text.trim()) : null,
-            'p_sex': _selectedSex,
-            'p_date_of_birth': _dateOfBirth != null ? _formatDate(_dateOfBirth!) : null,
-            'p_land_size_ha': _landSizeController.text.trim().isNotEmpty ? double.parse(_landSizeController.text.trim()) : null,
-          },
-        );
-
-        if (response == null) throw Exception('Failed to complete profile');
-
-        final result = response is String ? response : response;
-        print('Profile completion response: $result');
+        // Farmers: save address, age, sex, date of birth, land size
+        if (_addressController.text.trim().isNotEmpty) {
+          updateData['address'] = _addressController.text.trim();
+        }
+        if (_ageController.text.trim().isNotEmpty) {
+          updateData['age'] = int.parse(_ageController.text.trim());
+        }
+        if (_selectedSex != null) {
+          updateData['sex'] = _selectedSex;
+        }
+        if (_dateOfBirth != null) {
+          updateData['date_of_birth'] = _formatDate(_dateOfBirth!);
+        }
+        if (_landSizeController.text.trim().isNotEmpty) {
+          updateData['land_size_ha'] = double.parse(_landSizeController.text.trim());
+        }
       } else if (widget.role == UserRole.buyer) {
-        // For buyers, use direct update (can be enhanced with RPC later)
-        final updateData = <String, dynamic>{
-          if (_contactController.text.trim().isNotEmpty) 'phone': _contactController.text.trim(),
-          if (_addressController.text.trim().isNotEmpty) 'address': _addressController.text.trim(),
-          'profile_complete': true,
-        };
-
-        if (updateData.isNotEmpty) {
-          await Supabase.instance.client.from('profiles').update(updateData).eq('id', user.id);
+        // Buyers: save contact (phone) and organization
+        if (_contactController.text.trim().isNotEmpty) {
+          updateData['phone'] = _contactController.text.trim();
+        }
+        if (_organizationController.text.trim().isNotEmpty) {
+          updateData['organization'] = _organizationController.text.trim();
+        }
+        if (_addressController.text.trim().isNotEmpty) {
+          updateData['address'] = _addressController.text.trim();
         }
       }
 
+      // Direct database update - more reliable than RPC
+      await Supabase.instance.client
+          .from('profiles')
+          .update(updateData)
+          .eq('id', user.id);
+
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _navigateToDashboard();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✓ Profile saved successfully'),
+          backgroundColor: AppTheme.success,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _navigateToDashboard();
+      });
 
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error saving profile: $e'),
+          content: Text('❌ Error saving profile: $e'),
           backgroundColor: AppTheme.error,
         ),
       );
